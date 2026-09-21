@@ -9,6 +9,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Tests are for developing this project, not for anyone consuming it as a subproject.
+option(AMPSIM_BUILD_TESTS "Build the offline DSP tests" ${PROJECT_IS_TOP_LEVEL})
+
 # JUCE is a pinned submodule (9.0.2); see README for the update policy.
 add_subdirectory(external/JUCE)
 
@@ -34,7 +37,6 @@ target_compile_definitions(AmpSim PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
-    JUCE_DISPLAY_SPLASH_SCREEN=0        # requires a JUCE licence that permits it; see README
     JUCE_REPORT_APP_USAGE=0)
 
 target_link_libraries(AmpSim
@@ -45,3 +47,9 @@ target_link_libraries(AmpSim
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
+
+if(AMPSIM_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(external/Catch2)
+    add_subdirectory(tests)
+endif()

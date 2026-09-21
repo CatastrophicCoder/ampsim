@@ -16,7 +16,7 @@ Conventions established in milestone 1, worth following for every block added af
 - Parameter pointers are cached in the constructor, not looked up by string per block.
 - **A freshly constructed `juce::dsp::Gain` sits at 0, not 1.** Call `reset()` after setting a
   smoother's target in `prepareToPlay`, or the block fades in on every playback start. Neither
-  auval nor pluginval catches this.
+  auval nor pluginval catches this; `tests/GainTests.cpp` does.
 - `setStateInformation` touches only the APVTS — it runs on the message thread, and reaching into
   DSP objects from there races with `processBlock`.
 
@@ -49,9 +49,24 @@ auval -v aufx Amp1 Amps                        # AU; plugin code Amp1, manufactu
     --validate build/AmpSim_artefacts/Debug/VST3/AmpSim.vst3
 ```
 
-Both validators pass; run them after any change to the processor, not just before releases — they
-catch threading and state bugs a DAW hides. There is **no test target yet**; Catch2 and `ctest` come
-with the first real DSP block.
+```bash
+ctest --test-dir build                        # all tests
+ctest --test-dir build --output-on-failure
+ctest --test-dir build -R "bypass"            # one test, or a pattern
+```
+
+All three pass. Run `ctest` after any DSP change and the validators after any change to the
+processor shell — they cover different things: the validators catch threading and state bugs a DAW
+hides, `ctest` catches wrong DSP, which the validators never look at.
+
+Tests live in `tests/`, link the `AmpSim` shared-code target (so they test the same objects the
+plugin builds ship) and use Catch2 v3, pinned as a submodule. `tests/TestHelpers.h` has the shared
+fixtures: `makePreparedProcessor()`, `runConstant()` for DC through the chain, `setParam()`, and
+`blocksForRamp()` for waiting out a smoother. Add a new block's tests as their own file in
+`tests/CMakeLists.txt`.
+
+A test is only worth committing if it fails when the behaviour it describes is broken — check that
+by reverting the fix, not by assuming.
 
 `COPY_PLUGIN_AFTER_BUILD` is on, so every build installs into `~/Library/Audio/Plug-Ins/`. Use
 `-DCMAKE_BUILD_TYPE=Release` for anything judged by ear or by CPU load.
@@ -104,12 +119,14 @@ A `.nam` capture is of the whole amp, so there is no insertion point for a true 
 ```
 CMakeLists.txt
 external/JUCE      pinned submodule; NAM Core, Eigen, json join it in milestone 2
+external/Catch2    pinned submodule (v3.9.1)
 src/
   PluginProcessor.h/.cpp
   PluginEditor.h/.cpp
   dsp/             one file per stage: Amp, Cab, Gate, ...   (empty)
   ui/                                                        (empty)
 resources/irs/     bundled IR .wav → BinaryData              (empty)
+tests/             Catch2 suites + TestHelpers.h
 tests/fixtures/    clean DI guitar recordings                (empty)
 ```
 

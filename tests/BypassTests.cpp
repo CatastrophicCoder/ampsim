@@ -1,0 +1,68 @@
+#include "TestHelpers.h"
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/matchers/catch_matchers_floating_point.hpp>
+
+using Catch::Matchers::WithinAbs;
+
+TEST_CASE ("Bypass returns the dry signal whatever the gains are set to", "[bypass]")
+{
+    auto processor = test::makePreparedProcessor();
+    auto& state = processor->getValueTreeState();
+
+    test::setParam (state, ParamID::inputGain, 18.0f);
+    test::setParam (state, ParamID::outputGain, -12.0f);
+    test::setParam (state, ParamID::bypass, 1.0f);
+
+    REQUIRE_THAT (test::runConstant (*processor, test::blocksForRamp (0.02)),
+                  WithinAbs (0.5, 1.0e-6));
+}
+
+TEST_CASE ("Toggling bypass crossfades rather than stepping", "[bypass]")
+{
+    auto processor = test::makePreparedProcessor();
+    auto& state = processor->getValueTreeState();
+
+    test::setParam (state, ParamID::outputGain, 12.0f);
+
+    juce::AudioBuffer<float> buffer (processor->getTotalNumOutputChannels(), test::blockSize);
+    juce::MidiBuffer midi;
+
+    float worstJump = 0.0f, previous = 0.0f;
+    bool first = true;
+
+    for (int b = 0; b < 40; ++b)
+    {
+        if (b == 10) test::setParam (state, ParamID::bypass, 1.0f);
+        if (b == 25) test::setParam (state, ParamID::bypass, 0.0f);
+
+        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+            juce::FloatVectorOperations::fill (buffer.getWritePointer (ch), 0.5f, test::blockSize);
+
+        processor->processBlock (buffer, midi);
+
+        for (int i = 0; i < test::blockSize; ++i)
+        {
+            const auto sample = buffer.getSample (0, i);
+
+            if (! first)
+                worstJump = juce::jmax (worstJump, std::abs (sample - previous));
+
+            previous = sample;
+            first = false;
+        }
+    }
+
+    // Switching +12 dB straight to dry would jump ~1.5.
+    REQUIRE (worstJump < 0.01f);
+}
+
+TEST_CASE ("The bypass parameter is exposed to the host", "[bypass]")
+{
+    AmpSimAudioProcessor processor;
+
+    auto* bypass = processor.getBypassParameter();
+
+    REQUIRE (bypass != nullptr);
+    REQUIRE (bypass == processor.getValueTreeState().getParameter (ParamID::bypass));
+}

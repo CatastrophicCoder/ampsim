@@ -16,6 +16,7 @@ See [`ampsim_plan.md`](ampsim_plan.md) for the goal, architecture and milestones
 | CMake | 4.4.3 (JUCE needs ≥ 3.22) | `brew install cmake` |
 | Ninja | 1.13.2 | `brew install ninja` |
 | JUCE | 9.0.2, pinned submodule | `git submodule update --init` |
+| Catch2 | v3.9.1, pinned submodule | `git submodule update --init` |
 | pluginval | 1.0.4 | `brew install --cask pluginval` |
 
 Full Xcode is *not* required: the Command Line Tools are enough to build and validate all three
@@ -37,6 +38,21 @@ cmake --build build --target AmpSim_Standalone    # or one at a time
 Use `-DCMAKE_BUILD_TYPE=Release` for anything you intend to listen to critically — the Debug build
 is much slower and will not represent real CPU load once NAM is in the chain.
 
+## Test
+
+```sh
+cmake --build build --target AmpSimTests
+ctest --test-dir build                        # all tests
+ctest --test-dir build --output-on-failure    # with output from failures
+ctest --test-dir build -R "bypass"            # one test, or a pattern
+ctest --test-dir build -N                     # list without running
+```
+
+The tests link the plugin's shared-code target, so they exercise the same objects the AU, VST3 and
+Standalone builds do. They check DSP behaviour offline — gain values, ramp continuity, state
+round-trips — which is the layer `auval` and `pluginval` do not look at. Pass `-DAMPSIM_BUILD_TESTS=OFF`
+to skip building them.
+
 ## Validate
 
 ```sh
@@ -45,8 +61,8 @@ auval -v aufx Amp1 Amps                                                   # AU
     --validate build/AmpSim_artefacts/Debug/VST3/AmpSim.vst3              # VST3
 ```
 
-Both pass as of milestone 0. Run them on every build; they catch threading and state bugs that a
-DAW hides.
+Both pass. Run them on every build; they catch threading and state bugs that a DAW hides — but not
+wrong DSP, which is what `ctest` is for.
 
 ## CLion
 
@@ -66,6 +82,6 @@ JUCE 8 and later are dual-licensed: AGPLv3, or a free Personal tier below a reve
 this project uses is **not yet decided** (it is an open question in the plan), and it determines
 whether this repository can be made public.
 
-`JUCE_DISPLAY_SPLASH_SCREEN=0` in `CMakeLists.txt` is only permitted under some of those terms —
-read the current licence at juce.com before distributing a build with it disabled, or set it back
-to `1`.
+JUCE 9 has no splash screen, so `JUCE_DISPLAY_SPLASH_SCREEN` is obsolete and the build warns if it
+is set. Nothing in the build needs to be changed to satisfy either licence; the choice is about
+what you may do with a distributed binary.

@@ -68,6 +68,30 @@ Worth knowing:
 
 Still open before milestone 2:
 
-- No test target in the repo yet. The offline harness that caught the fade-in bug was throwaway;
-  promoting it to `tests/` with Catch2 and `ctest` is worth doing before the NAM work.
 - Still not opened in a DAW or run as a standalone app.
+
+## 2026-09-22 — Test infrastructure
+
+Done:
+
+- Catch2 v3.9.1 added as a pinned submodule at `external/Catch2`; `enable_testing()` and
+  `catch_discover_tests` in CMake, so every `TEST_CASE` is its own CTest entry and
+  `ctest -R <pattern>` runs one.
+- `tests/` with `TestHelpers.h` (prepared processor, DC runner, parameter setters, ramp-length
+  helper) and three suites: `GainTests`, `BypassTests`, `StateTests`. 11 tests, all passing.
+- The throwaway harness from milestone 1 is now redundant and gone.
+- `AMPSIM_BUILD_TESTS` option, defaulting to on only when this is the top-level project.
+
+Worth knowing:
+
+- The tests link the `AmpSim` shared-code target rather than recompiling `src/`, so they exercise
+  the same objects the AU/VST3/Standalone builds do. A test file only needs
+  `target_include_directories` pointing at `src/`.
+- Catch2 needs our own `main()` (`tests/TestMain.cpp`) holding a `ScopedJuceInitialiser_GUI` for the
+  whole session — constructing an `AudioProcessor` without it trips the leak detector at shutdown.
+- `GENERATE` lives in `<catch2/generators/catch_generators.hpp>`, not in `catch_test_macros.hpp`.
+- The suite was checked against the bug it was written for: reverting the `Gain::reset()` fix makes
+  two tests fail, so they are not vacuous. Do this for any test worth committing.
+- **JUCE 9 has no splash screen at all** — `JUCE_DISPLAY_SPLASH_SCREEN` is obsolete and the build
+  warns when it is set. Removed from `CMakeLists.txt`, and the README's licensing note corrected:
+  nothing in the build needs changing for either JUCE licence.
