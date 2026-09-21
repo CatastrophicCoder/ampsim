@@ -49,6 +49,16 @@ AmpSimAudioProcessor::AmpSimAudioProcessor()
     bypassParam     = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::bypass));
 
     jassert (inputGainParam != nullptr && outputGainParam != nullptr && bypassParam != nullptr);
+
+    modelLoader.onFinished = [this] (ModelLoader::Result)
+    {
+        if (onModelChanged != nullptr)
+            onModelChanged();
+    };
+
+    // Reaps models the audio thread has swapped out, and keeps the reported latency in step
+    // with whatever model is now running.
+    startTimer (200);
 }
 
 void AmpSimAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
@@ -75,11 +85,48 @@ void AmpSimAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     bypassMix.setCurrentAndTargetValue (bypassParam->get() ? 1.0f : 0.0f);
 
     dryBuffer.setSize (getTotalNumOutputChannels(), samplesPerBlock, false, false, true);
+    monoBuffer.setSize (1, samplesPerBlock, false, false, true);
+
+    ampModel.prepare (sampleRate, samplesPerBlock);
+    ampModel.reset();
+
+    reportedLatency = ampModel.getLatencySamples();
+    setLatencySamples (reportedLatency);
 }
 
 void AmpSimAudioProcessor::releaseResources()
 {
     dryBuffer.setSize (0, 0);
+    monoBuffer.setSize (0, 0);
+}
+
+void AmpSimAudioProcessor::timerCallback()
+{
+    ampModel.collectRetiredModel();
+
+    const auto latency = ampModel.getLatencySamples();
+
+    if (latency != reportedLatency)
+    {
+        reportedLatency = latency;
+        setLatencySamples (latency);
+    }
+}
+
+void AmpSimAudioProcessor::loadModel (const juce::File& file)
+{
+    // Recorded now rather than on success, so the session remembers which model it wants even if
+    // the file is missing on this machine — the user can then put it back.
+    apvts.state.setProperty (StateID::modelPath, file.getFullPathName(), nullptr);
+
+    modelLoader.loadAsync (file);
+}
+
+juce::File AmpSimAudioProcessor::getModelFile() const
+{
+    const auto path = apvts.state.getProperty (StateID::modelPath).toString();
+
+    return path.isEmpty() ? juce::File() : juce::File (path);
 }
 
 bool AmpSimAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -135,7 +182,20 @@ void AmpSimAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
 
     inputGain.process (context);
 
-    // Milestone 2 onwards: the amp, cab and pedal chain go here.
+    // The chain is mono up to the cab (milestone 3), so the model sees one signal. A stereo
+    // input is summed to mono first, and the result is copied back to every output channel.
+    auto* mono = monoBuffer.getWritePointer (0);
+    juce::FloatVectorOperations::copy (mono, buffer.getReadPointer (0), numSamples);
+
+    for (int ch = 1; ch < getTotalNumInputChannels(); ++ch)
+        juce::FloatVectorOperations::add (mono, buffer.getReadPointer (ch), numSamples);
+
+    if (getTotalNumInputChannels() > 1)
+        juce::FloatVectorOperations::multiply (mono, 1.0f / (float) getTotalNumInputChannels(), numSamples);
+
+    if (ampModel.process (mono, numSamples))
+        for (int ch = 0; ch < numChannels; ++ch)
+            juce::FloatVectorOperations::copy (buffer.getWritePointer (ch), mono, numSamples);
 
     outputGain.process (context);
 
@@ -177,6 +237,9 @@ void AmpSimAudioProcessor::setStateInformation (const void* data, int sizeInByte
     // objects are left alone — processBlock picks the new values up on its next call and
     // ramps to them, which is also what stops a preset change from clicking.
     apvts.replaceState (juce::ValueTree::fromXml (*xml));
+
+    if (const auto file = getModelFile(); file != juce::File())
+        loadModel (file);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

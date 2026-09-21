@@ -6,7 +6,8 @@ The amp tone comes from a pre-trained [Neural Amp Modeler](https://github.com/sd
 
 See [`ampsim_plan.md`](ampsim_plan.md) for the goal, architecture and milestones.
 
-**Status: milestone 1 (gain + bypass).** Input and output gain with a click-free bypass, saved and restored with the session. No amp, cab or pedals yet.
+**Status: milestone 2 (NAM model playing).** Loads a `.nam` model off the audio thread, runs it at
+the rate it was trained at, and remembers it with the session. No cab or pedals yet.
 
 ## Requirements
 
@@ -15,8 +16,9 @@ See [`ampsim_plan.md`](ampsim_plan.md) for the goal, architecture and milestones
 | Xcode Command Line Tools | Apple clang 17 | `xcode-select --install` |
 | CMake | 4.4.3 (JUCE needs ≥ 3.22) | `brew install cmake` |
 | Ninja | 1.13.2 | `brew install ninja` |
-| JUCE | 9.0.2, pinned submodule | `git submodule update --init` |
-| Catch2 | v3.9.1, pinned submodule | `git submodule update --init` |
+| JUCE | 9.0.2, pinned submodule | `git submodule update --init --recursive` |
+| NeuralAmpModelerCore | v0.5.4, pinned submodule (brings Eigen and nlohmann/json) | as above |
+| Catch2 | v3.9.1, pinned submodule | as above |
 | pluginval | 1.0.4 | `brew install --cask pluginval` |
 
 Full Xcode is *not* required: the Command Line Tools are enough to build and validate all three
@@ -25,7 +27,7 @@ formats. `auval` ships with macOS.
 ## Build
 
 ```sh
-git submodule update --init                       # first checkout only
+git submodule update --init --recursive           # first checkout only; NAM has its own submodules
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 cmake --build build                               # all three formats
 cmake --build build --target AmpSim_Standalone    # or one at a time
@@ -37,6 +39,16 @@ cmake --build build --target AmpSim_Standalone    # or one at a time
 
 Use `-DCMAKE_BUILD_TYPE=Release` for anything you intend to listen to critically — the Debug build
 is much slower and will not represent real CPU load once NAM is in the chain.
+
+## Using it
+
+Click **Load model...** and pick a `.nam` file. NAM Core's own example models are in
+`external/NeuralAmpModelerCore/example_models/`, and the public model libraries linked from the
+[Neural Amp Modeler](https://github.com/sdatkinson/neural-amp-modeler) project work too.
+
+The model runs at the sample rate it was trained at (usually 48 kHz). At any other session rate the
+plugin converts in and out, and reports the resulting latency for the host to compensate — about
+220 samples at 44.1 kHz.
 
 ## Test
 

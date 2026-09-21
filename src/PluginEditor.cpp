@@ -38,7 +38,56 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
     addAndMakeVisible (outputKnob);
     addAndMakeVisible (bypassButton);
 
-    setSize (420, 260);
+    loadModelButton.onClick = [this]
+    {
+        // Held as a member: the chooser has to outlive this call, since it runs asynchronously.
+        fileChooser = std::make_unique<juce::FileChooser> ("Load a NAM model",
+                                                           processorRef.getModelFile(),
+                                                           "*.nam");
+
+        fileChooser->launchAsync (juce::FileBrowserComponent::openMode
+                                      | juce::FileBrowserComponent::canSelectFiles,
+                                  [this] (const juce::FileChooser& chooser)
+                                  {
+                                      const auto file = chooser.getResult();
+
+                                      if (file != juce::File())
+                                          processorRef.loadModel (file);
+                                  });
+    };
+    addAndMakeVisible (loadModelButton);
+
+    modelLabel.setJustificationType (juce::Justification::centred);
+    addAndMakeVisible (modelLabel);
+
+    // The load finishes on a background thread, so the editor is told rather than polling.
+    processorRef.onModelChanged = [this] { updateModelDisplay(); };
+    updateModelDisplay();
+
+    setSize (420, 320);
+}
+
+AmpSimAudioProcessorEditor::~AmpSimAudioProcessorEditor()
+{
+    processorRef.onModelChanged = nullptr;
+}
+
+void AmpSimAudioProcessorEditor::updateModelDisplay()
+{
+    const auto error = processorRef.getModelError();
+
+    if (error.isNotEmpty())
+    {
+        modelLabel.setText (error, juce::dontSendNotification);
+        modelLabel.setColour (juce::Label::textColourId, juce::Colours::orangered);
+        return;
+    }
+
+    const auto file = processorRef.getModelFile();
+
+    modelLabel.setText (file == juce::File() ? "No model loaded" : file.getFileNameWithoutExtension(),
+                        juce::dontSendNotification);
+    modelLabel.setColour (juce::Label::textColourId, juce::Colours::whitesmoke);
 }
 
 void AmpSimAudioProcessorEditor::paint (juce::Graphics& g)
@@ -59,6 +108,10 @@ void AmpSimAudioProcessorEditor::resized()
 
     auto footer = area.removeFromBottom (labelHeight + margin);
     bypassButton.setBounds (footer.withSizeKeepingCentre (110, labelHeight));
+
+    modelLabel.setBounds (area.removeFromBottom (labelHeight));
+    loadModelButton.setBounds (area.removeFromBottom (labelHeight + margin / 2)
+                                   .withSizeKeepingCentre (150, labelHeight));
 
     const auto knobWidth = area.getWidth() / 2;
     inputKnob .setBounds (area.removeFromLeft (knobWidth).reduced (margin / 2, 0));

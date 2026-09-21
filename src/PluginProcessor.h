@@ -1,5 +1,8 @@
 #pragma once
 
+#include "ModelLoader.h"
+#include "dsp/AmpModel.h"
+
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
 
@@ -16,12 +19,20 @@ namespace ParamID
     inline constexpr const char* bypass     = "bypass";
 }
 
-/** Milestone 1: input gain → (chain) → output gain, with a click-free bypass.
+/** Non-automatable state, stored as properties on the APVTS tree rather than as parameters:
+    a file path is not something a host can sweep. */
+namespace StateID
+{
+    inline constexpr const char* modelPath = "modelPath";
+}
 
-    The chain itself is still empty; the plumbing here — APVTS, smoothing, dry/wet crossfade,
-    state save/reload — is what the later milestones hang their DSP off.
+/** Milestone 2: input gain → NAM amp model → output gain, with a click-free bypass.
+
+    The model runs at the rate it was trained at, so the plugin reports the resampling latency to
+    the host. Cab and pedals follow in later milestones.
 */
-class AmpSimAudioProcessor final : public juce::AudioProcessor
+class AmpSimAudioProcessor final : public juce::AudioProcessor,
+                                   private juce::Timer
 {
 public:
     AmpSimAudioProcessor();
@@ -56,7 +67,23 @@ public:
 
     juce::AudioProcessorValueTreeState& getValueTreeState() { return apvts; }
 
+    //==============================================================================
+    /** Message thread. Starts a background load; the model arrives in the audio thread later. */
+    void loadModel (const juce::File& file);
+
+    /** The model file currently loaded or being loaded, or a non-existent File if none. */
+    juce::File getModelFile() const;
+
+    bool isModelLoaded() const noexcept { return ampModel.hasModel(); }
+
+    /** Last load error, empty if the last load succeeded or none has been attempted. */
+    juce::String getModelError() const { return modelLoader.getLastError(); }
+
+    /** Called on the message thread whenever the model or its error state changes. */
+    std::function<void()> onModelChanged;
+
 private:
+    void timerCallback() override;
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
     juce::AudioProcessorValueTreeState apvts;
@@ -71,8 +98,13 @@ private:
     // 1 = fully bypassed. Ramped so toggling bypass cannot click.
     juce::SmoothedValue<float> bypassMix;
 
-    // Pre-allocated dry copy for the crossfade; never resized on the audio thread.
-    juce::AudioBuffer<float> dryBuffer;
+    // Pre-allocated scratch; never resized on the audio thread.
+    juce::AudioBuffer<float> dryBuffer;    // dry copy for the bypass crossfade
+    juce::AudioBuffer<float> monoBuffer;   // the mono signal the amp model sees
+
+    AmpModel ampModel;
+    ModelLoader modelLoader { ampModel };
+    int reportedLatency = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AmpSimAudioProcessor)
 };

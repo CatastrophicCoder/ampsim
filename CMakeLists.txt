@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.22)
+cmake_minimum_required(VERSION 3.24)   # 3.24 for $<LINK_LIBRARY:WHOLE_ARCHIVE>, see nam_core below
 
 # Must be set before project(): JUCE bakes the deployment target into the plugin bundles.
 set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
@@ -14,6 +14,33 @@ option(AMPSIM_BUILD_TESTS "Build the offline DSP tests" ${PROJECT_IS_TOP_LEVEL})
 
 # JUCE is a pinned submodule (9.0.2); see README for the update policy.
 add_subdirectory(external/JUCE)
+
+# --- Neural Amp Modeler Core -------------------------------------------------
+# Built here rather than via NAM's own CMakeLists, which sets global compiler flags and builds
+# its tools and tests. Sources are globbed the way nam-juce does it.
+set(NAM_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/NeuralAmpModelerCore)
+file(GLOB NAM_SOURCES ${NAM_DIR}/NAM/*.cpp ${NAM_DIR}/NAM/*/*.cpp)
+
+add_library(nam_core STATIC ${NAM_SOURCES})
+
+# SYSTEM: NAM and Eigen are not ours to keep warning-clean.
+target_include_directories(nam_core SYSTEM PUBLIC
+    ${NAM_DIR}
+    ${NAM_DIR}/NAM
+    ${NAM_DIR}/Dependencies/eigen
+    ${NAM_DIR}/Dependencies/nlohmann)
+
+# NAM_SAMPLE becomes float, matching JUCE's buffers — without this NAM processes in double
+# and every block needs a conversion.
+target_compile_definitions(nam_core PUBLIC NAM_SAMPLE_FLOAT DSP_SAMPLE_FLOAT)
+
+# NAM registers its architectures (WaveNet, LSTM, ConvNet, Linear) with file-scope static objects
+# in their own .cpp files. Nothing references those objects, so a normal static-library link drops
+# the whole translation unit and loading any model fails with "No config parser registered for
+# architecture". Link the archive whole to keep them.
+set(NAM_CORE_WHOLE $<LINK_LIBRARY:WHOLE_ARCHIVE,nam_core>)
+target_compile_features(nam_core PUBLIC cxx_std_20)
+set_target_properties(nam_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 juce_add_plugin(AmpSim
     PRODUCT_NAME                "AmpSim"
@@ -31,7 +58,11 @@ juce_add_plugin(AmpSim
 
 target_sources(AmpSim PRIVATE
     src/PluginProcessor.cpp
-    src/PluginEditor.cpp)
+    src/PluginEditor.cpp
+    src/ModelLoader.cpp
+    src/dsp/AmpModel.cpp)
+
+target_include_directories(AmpSim PUBLIC src)
 
 target_compile_definitions(AmpSim PUBLIC
     JUCE_WEB_BROWSER=0
@@ -41,6 +72,7 @@ target_compile_definitions(AmpSim PUBLIC
 
 target_link_libraries(AmpSim
     PRIVATE
+        ${NAM_CORE_WHOLE}
         juce::juce_audio_utils
         juce::juce_dsp
     PUBLIC

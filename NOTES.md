@@ -66,7 +66,7 @@ Worth knowing:
 - The bypass crossfade uses `applyGainRamp` / `addFromWithRamp` on the whole block rather than a
   per-sample loop, which is only valid because the smoothing is linear.
 
-Still open before milestone 2:
+Still open:
 
 - Still not opened in a DAW or run as a standalone app.
 
@@ -95,3 +95,55 @@ Worth knowing:
 - **JUCE 9 has no splash screen at all** — `JUCE_DISPLAY_SPLASH_SCREEN` is obsolete and the build
   warns when it is set. Removed from `CMakeLists.txt`, and the README's licensing note corrected:
   nothing in the build needs changing for either JUCE licence.
+
+## 2026-09-22 — Milestone 2: NAM model playing
+
+Done:
+
+- NeuralAmpModelerCore v0.5.4 as a pinned submodule (it brings Eigen and nlohmann/json as its own
+  submodules, so fresh clones need `--recursive`), built as a `nam_core` static library.
+- `AmpModel` + `LoadedModel`: model and its resampler prepared together on a loader thread, swapped
+  into the audio thread by pointer under a 10 ms mute, handed back for the message thread to delete.
+- `ModelResampler`: windowed-sinc conversion host ↔ model rate with FIFOs both sides, bypassed when
+  the rates match, exact latency reporting.
+- `ModelLoader`: background thread, error text readable from any thread.
+- Model path saved on the APVTS tree as a property and reloaded with the session; "Load model..."
+  button and a model/error label in the editor.
+- 13 new tests (24 total). auval and pluginval --strictness-level 10 still pass.
+
+Worth knowing:
+
+- **NAM registers its architectures (WaveNet, LSTM, ConvNet, Linear) with file-scope static
+  objects.** Nothing references them, so a normal static-library link discards the whole translation
+  unit and every load fails with "No config parser registered for architecture: WaveNet". Fixed by
+  linking `nam_core` with `$<LINK_LIBRARY:WHOLE_ARCHIVE,...>`, which needed CMake 3.24. JUCE does
+  not force-load its own shared-code archive, so this had to be handled explicitly.
+- **The resampler's output FIFO used the wrong ratio** (`hostPerModel` where it needed
+  `modelPerHost`). At 44.1 kHz the FIFO happened to hold enough anyway and it worked; at 88.2 and
+  96 kHz it starved every block, and the measured latency was ~770 samples worse than reported.
+  Caught by the impulse-latency test once it was run at more than one rate. Lesson: a rate
+  conversion test that only tries one rate proves very little.
+- A model and its resampler have to be one object. The first design kept the resampler in AmpModel
+  and only swapped the `nam::DSP`, which meant a model loaded into a chain configured for a
+  different rate ran with the wrong conversion — latency reported 0 after every swap.
+- The editor and tests read load state (`getModelError()`) straight from the loader under a lock
+  rather than via `callAsync`, so no test needs a running message loop.
+  `MessageManager::runDispatchLoopUntil()` would have needed `JUCE_MODAL_LOOPS_PERMITTED=1`, which
+  is not something to turn on in a plugin just to make tests work.
+
+CPU, measured on this machine (Release, 48 kHz, percentage of one core, 10 s of audio):
+
+| Model | 64 | 128 | 512 |
+| --- | --- | --- | --- |
+| wavenet.nam (tiny example) | 0.35% | 0.25% | 0.30% |
+| lstm.nam | 0.34% | 0.35% | 0.35% |
+| wavenet_a1_standard.nam | 5.3% | 5.0% | 5.3% |
+| A2.nam | 3.1% | 2.7% | 2.5% |
+
+A standard WaveNet at a 64-sample buffer costs about 5% of one core, so model size is not a
+constraint for this project; the plan's open CPU question is answered.
+
+Still open:
+
+- Not yet opened in a DAW or run as a standalone app.
+- The chain sums to mono before the model, since NAM is mono and the cab comes later.

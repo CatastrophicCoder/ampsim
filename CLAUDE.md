@@ -4,12 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-**Milestone 1 is done.** `AmpSimAudioProcessor` has an APVTS with `inputGain`, `outputGain` and
-`bypass`, two `juce::dsp::Gain` stages, a ramped dry/wet bypass crossfade, working state
-save/reload, and a two-knob editor. The signal chain between the gains is still empty — milestone 2
-(NAM model playing) is next.
+**Milestone 2 is done.** On top of milestone 1's gain/bypass shell, the chain now runs a NAM model:
+`.nam` files load on a background thread, run at their own sample rate with conversion either side,
+and the model path is saved with the session. Milestone 3 (cab IR loader) is next.
 
-Conventions established in milestone 1, worth following for every block added after it:
+Conventions worth following for every block added after this point:
 
 - Parameter IDs live in `namespace ParamID` in `PluginProcessor.h`. Never change an existing ID or
   its version hint; a saved session looks parameters up by ID.
@@ -18,7 +17,36 @@ Conventions established in milestone 1, worth following for every block added af
   smoother's target in `prepareToPlay`, or the block fades in on every playback start. Neither
   auval nor pluginval catches this; `tests/GainTests.cpp` does.
 - `setStateInformation` touches only the APVTS — it runs on the message thread, and reaching into
-  DSP objects from there races with `processBlock`.
+  DSP objects from there races with `processBlock`. Non-automatable state (file paths) goes on the
+  APVTS tree as a property, listed in `namespace StateID`, not as a parameter.
+- Anything expensive — parsing, allocating, `Reset()`, prewarming — happens on a loader thread and
+  reaches the audio thread as a finished object swapped in by pointer. See `AmpModel`.
+
+## The model chain
+
+`AmpModel` owns a `LoadedModel` (a `nam::DSP` plus the `ModelResampler` configured for it). They are
+one object because the conversion depends on the model's own rate, so swapping a model would
+otherwise mean rebuilding the resampler — an allocation — on the audio thread.
+
+Thread rules, which the whole design turns on:
+
+- **Loader thread** (`ModelLoader`) parses the file, calls `AmpModel::prepareForLoading()` (which
+  allocates and prewarms) and publishes with `setPendingModel()`.
+- **Audio thread** takes it in `process()`, under a 10 ms mute so the change cannot click, and hands
+  the old one back. It refuses to start a swap while a retired model is still uncollected — that is
+  what keeps the hand-back slot a single pointer instead of a queue, and why the audio thread never
+  deletes anything.
+- **Message thread** reaps it in `collectRetiredModel()`, on a 200 ms timer in the processor, which
+  also keeps `setLatencySamples()` in step.
+
+`ModelResampler` converts host rate → model rate and back with windowed-sinc interpolation, through
+FIFOs on both sides because the two conversions do not line up sample for sample. It is bypassed
+entirely when the host already runs at the model's rate. Its reported latency is exact — the tests
+measure the real delay with an impulse and compare.
+
+**NAM registers its architectures with file-scope statics**, so `nam_core` must be linked with
+`$<LINK_LIBRARY:WHOLE_ARCHIVE,...>` (the `NAM_CORE_WHOLE` variable). A normal static link drops those
+translation units and every model fails with "No config parser registered for architecture".
 
 `ampsim_plan.md` is the source of truth for scope, architecture and sequencing; `NOTES.md` is the
 running session log, and gets an entry per working session. Read the plan before implementation
@@ -120,10 +148,12 @@ A `.nam` capture is of the whole amp, so there is no insertion point for a true 
 CMakeLists.txt
 external/JUCE      pinned submodule; NAM Core, Eigen, json join it in milestone 2
 external/Catch2    pinned submodule (v3.9.1)
+external/NeuralAmpModelerCore  pinned submodule (v0.5.4), with Eigen and nlohmann/json
 src/
   PluginProcessor.h/.cpp
   PluginEditor.h/.cpp
-  dsp/             one file per stage: Amp, Cab, Gate, ...   (empty)
+  ModelLoader.h/.cpp
+  dsp/AmpModel.h/.cpp, ModelResampler.h
   ui/                                                        (empty)
 resources/irs/     bundled IR .wav → BinaryData              (empty)
 tests/             Catch2 suites + TestHelpers.h

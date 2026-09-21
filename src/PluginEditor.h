@@ -29,7 +29,7 @@ class AmpSimAudioProcessorEditor final : public juce::AudioProcessorEditor
 {
 public:
     explicit AmpSimAudioProcessorEditor (AmpSimAudioProcessor&);
-    ~AmpSimAudioProcessorEditor() override = default;
+    ~AmpSimAudioProcessorEditor() override;
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -37,9 +37,15 @@ public:
 private:
     AmpSimAudioProcessor& processorRef;
 
+    void updateModelDisplay();
+
     LabelledKnob inputKnob, outputKnob;
     juce::ToggleButton bypassButton { "Bypass" };
     juce::AudioProcessorValueTreeState::ButtonAttachment bypassAttachment;
+
+    juce::TextButton loadModelButton { "Load model..." };
+    juce::Label modelLabel;
+    std::unique_ptr<juce::FileChooser> fileChooser;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AmpSimAudioProcessorEditor)
 };

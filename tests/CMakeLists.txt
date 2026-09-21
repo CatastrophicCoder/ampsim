@@ -5,13 +5,20 @@ add_executable(AmpSimTests
     TestMain.cpp
     GainTests.cpp
     BypassTests.cpp
-    StateTests.cpp)
+    StateTests.cpp
+    ResamplerTests.cpp
+    ModelTests.cpp)
+
+# NAM Core ships example models; the tests use them rather than carrying a copy.
+target_compile_definitions(AmpSimTests PRIVATE
+    AMPSIM_TEST_MODEL_DIR="${CMAKE_SOURCE_DIR}/external/NeuralAmpModelerCore/example_models")
 
 target_include_directories(AmpSimTests PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
 target_link_libraries(AmpSimTests
     PRIVATE
         AmpSim                  # the plugin's shared code, with its JucePlugin_* defines
+        ${NAM_CORE_WHOLE}
         Catch2::Catch2
         juce::juce_audio_utils
         juce::juce_dsp
