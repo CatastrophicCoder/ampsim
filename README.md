@@ -6,7 +6,7 @@ The amp tone comes from a pre-trained [Neural Amp Modeler](https://github.com/sd
 
 See [`ampsim_plan.md`](ampsim_plan.md) for the goal, architecture and milestones.
 
-**Status: milestone 0 (toolchain).** The plugin currently passes audio through unchanged.
+**Status: milestone 1 (gain + bypass).** Input and output gain with a click-free bypass, saved and restored with the session. No amp, cab or pedals yet.
 
 ## Requirements
 

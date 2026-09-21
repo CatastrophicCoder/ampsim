@@ -31,3 +31,43 @@ Still open before milestone 1:
 
 - Which DAW is the primary test host — the AU and VST3 have been validated but not yet opened in one.
 - The JUCE licence question (see README), which gates making the repo public.
+
+## 2026-09-22 — Milestone 1: gain + bypass
+
+Done:
+
+- `AudioProcessorValueTreeState` with three parameters: `inputGain` and `outputGain`
+  (−24…+24 dB, 0.1 dB steps, skewed so 0 dB is mid-travel) and `bypass`.
+- `juce::dsp::Gain` for both gain stages, 50 ms ramp; bypass is a 20 ms dry/wet crossfade
+  rather than a hard switch.
+- `getBypassParameter()` overridden, so the host's own bypass button drives the same parameter.
+- State save/reload through `apvts.copyState()` / `replaceState`.
+- Editor: two rotary knobs and a bypass toggle, bound via attachments. Plain JUCE look —
+  the amp-style `LookAndFeel` is milestone 5.
+
+Verified:
+
+- `auval -v aufx Amp1 Amps` passes; `pluginval --strictness-level 10` passes, including its
+  state-restoration, parameter-thread-safety and fuzz tests.
+- A throwaway offline harness (built in a scratch directory, not committed) checked: unity gain
+  is bit-accurate, +6 dB scales by 10^(6/20), input and output gain compose, bypass returns the
+  dry signal, state round-trips, and the bypass toggle ramps instead of stepping.
+
+Worth knowing:
+
+- **A freshly constructed `juce::dsp::Gain` sits at 0, not 1.** Setting the target in
+  `prepareToPlay` therefore made the plugin fade in over the 50 ms ramp every time the host
+  started playback. Fixed by calling `Gain::reset()` after `setGainDecibels()`, which pulls the
+  smoother's current value up to its target. Neither auval nor pluginval catches this — only the
+  offline check did. Any DSP block added later that owns a smoother needs the same treatment.
+- `setStateInformation` deliberately touches only the APVTS, never the DSP objects: it runs on
+  the message thread, and `SmoothedValue::setTargetValue` from there would race with
+  `processBlock`. The audio thread picks the new values up on its next call.
+- The bypass crossfade uses `applyGainRamp` / `addFromWithRamp` on the whole block rather than a
+  per-sample loop, which is only valid because the smoothing is linear.
+
+Still open before milestone 2:
+
+- No test target in the repo yet. The offline harness that caught the fade-in bug was throwaway;
+  promoting it to `tests/` with Catch2 and `ctest` is worth doing before the NAM work.
+- Still not opened in a DAW or run as a standalone app.

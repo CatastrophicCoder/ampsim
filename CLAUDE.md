@@ -4,9 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-**Milestone 0 is done: the toolchain builds and validates.** `AmpSimAudioProcessor` is a
-pass-through — no parameters, no APVTS, no DSP. Milestone 1 (gain + bypass with an
-`AudioProcessorValueTreeState`) is next.
+**Milestone 1 is done.** `AmpSimAudioProcessor` has an APVTS with `inputGain`, `outputGain` and
+`bypass`, two `juce::dsp::Gain` stages, a ramped dry/wet bypass crossfade, working state
+save/reload, and a two-knob editor. The signal chain between the gains is still empty — milestone 2
+(NAM model playing) is next.
+
+Conventions established in milestone 1, worth following for every block added after it:
+
+- Parameter IDs live in `namespace ParamID` in `PluginProcessor.h`. Never change an existing ID or
+  its version hint; a saved session looks parameters up by ID.
+- Parameter pointers are cached in the constructor, not looked up by string per block.
+- **A freshly constructed `juce::dsp::Gain` sits at 0, not 1.** Call `reset()` after setting a
+  smoother's target in `prepareToPlay`, or the block fades in on every playback start. Neither
+  auval nor pluginval catches this.
+- `setStateInformation` touches only the APVTS — it runs on the message thread, and reaching into
+  DSP objects from there races with `processBlock`.
 
 `ampsim_plan.md` is the source of truth for scope, architecture and sequencing; `NOTES.md` is the
 running session log, and gets an entry per working session. Read the plan before implementation
