@@ -6,8 +6,8 @@ The amp tone comes from a pre-trained [Neural Amp Modeler](https://github.com/sd
 
 See [`ampsim_plan.md`](ampsim_plan.md) for the goal, architecture and milestones.
 
-**Status: milestone 4 (amp-style controls).** Gain, Bass, Mid, Treble and Master around a NAM
-model, into a cabinet IR. No pedals yet.
+**Status: milestone 5 (amp-style UI).** Gain, Bass, Mid, Treble and Master around a NAM model,
+into a cabinet IR, on a custom panel. The pedals are what remain.
 
 ## Requirements
 
@@ -45,6 +45,11 @@ is much slower and will not represent real CPU load once NAM is in the chain.
 Click **Load model...** and pick a `.nam` file. NAM Core's own example models are in
 `external/NeuralAmpModelerCore/example_models/`, and the public model libraries linked from the
 [Neural Amp Modeler](https://github.com/sdatkinson/neural-amp-modeler) project work too.
+
+The panel is a pale enamelled plate with graphite knobs: the blue arc around each control is its
+value, read against the scale behind it, and red means something is switched out of the signal.
+Below the plate, two nameplates show the loaded model and cab, and turn red with the reason if a
+file cannot be read.
 
 The front panel is **Gain — Bass — Mid — Treble — Master**. Gain sits before the model, so turning
 it up drives the network harder and it saturates, the way a preamp gain control does; Bass, Mid and

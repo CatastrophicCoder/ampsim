@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-**Milestone 4 is done.** The chain is `Gain → NAM model → Bass/Mid/Treble → Master → cab IR`, all
-mono, with the model and IR paths saved in the session. Milestone 6 (the pedal section) is next;
-milestone 5 is the custom amp-style look, which nothing else depends on.
+**Milestone 5 is done.** The chain is `Gain → NAM model → Bass/Mid/Treble → Master → cab IR`, all
+mono, with the model and IR paths saved in the session, behind a custom panel. Milestone 6 (the
+pedal section) is what remains.
 
 Conventions worth following for every block added after this point:
 
@@ -47,6 +47,29 @@ measure the real delay with an impulse and compare.
 **NAM registers its architectures with file-scope statics**, so `nam_core` must be linked with
 `$<LINK_LIBRARY:WHOLE_ARCHIVE,...>` (the `NAM_CORE_WHOLE` variable). A normal static link drops those
 translation units and every model fails with "No config parser registered for architecture".
+
+## The panel
+
+`AmpLookAndFeel` holds the whole visual identity; `AmpPalette` holds the colours, so a second
+window inherits them rather than redefining them.
+
+The panel is deliberately not a tolex-and-gold-lettering amp pastiche. This amp is a file, so the
+panel is drawn as measuring equipment: a pale enamelled plate, engraved lettering, graphite knobs,
+a single blue arc reading the value, and red reserved for "switched out of your signal".
+
+Two things that are easy to get wrong here:
+
+- **Text needs the light coming from the right side.** `drawEngravedText` (light impression below,
+  dark type above) is for the pale plate; `drawRailText` (dark impression above, light type below)
+  is for the dark rails. Using the plate version on a rail smears dark text into dark background —
+  it looked fine in code and was unreadable on screen.
+- **A slider's text box takes its colours from the slider, not the LookAndFeel.** Clearing
+  `textBoxOutlineColourId` and `textBoxBackgroundColourId` on the LookAndFeel does nothing; set them
+  on the `juce::Slider`.
+
+**Look at the panel rather than reasoning about it.** An offline harness that renders the editor
+with `createComponentSnapshot` to a PNG takes a couple of minutes to write and catches things no
+amount of reading the paint code will: see the milestone 5 entry in `NOTES.md`.
 
 ## The cab
 
@@ -194,6 +217,7 @@ src/
   PluginEditor.h/.cpp
   ModelLoader.h/.cpp
   dsp/AmpModel.h/.cpp, ModelResampler.h, CabSim.h/.cpp, ToneStack.h/.cpp
+  ui/AmpLookAndFeel.h/.cpp
   ui/                                                        (empty)
 resources/irs/     bundled IR .wav → BinaryData              (empty)
 tests/             Catch2 suites + TestHelpers.h

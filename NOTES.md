@@ -224,3 +224,44 @@ Still open:
   says — has not been done.** The measured band responses cover the objective half; the listening
   half needs a guitar and a DAW.
 - Not yet opened in a DAW or run as a standalone app, outstanding since milestone 0.
+
+## 2026-09-22 — Milestone 5: amp-style UI
+
+Design direction: **not** a tolex-and-gold-lettering amp pastiche, which is what every amp plugin
+looks like. The amp here is a file — a neural capture loaded from disk — so the panel is drawn as a
+piece of measuring equipment instead: a pale enamelled plate with a faint grain, engraved lettering,
+graphite knobs, one saturated blue arc per control reading its value against a scale, and red
+reserved for the single meaning "this is switched out of your signal". Two nameplate rows at the
+bottom carry the loaded model and cab, which is the honest thing to put there for a file-driven amp.
+
+Done:
+
+- `AmpLookAndFeel` + `AmpPalette`: rotary control, toggle lamp, button and text-box drawing.
+- Editor rebuilt as header rail / plate / two nameplate rows, with `LabelledKnob` and
+  `NameplateRow` components.
+- Copy: the cab's toggle now says "bypassed" in the same words as the plugin's own bypass, rather
+  than "off".
+- 38 tests still pass; auval and pluginval level 10 still pass.
+
+Worth knowing:
+
+- **Render the editor to a PNG and look at it.** A ~40-line console app that builds the processor,
+  calls `createComponentSnapshot (bounds, false, 2.0f)` and writes a PNG through `PNGImageFormat`
+  caught, in one glance, four things that all looked correct in the source: engraved dark-on-dark
+  text on the rails was unreadable; the value read-outs still had JUCE's default frame; the plate
+  grain was a hard 3-pixel stripe pattern; and the pale Browse buttons were the brightest objects on
+  the panel. The harness is in the scratchpad, not committed — worth rebuilding whenever the UI
+  changes.
+- **Engraving has to know which way the light comes from.** Dark type with a light impression below
+  works on the pale plate and turns to mush on a dark rail, which needs the opposite:
+  `drawRailText`.
+- **A slider's text box takes its colours from the slider, not from the LookAndFeel.** Setting
+  `textBoxOutlineColourId` in the LookAndFeel constructor had no effect; it has to be set on the
+  `juce::Slider` itself.
+- Removed the centre-detent tick after seeing it: at this size it read as a speck of dirt, and the
+  value arc already grows out of the rest position, so it was saying the same thing twice.
+
+Still open:
+
+- The listening tests — matched-loudness A/B for milestone 4, and hearing any of this in a DAW —
+  remain outstanding.

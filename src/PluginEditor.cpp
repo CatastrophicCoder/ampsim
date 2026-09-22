@@ -2,31 +2,133 @@
 
 namespace
 {
-    constexpr int labelHeight = 22;
-    constexpr int margin      = 20;
+    constexpr int headerHeight = 46;
+    constexpr int rowHeight    = 34;
+    constexpr int gutter       = 18;
+    constexpr int nameColumn   = 46;
+
+    /** The faint vertical grain of a brushed enamel plate. Drawn once per repaint; cheap enough
+        at this size, and it keeps the panel from reading as a flat rectangle of colour. */
+    void paintPlate (juce::Graphics& g, juce::Rectangle<int> area)
+    {
+        g.setColour (AmpPalette::enamel);
+        g.fillRect (area);
+
+        juce::Random grain (0x5eed);
+
+        for (int x = area.getX(); x < area.getRight(); ++x)
+        {
+            const auto strength = 0.05f + 0.07f * grain.nextFloat();
+
+            if (grain.nextFloat() < 0.35f)
+            {
+                g.setColour (AmpPalette::enamelShade.withAlpha (strength));
+                g.fillRect (x, area.getY(), 1, area.getHeight());
+            }
+        }
+
+        // A soft vignette, so the middle of the plate sits forward of its edges.
+        juce::ColourGradient vignette (juce::Colours::transparentBlack,
+                                       area.getCentreX(), (float) area.getCentreY(),
+                                       juce::Colours::black.withAlpha (0.10f),
+                                       (float) area.getX(), (float) area.getY(), true);
+        g.setGradientFill (vignette);
+        g.fillRect (area);
+    }
+
+    void paintRecess (juce::Graphics& g, juce::Rectangle<float> area)
+    {
+        g.setColour (AmpPalette::railRecess);
+        g.fillRect (area);
+
+        g.setColour (juce::Colours::black.withAlpha (0.5f));
+        g.drawLine (area.getX(), area.getY(), area.getRight(), area.getY(), 1.0f);
+
+        g.setColour (AmpPalette::enamel.withAlpha (0.10f));
+        g.drawLine (area.getX(), area.getBottom(), area.getRight(), area.getBottom(), 1.0f);
+    }
 }
 
+//==============================================================================
 LabelledKnob::LabelledKnob (juce::AudioProcessorValueTreeState& state,
                             const juce::String& parameterID,
                             const juce::String& labelText)
-    : attachment (state, parameterID, slider)
+    : name (labelText), attachment (state, parameterID, slider)
 {
     slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 80, labelHeight);
-    addAndMakeVisible (slider);
+    slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 72, 18);
 
-    label.setText (labelText, juce::dontSendNotification);
-    label.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (label);
+    // The readout is engraving on the plate, not a text field: the frame and fill have to be
+    // cleared on the slider itself, since that is where the text box takes its colours from.
+    slider.setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
+    slider.setColour (juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
+    slider.setColour (juce::Slider::textBoxTextColourId, AmpPalette::engravedSoft);
+    slider.setColour (juce::Slider::textBoxHighlightColourId, AmpPalette::reading.withAlpha (0.25f));
+    slider.setRotaryParameters (juce::MathConstants<float>::pi * 1.25f,
+                                juce::MathConstants<float>::pi * 2.75f, true);
+    addAndMakeVisible (slider);
+}
+
+void LabelledKnob::paint (juce::Graphics& g)
+{
+    AmpLookAndFeel::drawEngravedText (g, name, getLocalBounds().removeFromTop (17),
+                                      juce::Justification::centred,
+                                      AmpLookAndFeel::panelFont (13.0f, true),
+                                      AmpPalette::engraved);
 }
 
 void LabelledKnob::resized()
 {
     auto area = getLocalBounds();
-    label.setBounds (area.removeFromTop (labelHeight));
-    slider.setBounds (area);
+    area.removeFromTop (20);   // the engraved name
+
+    // A square control with its readout directly under it, rather than a tall box that leaves
+    // the value floating half a panel away from the knob it belongs to.
+    const auto size = juce::jmin (area.getWidth(), area.getHeight() - 18);
+    slider.setBounds (area.withSizeKeepingCentre (size, size + 18).withY (area.getY()));
 }
 
+//==============================================================================
+NameplateRow::NameplateRow (const juce::String& rowName, const juce::String& browseText)
+    : name (rowName)
+{
+    browseButton.setButtonText (browseText);
+    browseButton.onClick = [this] { if (onBrowse != nullptr) onBrowse(); };
+    addAndMakeVisible (browseButton);
+}
+
+void NameplateRow::setContents (const juce::String& text, bool isError)
+{
+    contents = text;
+    showingError = isError;
+    repaint();
+}
+
+void NameplateRow::paint (juce::Graphics& g)
+{
+    auto area = getLocalBounds();
+
+    AmpLookAndFeel::drawRailText (g, name, area.removeFromLeft (nameColumn),
+                                  juce::Justification::centredLeft,
+                                  AmpLookAndFeel::panelFont (13.0f, true),
+                                  AmpPalette::enamel.withAlpha (0.5f));
+
+    area.removeFromRight (browseButton.getWidth() + 10);
+
+    paintRecess (g, area.toFloat().reduced (0.0f, 3.0f));
+
+    g.setFont (AmpLookAndFeel::panelFont (14.0f));
+    g.setColour (showingError ? AmpPalette::attention.brighter (0.35f)
+                              : AmpPalette::enamel.withAlpha (0.92f));
+    g.drawText (contents, area.reduced (12, 0), juce::Justification::centredLeft, true);
+}
+
+void NameplateRow::resized()
+{
+    browseButton.setBounds (getLocalBounds().removeFromRight (96).reduced (0, 4));
+}
+
+//==============================================================================
 AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
     : AudioProcessorEditor (&p),
       processorRef (p),
@@ -38,115 +140,139 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
       bypassAttachment (p.getValueTreeState(), ParamID::bypass, bypassButton),
       cabBypassAttachment (p.getValueTreeState(), ParamID::cabBypass, cabBypassButton)
 {
+    setLookAndFeel (&lookAndFeel);
+
     for (auto* knob : { &gainKnob, &bassKnob, &midKnob, &trebleKnob, &masterKnob })
         addAndMakeVisible (*knob);
 
+    bypassButton.setColour (juce::ToggleButton::textColourId, AmpPalette::enamel);
     addAndMakeVisible (bypassButton);
 
-    // Held as a member: the chooser has to outlive the click handler, since it runs asynchronously.
-    const auto chooseFile = [this] (const juce::String& title,
-                                    const juce::File& startingFile,
-                                    const juce::String& pattern,
-                                    std::function<void (const juce::File&)> onChosen)
-    {
-        fileChooser = std::make_unique<juce::FileChooser> (title, startingFile, pattern);
-
-        fileChooser->launchAsync (juce::FileBrowserComponent::openMode
-                                      | juce::FileBrowserComponent::canSelectFiles,
-                                  [onChosen] (const juce::FileChooser& chooser)
-                                  {
-                                      const auto file = chooser.getResult();
-
-                                      if (file != juce::File())
-                                          onChosen (file);
-                                  });
-    };
-
-    loadModelButton.onClick = [this, chooseFile]
+    ampRow.onBrowse = [this]
     {
         chooseFile ("Load a NAM model", processorRef.getModelFile(), "*.nam",
                     [this] (const juce::File& file) { processorRef.loadModel (file); });
     };
-    addAndMakeVisible (loadModelButton);
 
-    loadIRButton.onClick = [this, chooseFile]
+    cabRow.onBrowse = [this]
     {
-        chooseFile ("Load a cabinet impulse response", processorRef.getImpulseResponseFile(), "*.wav;*.aiff;*.aif",
+        chooseFile ("Load a cabinet impulse response", processorRef.getImpulseResponseFile(),
+                    "*.wav;*.aiff;*.aif",
                     [this] (const juce::File& file) { processorRef.loadImpulseResponse (file); });
     };
-    addAndMakeVisible (loadIRButton);
 
-    modelLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (modelLabel);
-
-    irLabel.setJustificationType (juce::Justification::centred);
-    addAndMakeVisible (irLabel);
-
+    addAndMakeVisible (ampRow);
+    addAndMakeVisible (cabRow);
     addAndMakeVisible (cabBypassButton);
 
     // The load finishes on a background thread, so the editor is told rather than polling.
-    processorRef.onLoadStateChanged = [this] { updateModelDisplay(); };
-    updateModelDisplay();
+    processorRef.onLoadStateChanged = [this] { updateLoadedFileDisplay(); };
+    updateLoadedFileDisplay();
 
-    setSize (660, 380);
+    setSize (640, 310);
 }
 
 AmpSimAudioProcessorEditor::~AmpSimAudioProcessorEditor()
 {
     processorRef.onLoadStateChanged = nullptr;
+    setLookAndFeel (nullptr);
 }
 
-void AmpSimAudioProcessorEditor::updateModelDisplay()
+void AmpSimAudioProcessorEditor::chooseFile (const juce::String& title, const juce::File& startingFile,
+                                             const juce::String& pattern,
+                                             std::function<void (const juce::File&)> onChosen)
 {
-    const auto show = [] (juce::Label& label, const juce::String& error,
-                          const juce::File& file, const juce::String& emptyText)
+    // Held as a member: the chooser has to outlive this call, since it runs asynchronously.
+    fileChooser = std::make_unique<juce::FileChooser> (title, startingFile, pattern);
+
+    fileChooser->launchAsync (juce::FileBrowserComponent::openMode
+                                  | juce::FileBrowserComponent::canSelectFiles,
+                              [onChosen] (const juce::FileChooser& chooser)
+                              {
+                                  const auto file = chooser.getResult();
+
+                                  if (file != juce::File())
+                                      onChosen (file);
+                              });
+}
+
+void AmpSimAudioProcessorEditor::updateLoadedFileDisplay()
+{
+    const auto describe = [] (NameplateRow& row, const juce::String& error,
+                              const juce::File& file, const juce::String& emptyText)
     {
-        const auto failed = error.isNotEmpty();
-
-        label.setText (failed ? error
-                              : (file == juce::File() ? emptyText : file.getFileNameWithoutExtension()),
-                       juce::dontSendNotification);
-
-        label.setColour (juce::Label::textColourId,
-                         failed ? juce::Colours::orangered : juce::Colours::whitesmoke);
+        if (error.isNotEmpty())
+            row.setContents (error, true);
+        else
+            row.setContents (file == juce::File() ? emptyText : file.getFileNameWithoutExtension(), false);
     };
 
-    show (modelLabel, processorRef.getModelError(), processorRef.getModelFile(), "No model loaded");
-    show (irLabel, processorRef.getImpulseResponseError(), processorRef.getImpulseResponseFile(), "No cab IR loaded");
+    describe (ampRow, processorRef.getModelError(), processorRef.getModelFile(),
+              "No model loaded");
+    describe (cabRow, processorRef.getImpulseResponseError(), processorRef.getImpulseResponseFile(),
+              "No cab loaded");
 }
 
 void AmpSimAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    g.fillAll (juce::Colour (0xff1a1a1a));
+    auto area = getLocalBounds();
 
-    g.setColour (juce::Colours::whitesmoke);
-    g.setFont (juce::FontOptions (18.0f));
-    g.drawFittedText ("AmpSim",
-                      getLocalBounds().removeFromTop (margin + labelHeight),
-                      juce::Justification::centred, 1);
+    auto header = area.removeFromTop (headerHeight);
+    auto footer = area.removeFromBottom (2 * rowHeight + gutter);
+
+    paintPlate (g, area);
+
+    g.setColour (AmpPalette::rail);
+    g.fillRect (header);
+    g.fillRect (footer);
+
+    // The name, set once and left alone — the panel's one piece of display type.
+    auto nameArea = header.reduced (gutter, 0);
+
+    const auto nameFont = AmpLookAndFeel::panelFont (21.0f, true).withExtraKerningFactor (0.16f);
+    const auto nameWidth = juce::GlyphArrangement::getStringWidthInt (nameFont, "ampsim");
+
+    g.setFont (nameFont);
+    g.setColour (AmpPalette::enamel);
+    g.drawText ("ampsim", nameArea.removeFromLeft (nameWidth + 18),
+                juce::Justification::centredLeft, false);
+
+    g.setFont (AmpLookAndFeel::panelFont (12.0f));
+    g.setColour (AmpPalette::enamel.withAlpha (0.4f));
+    g.drawText ("neural capture, played through a cabinet", nameArea,
+                juce::Justification::centredLeft, false);
+
+    // Hairlines where the plate meets the rails, so the plate reads as a separate piece of metal.
+    g.setColour (juce::Colours::black.withAlpha (0.35f));
+    g.drawLine ((float) area.getX(), (float) area.getY(), (float) area.getRight(), (float) area.getY(), 1.0f);
+    g.drawLine ((float) area.getX(), (float) area.getBottom(), (float) area.getRight(), (float) area.getBottom(), 1.0f);
 }
 
 void AmpSimAudioProcessorEditor::resized()
 {
-    auto area = getLocalBounds().reduced (margin);
-    area.removeFromTop (labelHeight);                         // title
+    auto area = getLocalBounds();
 
-    auto footer = area.removeFromBottom (labelHeight + margin);
-    bypassButton.setBounds (footer.withSizeKeepingCentre (110, labelHeight));
+    auto header = area.removeFromTop (headerHeight);
+    bypassButton.setBounds (header.removeFromRight (130).reduced (gutter, 14));
 
-    irLabel.setBounds (area.removeFromBottom (labelHeight));
+    auto footer = area.removeFromBottom (2 * rowHeight + gutter).reduced (gutter, gutter / 2);
 
-    auto irRow = area.removeFromBottom (labelHeight + margin / 2);
-    cabBypassButton.setBounds (irRow.removeFromRight (120).withSizeKeepingCentre (120, labelHeight));
-    loadIRButton.setBounds (irRow.withSizeKeepingCentre (150, labelHeight));
+    auto ampBounds = footer.removeFromTop (rowHeight);
+    ampRow.setBounds (ampBounds);
 
-    modelLabel.setBounds (area.removeFromBottom (labelHeight));
-    loadModelButton.setBounds (area.removeFromBottom (labelHeight + margin / 2)
-                                   .withSizeKeepingCentre (150, labelHeight));
+    auto cabBounds = footer.removeFromBottom (rowHeight);
+    cabBypassButton.setBounds (cabBounds.removeFromRight (108).withTrimmedLeft (8));
+    cabRow.setBounds (cabBounds);
 
-    LabelledKnob* knobs[] { &gainKnob, &bassKnob, &midKnob, &trebleKnob, &masterKnob };
-    const auto knobWidth = area.getWidth() / (int) std::size (knobs);
+    LabelledKnob* controls[] { &gainKnob, &bassKnob, &midKnob, &trebleKnob, &masterKnob };
 
-    for (auto* knob : knobs)
-        knob->setBounds (area.removeFromLeft (knobWidth).reduced (margin / 4, 0));
+    auto knobs = area.reduced (gutter, 0);
+    const auto width = knobs.getWidth() / (int) std::size (controls);
+
+    // One row, centred in the plate rather than pinned to its top edge.
+    const auto rowHeightNeeded = juce::jmin (knobs.getHeight(), width + 24 + 18);
+    knobs = knobs.withSizeKeepingCentre (knobs.getWidth(), rowHeightNeeded);
+
+    for (auto* knob : controls)
+        knob->setBounds (knobs.removeFromLeft (width).reduced (6, 0));
 }
