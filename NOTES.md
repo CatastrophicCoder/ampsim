@@ -265,3 +265,49 @@ Still open:
 
 - The listening tests — matched-loudness A/B for milestone 4, and hearing any of this in a DAW —
   remain outstanding.
+
+## 2026-09-22 — Milestone 6: the pedalboard
+
+Done:
+
+- Six pedals, in two groups that are separate `PedalChain` calls rather than one list, so the amp
+  cannot end up on the wrong side of one: gate, compressor, drive **into the amp**; chorus, delay,
+  reverb **after the amp, before the cab**.
+- `BypassCrossfade` shared by all six, so none of them carries its own ramp.
+- 20 new parameters, and a `PedalTile` deck in the editor with the two rows labelled by position.
+  Pedal lamps are blue ("in your signal"); the amp's bypass lamps stay red ("switched out of it").
+- 9 new tests (47 total). auval and pluginval level 10 still pass.
+
+Worth knowing:
+
+- **Chorus, delay and reverb have to keep running while bypassed.** Engaging one whose delay line
+  has been sitting empty starts its delayed copy from silence, and that onset is a click no matter
+  how long the crossfade is — measured at ten times the baseline discontinuity. They now process a
+  scratch copy while off, which also gives the delay proper trails.
+- **The drive pedal's oversampler runs whether or not the pedal is engaged**, so its 5 samples of
+  latency never change under the host. The cost is that the plugin is no longer bit-transparent
+  with everything off: about 3 parts in 100,000, plus a step response into cold filters on the very
+  first block. Four milestone-1 tests were asserting bit-exactness and cold-start smoothness; they
+  now measure from the second block, with the reason written down.
+- **A fixed "worst jump" threshold measures the pedal, not the switch.** At drive 1.0 the pedal's
+  output is nearly a square wave whose own slope is 0.24 per sample. Same mistake as milestone 2's
+  model swap test, and the same fix: measure the pedal running continuously, then compare a run
+  that switches it in halfway.
+- The delay pedal's smoothers had to be snapped in `prepareToPlay` — the delay time ramped up from
+  zero over 250 ms, so the first repeats landed in the wrong place. Third instance of this bug
+  shape; it is now a rule in CLAUDE.md.
+
+CPU on this machine (Release, 48 kHz, percentage of one core), with a real capture loaded:
+
+| | 64 | 128 | 512 |
+| --- | --- | --- | --- |
+| wavenet_a1_standard, pedals off | 5.5% | 5.3% | 5.3% |
+| wavenet_a1_standard, all six on | 5.7% | 5.4% | 5.5% |
+
+The whole pedalboard costs about 0.2% of a core. The model still dominates.
+
+Still open:
+
+- **Nothing here has been heard.** The listening tests from milestones 4 and 6, and opening the
+  plugin in a DAW at all, remain outstanding. A compressor's attack, a drive pedal's voicing and a
+  reverb's size are judged by ear, and the numbers above only say the blocks do what they claim.

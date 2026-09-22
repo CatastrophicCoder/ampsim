@@ -4,9 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-**Milestone 5 is done.** The chain is `Gain → NAM model → Bass/Mid/Treble → Master → cab IR`, all
-mono, with the model and IR paths saved in the session, behind a custom panel. Milestone 6 (the
-pedal section) is what remains.
+**Milestone 6 is done, and with it the whole of the Goal.** The chain is
+`gate → comp → drive → Gain → NAM model → Bass/Mid/Treble → Master → chorus → delay → reverb → cab`,
+all mono, with the model and IR paths saved in the session, behind a custom panel. What remains is
+milestone 7: tuner, MIDI, presets, multi-mic cab, installer — all explicitly out of the original
+scope, so treat any of it as new work rather than as unfinished business.
 
 Conventions worth following for every block added after this point:
 
@@ -76,6 +78,30 @@ amount of reading the paint code will: see the milestone 5 entry in `NOTES.md`.
 `CabSim` wraps `juce::dsp::Convolution`, which already loads and resamples the IR on its own thread
 and adds no latency in its default uniform-partitioned mode. Bypass is a crossfade, since an IR
 changes the tone enough to click on a hard switch.
+
+## The pedals
+
+`PedalChain` owns all six and exposes `processBeforeAmp` and `processAfterAmp` as **two separate
+calls, not one list**, so the amp physically cannot end up on the wrong side of a pedal. The
+placement is the design; do not add a "reorder" feature without revisiting `ampsim_plan.md`.
+
+`BypassCrossfade` is the shared switch: every pedal uses it rather than carrying its own ramp. It
+answers `skip`, `processAll` or `crossfade`, and offers `scratchFor()` for the case below.
+
+Three things that were learned the hard way here:
+
+- **Chorus, delay and reverb must keep running while bypassed.** Their delay lines have to stay
+  fed — engaging one that has been sitting empty starts its delayed copy from silence, and that
+  onset is a click however long the crossfade is. `BypassCrossfade::scratchFor()` gives them a
+  buffer to chew on and throw away.
+- **The drive pedal's oversampler runs whether or not the pedal is engaged**, so the 5 samples of
+  latency it reports never change under the host. The price is that the plugin is no longer
+  bit-transparent with everything off — about 3 parts in 100,000 — which is why the gain tests use
+  a relative tolerance and measure from the second block.
+- **Every smoother has to be snapped in `prepareToPlay`**, which is now three separate bugs of the
+  same shape (`Gain::reset`, `ToneStack::snapToTargets`, `PedalChain::snapToSettings`). The delay
+  pedal was the one that showed why it matters: its time smoothed up from zero, so the first
+  repeats landed in the wrong place. If you add a block with a `SmoothedValue`, give it a snap.
 
 ## The tone stack
 
@@ -167,8 +193,8 @@ Input gain → Noise gate → Front-of-amp pedals (comp, overdrive, distortion)
   → Cab sim (IR convolution) → Output gain
 ```
 
-Built so far: Gain, amp model, tone stack, Master, cab. The pedals are what remain, and each goes
-in at the position shown above rather than wherever is convenient.
+The whole chain is built. Anything added later goes in at the position the architecture gives it
+rather than wherever is convenient.
 
 **The chain is mono throughout**, and a stereo input is summed into it before the Gain stage. A
 guitar amp is mono and NAM is mono; the cab is where stereo would begin, once anything in the chain
@@ -217,7 +243,8 @@ src/
   PluginEditor.h/.cpp
   ModelLoader.h/.cpp
   dsp/AmpModel.h/.cpp, ModelResampler.h, CabSim.h/.cpp, ToneStack.h/.cpp
-  ui/AmpLookAndFeel.h/.cpp
+  dsp/PedalChain.h/.cpp, BypassCrossfade.h, pedals/*.h
+  ui/AmpLookAndFeel.h/.cpp, PedalTile.h/.cpp
   ui/                                                        (empty)
 resources/irs/     bundled IR .wav → BinaryData              (empty)
 tests/             Catch2 suites + TestHelpers.h

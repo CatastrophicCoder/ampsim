@@ -6,6 +6,12 @@ namespace
     constexpr int rowHeight    = 34;
     constexpr int gutter       = 18;
     constexpr int nameColumn   = 46;
+    constexpr int pedalRowHeight = 86;
+    constexpr int groupLabelHeight = 18;
+
+    /** Both pedal rows, plus a margin at the bottom so the enclosures are not flush with the
+        window edge. paint() and resized() both take this from the bottom, in the same order. */
+    constexpr int deckHeight = 2 * (pedalRowHeight + groupLabelHeight) + 10;
 
     /** The faint vertical grain of a brushed enamel plate. Drawn once per repaint; cheap enough
         at this size, and it keeps the panel from reading as a flat rectangle of colour. */
@@ -138,6 +144,21 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
       trebleKnob (p.getValueTreeState(), ParamID::treble,     "Treble"),
       masterKnob (p.getValueTreeState(), ParamID::outputGain, "Master"),
       bypassAttachment (p.getValueTreeState(), ParamID::bypass, bypassButton),
+      gatePedal (p.getValueTreeState(), "gate", ParamID::gateOn,
+                 { { ParamID::gateThreshold, "thresh" } }),
+      compressorPedal (p.getValueTreeState(), "comp", ParamID::compOn,
+                       { { ParamID::compAmount, "amount" }, { ParamID::compLevel, "level" } }),
+      drivePedal (p.getValueTreeState(), "drive", ParamID::driveOn,
+                  { { ParamID::driveAmount, "drive" }, { ParamID::driveTone, "tone" },
+                    { ParamID::driveLevel, "level" } }),
+      chorusPedal (p.getValueTreeState(), "chorus", ParamID::chorusOn,
+                   { { ParamID::chorusRate, "rate" }, { ParamID::chorusDepth, "depth" },
+                     { ParamID::chorusMix, "mix" } }),
+      delayPedal (p.getValueTreeState(), "delay", ParamID::delayOn,
+                  { { ParamID::delayTime, "time" }, { ParamID::delayFeedback, "repeats" },
+                    { ParamID::delayMix, "mix" } }),
+      reverbPedal (p.getValueTreeState(), "reverb", ParamID::reverbOn,
+                   { { ParamID::reverbSize, "size" }, { ParamID::reverbMix, "mix" } }),
       cabBypassAttachment (p.getValueTreeState(), ParamID::cabBypass, cabBypassButton)
 {
     setLookAndFeel (&lookAndFeel);
@@ -161,6 +182,10 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
                     [this] (const juce::File& file) { processorRef.loadImpulseResponse (file); });
     };
 
+    for (auto* pedal : { &gatePedal, &compressorPedal, &drivePedal,
+                         &chorusPedal, &delayPedal, &reverbPedal })
+        addAndMakeVisible (*pedal);
+
     addAndMakeVisible (ampRow);
     addAndMakeVisible (cabRow);
     addAndMakeVisible (cabBypassButton);
@@ -169,7 +194,7 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
     processorRef.onLoadStateChanged = [this] { updateLoadedFileDisplay(); };
     updateLoadedFileDisplay();
 
-    setSize (640, 310);
+    setSize (640, 310 + deckHeight);
 }
 
 AmpSimAudioProcessorEditor::~AmpSimAudioProcessorEditor()
@@ -217,7 +242,9 @@ void AmpSimAudioProcessorEditor::paint (juce::Graphics& g)
 {
     auto area = getLocalBounds();
 
+    // Same order as resized(), bottom upwards: the pedal deck sits under the amp's nameplates.
     auto header = area.removeFromTop (headerHeight);
+    auto deck = area.removeFromBottom (deckHeight);
     auto footer = area.removeFromBottom (2 * rowHeight + gutter);
 
     paintPlate (g, area);
@@ -225,6 +252,22 @@ void AmpSimAudioProcessorEditor::paint (juce::Graphics& g)
     g.setColour (AmpPalette::rail);
     g.fillRect (header);
     g.fillRect (footer);
+
+    // The pedal deck: a darker surface below the amp, with each group's position spelled out.
+    g.setColour (AmpPalette::rail.darker (0.25f));
+    g.fillRect (deck);
+
+    const auto heading = [&] (juce::Rectangle<int> row, const juce::String& text)
+    {
+        AmpLookAndFeel::drawRailText (g, text, row.reduced (gutter, 0),
+                                      juce::Justification::centredLeft,
+                                      AmpLookAndFeel::panelFont (11.0f),
+                                      AmpPalette::enamel.withAlpha (0.42f));
+    };
+
+    heading (deck.removeFromTop (groupLabelHeight), "into the amp");
+    deck.removeFromTop (pedalRowHeight);
+    heading (deck.removeFromTop (groupLabelHeight), "after the amp, before the cab");
 
     // The name, set once and left alone — the panel's one piece of display type.
     auto nameArea = header.reduced (gutter, 0);
@@ -254,6 +297,24 @@ void AmpSimAudioProcessorEditor::resized()
 
     auto header = area.removeFromTop (headerHeight);
     bypassButton.setBounds (header.removeFromRight (130).reduced (gutter, 14));
+
+    auto deck = area.removeFromBottom (deckHeight);
+
+    const auto layOutRow = [] (juce::Rectangle<int> row, std::initializer_list<PedalTile*> tiles)
+    {
+        const auto width = row.getWidth() / (int) tiles.size();
+
+        for (auto* tile : tiles)
+            tile->setBounds (row.removeFromLeft (width).reduced (4, 0));
+    };
+
+    deck.removeFromTop (groupLabelHeight);
+    layOutRow (deck.removeFromTop (pedalRowHeight).reduced (gutter - 4, 2),
+               { &gatePedal, &compressorPedal, &drivePedal });
+
+    deck.removeFromTop (groupLabelHeight);
+    layOutRow (deck.removeFromTop (pedalRowHeight).reduced (gutter - 4, 2),
+               { &chorusPedal, &delayPedal, &reverbPedal });
 
     auto footer = area.removeFromBottom (2 * rowHeight + gutter).reduced (gutter, gutter / 2);
 

@@ -6,20 +6,27 @@
 
 using Catch::Matchers::WithinAbs;
 
-TEST_CASE ("Unity gain passes the signal through unchanged", "[gain]")
+TEST_CASE ("Unity gain passes the signal through very nearly unchanged", "[gain]")
 {
     auto processor = test::makePreparedProcessor();
 
-    REQUIRE_THAT (test::runConstant (*processor, 4), WithinAbs (0.5, 1.0e-6));
+    // Not bit-exact any more, and deliberately so: the drive pedal's oversampler runs whether or
+    // not the pedal is engaged, so its latency cannot change under the host. The price is the
+    // half-band filters' ripple, which is about 3 parts in 100,000.
+    REQUIRE_THAT (test::runConstant (*processor, 4), WithinAbs (0.5, 1.0e-4));
 }
 
-TEST_CASE ("The first block after prepareToPlay is already at full level", "[gain]")
+TEST_CASE ("The gains start at their settings rather than fading in", "[gain]")
 {
     // A default-constructed juce::dsp::Gain sits at 0, so setting its target without a reset()
     // makes the plugin fade in from silence every time the host starts playback.
+    //
+    // Measured on the second block, not the first: a DC step into the drive pedal's cold
+    // half-band filters overshoots, the way a step into any filter does. A 50 ms fade-in would
+    // still only be at 0.43 by this point, so the thing this test is for is still caught.
     auto processor = test::makePreparedProcessor();
 
-    REQUIRE_THAT (test::runConstant (*processor, 1), WithinAbs (0.5, 1.0e-6));
+    REQUIRE_THAT (test::runConstant (*processor, 2), WithinAbs (0.5, 1.0e-4));
 }
 
 TEST_CASE ("Input gain scales the signal by its decibel value", "[gain]")
@@ -75,7 +82,12 @@ TEST_CASE ("Gain changes ramp rather than stepping", "[gain]")
         for (int i = 0; i < test::blockSize; ++i)
         {
             const auto sample = buffer.getSample (0, i);
-            worstJump = juce::jmax (worstJump, std::abs (sample - previous));
+
+            // The first block is the signal itself starting abruptly at 0.5 into cold filters,
+            // which is a step response rather than a click. The knob moves at block 2.
+            if (b > 0)
+                worstJump = juce::jmax (worstJump, std::abs (sample - previous));
+
             previous = sample;
         }
     }

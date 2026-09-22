@@ -45,7 +45,9 @@ TEST_CASE ("Toggling bypass crossfades rather than stepping", "[bypass]")
         {
             const auto sample = buffer.getSample (0, i);
 
-            if (! first)
+            // Skip the first block: that is the signal starting abruptly into cold filters, not
+            // anything the bypass switch did. Bypass is toggled at blocks 10 and 25.
+            if (! first && b > 0)
                 worstJump = juce::jmax (worstJump, std::abs (sample - previous));
 
             previous = sample;

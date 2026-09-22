@@ -2,6 +2,7 @@
 
 #include "PluginProcessor.h"
 #include "ui/AmpLookAndFeel.h"
+#include "ui/PedalTile.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -70,6 +71,11 @@ private:
 
     juce::ToggleButton bypassButton { "bypassed" };
     juce::AudioProcessorValueTreeState::ButtonAttachment bypassAttachment;
+
+    // Two rows, so the panel says which side of the amp each pedal is on — which is the whole
+    // design of the pedal section, not a detail of it.
+    PedalTile gatePedal, compressorPedal, drivePedal;
+    PedalTile chorusPedal, delayPedal, reverbPedal;
 
     NameplateRow ampRow { "amp", "Load model" };
     NameplateRow cabRow { "cab", "Load IR" };

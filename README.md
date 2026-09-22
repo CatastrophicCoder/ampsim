@@ -6,8 +6,8 @@ The amp tone comes from a pre-trained [Neural Amp Modeler](https://github.com/sd
 
 See [`ampsim_plan.md`](ampsim_plan.md) for the goal, architecture and milestones.
 
-**Status: milestone 5 (amp-style UI).** Gain, Bass, Mid, Treble and Master around a NAM model,
-into a cabinet IR, on a custom panel. The pedals are what remain.
+**Status: milestone 6 (pedalboard).** The whole chain from the Goal is built: pedals into the amp,
+a NAM model, tone stack, master, pedals after the amp, cabinet IR.
 
 ## Requirements
 
@@ -60,6 +60,16 @@ Because the bands are parametric rather than a modelled passive network, all thr
 genuinely flat, and each control moves only its own band. A real amp's tone stack interacts with
 itself and is mid-scooped at noon — that difference is deliberate, and recorded in the plan.
 
+Below the amp are six pedals in two rows, and the rows are the point: **into the amp** (gate,
+compressor, drive) and **after the amp, before the cab** (chorus, delay, reverb). The placement is
+fixed, because it is what a working pedalboard does — a drive pedal in front changes what the amp
+distorts, while modulation and echoes belong after it so the repeats are of the distorted tone. A
+blue lamp means the pedal is in your signal; the red lamps on the amp mean something is switched
+out of it.
+
+The chorus, delay and reverb keep running while switched off, so engaging one picks up repeats
+already in flight rather than starting from an empty line.
+
 Click **Load cab IR...** and pick a `.wav` or `.aiff` impulse response for the cabinet. It is
 convolved at the end of the chain, with no added latency, and **Cab bypass** switches it out with a
 crossfade. A stereo IR is folded to mono, and the IR's own level is kept rather than normalised, so
@@ -67,7 +77,8 @@ swapping IRs changes tone rather than volume.
 
 The model runs at the sample rate it was trained at (usually 48 kHz). At any other session rate the
 plugin converts in and out, and reports the resulting latency for the host to compensate — about
-220 samples at 44.1 kHz.
+220 samples at 44.1 kHz. The drive pedal's 4x oversampler adds a further 5 samples, and runs whether
+or not the pedal is engaged so that this number never changes under the host.
 
 ## Test
 

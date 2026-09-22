@@ -3,6 +3,7 @@
 #include "ModelLoader.h"
 #include "dsp/AmpModel.h"
 #include "dsp/CabSim.h"
+#include "dsp/PedalChain.h"
 #include "dsp/ToneStack.h"
 
 #include <juce_audio_formats/juce_audio_formats.h>
@@ -26,6 +27,34 @@ namespace ParamID
     inline constexpr const char* treble     = "treble";
     inline constexpr const char* bypass     = "bypass";
     inline constexpr const char* cabBypass  = "cabBypass";
+
+    // The pedals. "Engaged" rather than "bypass": a pedal is off until you step on it, and the
+    // parameter reads the way the footswitch does.
+    inline constexpr const char* gateOn          = "gateOn";
+    inline constexpr const char* gateThreshold   = "gateThreshold";
+
+    inline constexpr const char* compOn          = "compOn";
+    inline constexpr const char* compAmount      = "compAmount";
+    inline constexpr const char* compLevel       = "compLevel";
+
+    inline constexpr const char* driveOn         = "driveOn";
+    inline constexpr const char* driveAmount     = "driveAmount";
+    inline constexpr const char* driveTone       = "driveTone";
+    inline constexpr const char* driveLevel      = "driveLevel";
+
+    inline constexpr const char* chorusOn        = "chorusOn";
+    inline constexpr const char* chorusRate      = "chorusRate";
+    inline constexpr const char* chorusDepth     = "chorusDepth";
+    inline constexpr const char* chorusMix       = "chorusMix";
+
+    inline constexpr const char* delayOn         = "delayOn";
+    inline constexpr const char* delayTime       = "delayTime";
+    inline constexpr const char* delayFeedback   = "delayFeedback";
+    inline constexpr const char* delayMix        = "delayMix";
+
+    inline constexpr const char* reverbOn        = "reverbOn";
+    inline constexpr const char* reverbSize      = "reverbSize";
+    inline constexpr const char* reverbMix       = "reverbMix";
 }
 
 /** Non-automatable state, stored as properties on the APVTS tree rather than as parameters:
@@ -106,6 +135,9 @@ public:
 
 private:
     void timerCallback() override;
+
+    /** Reads the pedal parameters into one settings object, once per block. */
+    PedalChain::Settings currentPedalSettings() const;
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
     juce::AudioProcessorValueTreeState apvts;
@@ -131,6 +163,7 @@ private:
     AmpModel ampModel;
     ModelLoader modelLoader { ampModel };
     ToneStack toneStack;
+    PedalChain pedals;
     CabSim cabSim;
     juce::String irError;
     int reportedLatency = 0;

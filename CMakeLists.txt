@@ -63,7 +63,11 @@ target_sources(AmpSim PRIVATE
     src/dsp/AmpModel.cpp
     src/dsp/CabSim.cpp
     src/dsp/ToneStack.cpp
-    src/ui/AmpLookAndFeel.cpp)
+    src/ui/AmpLookAndFeel.cpp
+    src/ui/PedalTile.cpp
+    src/dsp/PedalChain.cpp
+    src/dsp/pedals/DrivePedal.cpp
+    src/dsp/pedals/DelayPedal.cpp)
 
 target_include_directories(AmpSim PUBLIC src)
 

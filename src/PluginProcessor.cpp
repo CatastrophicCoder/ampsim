@@ -53,6 +53,49 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
     layout.add (std::make_unique<juce::AudioParameterBool> (
         juce::ParameterID { ParamID::cabBypass, 1 }, "Cab Bypass", false));
 
+    // --- Pedals -------------------------------------------------------------------------------
+    const auto addSwitch = [&layout] (const char* id, const juce::String& name)
+    {
+        layout.add (std::make_unique<juce::AudioParameterBool> (juce::ParameterID { id, 1 },
+                                                                name, false));
+    };
+
+    const auto addKnob = [&layout] (const char* id, const juce::String& name,
+                                    float minimum, float maximum, float defaultValue,
+                                    const juce::String& unit = {})
+    {
+        layout.add (std::make_unique<juce::AudioParameterFloat> (
+            juce::ParameterID { id, 1 }, name,
+            juce::NormalisableRange<float> { minimum, maximum }, defaultValue,
+            juce::AudioParameterFloatAttributes().withLabel (unit)));
+    };
+
+    addSwitch (ParamID::gateOn, "Gate");
+    addKnob (ParamID::gateThreshold, "Gate Threshold", -80.0f, -20.0f, -60.0f, "dB");
+
+    addSwitch (ParamID::compOn, "Compressor");
+    addKnob (ParamID::compAmount, "Comp Amount", 0.0f, 1.0f, 0.4f);
+    addKnob (ParamID::compLevel, "Comp Level", -12.0f, 12.0f, 0.0f, "dB");
+
+    addSwitch (ParamID::driveOn, "Drive");
+    addKnob (ParamID::driveAmount, "Drive", 0.0f, 1.0f, 0.5f);
+    addKnob (ParamID::driveTone, "Drive Tone", 0.0f, 1.0f, 0.5f);
+    addKnob (ParamID::driveLevel, "Drive Level", -12.0f, 12.0f, 0.0f, "dB");
+
+    addSwitch (ParamID::chorusOn, "Chorus");
+    addKnob (ParamID::chorusRate, "Chorus Rate", 0.1f, 8.0f, 1.2f, "Hz");
+    addKnob (ParamID::chorusDepth, "Chorus Depth", 0.0f, 1.0f, 0.35f);
+    addKnob (ParamID::chorusMix, "Chorus Mix", 0.0f, 1.0f, 0.4f);
+
+    addSwitch (ParamID::delayOn, "Delay");
+    addKnob (ParamID::delayTime, "Delay Time", 0.02f, DelayPedal::maxDelaySeconds, 0.35f, "s");
+    addKnob (ParamID::delayFeedback, "Delay Feedback", 0.0f, 0.95f, 0.35f);
+    addKnob (ParamID::delayMix, "Delay Mix", 0.0f, 1.0f, 0.3f);
+
+    addSwitch (ParamID::reverbOn, "Reverb");
+    addKnob (ParamID::reverbSize, "Reverb Size", 0.0f, 1.0f, 0.5f);
+    addKnob (ParamID::reverbMix, "Reverb Mix", 0.0f, 1.0f, 0.25f);
+
     return layout;
 }
 
@@ -114,6 +157,11 @@ void AmpSimAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     ampModel.prepare (sampleRate, samplesPerBlock);
     ampModel.reset();
 
+    pedals.prepare (sampleRate, samplesPerBlock);
+    pedals.setSettings (currentPedalSettings());
+    pedals.snapToSettings();
+    pedals.reset();
+
     toneStack.prepare (sampleRate, samplesPerBlock);
     toneStack.setBandGains (bassParam->get(), midParam->get(), trebleParam->get());
     toneStack.snapToTargets();   // as with the gains: do not sweep in from flat on every start
@@ -122,7 +170,8 @@ void AmpSimAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     cabSim.prepare (sampleRate, samplesPerBlock);
     cabSim.reset();
 
-    reportedLatency = ampModel.getLatencySamples() + cabSim.getLatencySamples();
+    reportedLatency = ampModel.getLatencySamples() + cabSim.getLatencySamples()
+                    + pedals.getLatencySamples();
     setLatencySamples (reportedLatency);
 }
 
@@ -132,11 +181,55 @@ void AmpSimAudioProcessor::releaseResources()
     monoBuffer.setSize (0, 0);
 }
 
+PedalChain::Settings AmpSimAudioProcessor::currentPedalSettings() const
+{
+    const auto flag = [this] (const char* id)
+    {
+        return apvts.getRawParameterValue (id)->load() > 0.5f;
+    };
+
+    const auto value = [this] (const char* id)
+    {
+        return apvts.getRawParameterValue (id)->load();
+    };
+
+    PedalChain::Settings s;
+
+    s.gateEngaged = flag (ParamID::gateOn);
+    s.gateThresholdDb = value (ParamID::gateThreshold);
+
+    s.compressorEngaged = flag (ParamID::compOn);
+    s.compressorAmount = value (ParamID::compAmount);
+    s.compressorLevelDb = value (ParamID::compLevel);
+
+    s.driveEngaged = flag (ParamID::driveOn);
+    s.driveAmount = value (ParamID::driveAmount);
+    s.driveTone = value (ParamID::driveTone);
+    s.driveLevelDb = value (ParamID::driveLevel);
+
+    s.chorusEngaged = flag (ParamID::chorusOn);
+    s.chorusRateHz = value (ParamID::chorusRate);
+    s.chorusDepth = value (ParamID::chorusDepth);
+    s.chorusMix = value (ParamID::chorusMix);
+
+    s.delayEngaged = flag (ParamID::delayOn);
+    s.delayTimeSeconds = value (ParamID::delayTime);
+    s.delayFeedback = value (ParamID::delayFeedback);
+    s.delayMix = value (ParamID::delayMix);
+
+    s.reverbEngaged = flag (ParamID::reverbOn);
+    s.reverbSize = value (ParamID::reverbSize);
+    s.reverbMix = value (ParamID::reverbMix);
+
+    return s;
+}
+
 void AmpSimAudioProcessor::timerCallback()
 {
     ampModel.collectRetiredModel();
 
-    const auto latency = ampModel.getLatencySamples() + cabSim.getLatencySamples();
+    const auto latency = ampModel.getLatencySamples() + cabSim.getLatencySamples()
+                       + pedals.getLatencySamples();
 
     if (latency != reportedLatency)
     {
@@ -256,6 +349,11 @@ void AmpSimAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     inputGain .setGainDecibels (inputGainParam->get());
     outputGain.setGainDecibels (outputGainParam->get());
 
+    // Pedals in front of the amp, then the amp's own Gain — the order a real rig is plugged up
+    // in, with the board going into the amp's input rather than the other way round.
+    pedals.setSettings (currentPedalSettings());
+    pedals.processBeforeAmp (mono, numSamples);
+
     // Gain, before the model, because driving the network harder is what makes it saturate.
     inputGain.process (monoContext);
 
@@ -269,6 +367,10 @@ void AmpSimAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     // Master last in the amp, before the cab. Convolution is linear, so this is the same level
     // as applying it after the cab — it is here because that is where the control belongs.
     outputGain.process (monoContext);
+
+    // Modulation and time effects after the amp but before the cab, so their tails run through
+    // the speaker response the way they would coming out of a real cabinet.
+    pedals.processAfterAmp (mono, numSamples);
 
     cabSim.process (mono, numSamples, cabBypassParam->get());
 

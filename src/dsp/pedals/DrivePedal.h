@@ -1,0 +1,46 @@
+#pragma once
+
+#include "../BypassCrossfade.h"
+
+#include <juce_dsp/juce_dsp.h>
+
+/** Overdrive and distortion, in front of the amp.
+
+    The pedal that earns its place in front rather than after: clipping here changes what the amp
+    model is given to distort, which is the whole reason a player puts one there.
+
+    Oversampled 4x, because a waveshaper folds harmonics above Nyquist back down as aliasing, and
+    that is the difference between "distorted" and "broken". The oversampler runs whether or not
+    the pedal is engaged, so the latency it adds does not change under the host's feet.
+*/
+class DrivePedal
+{
+public:
+    void prepare (double sampleRate, int maxBlockSize);
+    void reset();
+    void snapBypass (bool bypassed) { bypass.snap (bypassed); }
+
+    /** Jump to the current settings instead of ramping into them on every playback start. */
+    void snapParameters();
+
+    /** @param drive 0–1, edge-of-breakup to fuzzy.  @param tone 0–1, dark to bright. */
+    void setParameters (float drive, float tone, float levelDb);
+
+    void process (float* samples, int numSamples, bool bypassed);
+
+    /** Constant, and reported to the host, because the oversampler always runs. */
+    int getLatencySamples() const;
+
+private:
+    static constexpr int oversampleFactor = 2;   // 2^2 = 4x
+
+    juce::dsp::Oversampling<float> oversampling { 1, oversampleFactor,
+                                                  juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR };
+
+    juce::dsp::Gain<float> inputDrive, level;
+    juce::dsp::IIR::Filter<float> toneFilter;
+    juce::SmoothedValue<float> toneAmount;
+
+    double oversampledRate = 192000.0;
+    BypassCrossfade bypass;
+};

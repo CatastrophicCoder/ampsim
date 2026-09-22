@@ -33,6 +33,7 @@ AmpLookAndFeel::AmpLookAndFeel()
     setColour (juce::TextButton::buttonColourId, AmpPalette::rail);
     setColour (juce::TextButton::textColourOffId, AmpPalette::enamel.withAlpha (0.9f));
     setColour (juce::ToggleButton::textColourId, AmpPalette::enamel);
+    setColour (juce::ToggleButton::tickColourId, AmpPalette::attention);
 }
 
 void AmpLookAndFeel::drawEngravedText (juce::Graphics& g, const juce::String& text,
@@ -143,11 +144,15 @@ void AmpLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& bu
 
     if (on)
     {
-        g.setColour (AmpPalette::attention.withAlpha (0.30f));
+        g.setColour (button.findColour (juce::ToggleButton::tickColourId).withAlpha (0.30f));
         g.fillEllipse (lamp.expanded (3.5f));
     }
 
-    g.setColour (on ? AmpPalette::attention : juce::Colour (0xff3a4034));
+    // The lamp's colour says what lit means: red for the amp's bypass switches (out of your
+    // signal), blue for a pedal's footswitch (in it).
+    const auto lit = button.findColour (juce::ToggleButton::tickColourId);
+
+    g.setColour (on ? lit : juce::Colour (0xff3a4034));
     g.fillEllipse (lamp);
 
     g.setColour (juce::Colours::black.withAlpha (0.5f));
