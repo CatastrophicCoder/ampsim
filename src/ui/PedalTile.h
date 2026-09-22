@@ -19,6 +19,7 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+    void parentHierarchyChanged() override;
 
     /** Right-click behaviour, wired up by the editor. */
     void setContextMenuHandler (std::function<void (const juce::String&, juce::Component&)> handler)

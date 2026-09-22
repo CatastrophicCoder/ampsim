@@ -15,8 +15,15 @@ CompactKnob::CompactKnob (juce::AudioProcessorValueTreeState& state,
     slider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     slider.setRotaryParameters (juce::MathConstants<float>::pi * 1.25f,
                                 juce::MathConstants<float>::pi * 2.75f, true);
-    slider.setPopupDisplayEnabled (true, true, this);
     addAndMakeVisible (slider);
+}
+
+void CompactKnob::parentHierarchyChanged()
+{
+    // The value popup is drawn inside whatever component it is given, and a compact knob is about
+    // 60 px across — parented to itself, the bubble was clipped away to nothing. It belongs to the
+    // whole editor, which is also the only component here big enough to hold it.
+    slider.setPopupDisplayEnabled (true, true, getTopLevelComponent());
 }
 
 void CompactKnob::paint (juce::Graphics& g)

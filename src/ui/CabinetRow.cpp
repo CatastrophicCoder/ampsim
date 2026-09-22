@@ -155,7 +155,11 @@ void CabinetRow::resized()
 
     area = area.reduced (8, 4);
 
-    // The two position controls sit to the right of the corners they move between.
+    // The two position controls sit to the right of the corners they move between, with a margin
+    // so the rightmost one's value popup has room: the bubble centres on the knob, and JUCE does
+    // not pull it back inside the window.
+    area.removeFromRight (6);
+
     auto knobArea = area.removeFromRight (128);
     axisKnob.setBounds (knobArea.removeFromLeft (64).reduced (2, 0));
     distanceKnob.setBounds (knobArea.reduced (2, 0));
