@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-**Milestone 2 is done.** On top of milestone 1's gain/bypass shell, the chain now runs a NAM model:
-`.nam` files load on a background thread, run at their own sample rate with conversion either side,
-and the model path is saved with the session. Milestone 3 (cab IR loader) is next.
+**Milestone 3 is done.** The chain is `input gain → NAM model → cab IR → output gain`, with the
+model and IR paths saved in the session. Milestone 4 (the amp-style tone controls) is next, and is
+the one that makes this more than a NAM loader.
 
 Conventions worth following for every block added after this point:
 
@@ -47,6 +47,19 @@ measure the real delay with an impulse and compare.
 **NAM registers its architectures with file-scope statics**, so `nam_core` must be linked with
 `$<LINK_LIBRARY:WHOLE_ARCHIVE,...>` (the `NAM_CORE_WHOLE` variable). A normal static link drops those
 translation units and every model fails with "No config parser registered for architecture".
+
+## The cab
+
+`CabSim` wraps `juce::dsp::Convolution`, which already loads and resamples the IR on its own thread
+and adds no latency in its default uniform-partitioned mode. Bypass is a crossfade, since an IR
+changes the tone enough to click on a hard switch.
+
+**`Convolution::getCurrentIRSize()` is already non-zero after `prepare()`** — JUCE installs a
+default engine there — so it cannot be used to ask "has the user loaded an IR". `CabSim` keeps its
+own flag; processing through the convolution before loading an IR is *not* a no-op and quietly
+changes the level. The processor also checks the file with an `AudioFormatManager` first, because
+`Convolution` ignores a file it cannot read, which would otherwise leave the UI claiming an IR that
+is not there.
 
 `ampsim_plan.md` is the source of truth for scope, architecture and sequencing; `NOTES.md` is the
 running session log, and gets an entry per working session. Read the plan before implementation
@@ -114,6 +127,9 @@ Input gain → Noise gate → Front-of-amp pedals (comp, overdrive, distortion)
   → Cab sim (IR convolution) → Output gain
 ```
 
+Built so far: input gain, amp model, cab, output gain. Everything else is a later milestone, and
+each new block goes in at the position shown above rather than wherever is convenient.
+
 **The cab IR is last.** The post-amp pedals run *before* it, so delay repeats and reverb tails pass through the speaker response like the dry signal does — the loop-like position, not the studio convention of effects on the miked sound.
 
 Three structural rules that drive most of the code:
@@ -153,7 +169,7 @@ src/
   PluginProcessor.h/.cpp
   PluginEditor.h/.cpp
   ModelLoader.h/.cpp
-  dsp/AmpModel.h/.cpp, ModelResampler.h
+  dsp/AmpModel.h/.cpp, ModelResampler.h, CabSim.h/.cpp
   ui/                                                        (empty)
 resources/irs/     bundled IR .wav → BinaryData              (empty)
 tests/             Catch2 suites + TestHelpers.h

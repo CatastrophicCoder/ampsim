@@ -2,7 +2,9 @@
 
 #include "ModelLoader.h"
 #include "dsp/AmpModel.h"
+#include "dsp/CabSim.h"
 
+#include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
 
@@ -17,6 +19,7 @@ namespace ParamID
     inline constexpr const char* inputGain  = "inputGain";
     inline constexpr const char* outputGain = "outputGain";
     inline constexpr const char* bypass     = "bypass";
+    inline constexpr const char* cabBypass  = "cabBypass";
 }
 
 /** Non-automatable state, stored as properties on the APVTS tree rather than as parameters:
@@ -24,6 +27,7 @@ namespace ParamID
 namespace StateID
 {
     inline constexpr const char* modelPath = "modelPath";
+    inline constexpr const char* irPath    = "irPath";
 }
 
 /** Milestone 2: input gain → NAM amp model → output gain, with a click-free bypass.
@@ -79,8 +83,20 @@ public:
     /** Last load error, empty if the last load succeeded or none has been attempted. */
     juce::String getModelError() const { return modelLoader.getLastError(); }
 
-    /** Called on the message thread whenever the model or its error state changes. */
-    std::function<void()> onModelChanged;
+    /** Message thread. Loads a `.wav` impulse response for the cab. */
+    void loadImpulseResponse (const juce::File& file);
+
+    /** The IR currently loaded, or a non-existent File if none. */
+    juce::File getImpulseResponseFile() const;
+
+    bool isImpulseResponseLoaded() const { return cabSim.hasImpulseResponse(); }
+
+    /** Last IR load error, empty if the last one succeeded or none has been attempted. */
+    juce::String getImpulseResponseError() const { return irError; }
+
+    /** Called on the message thread whenever the loaded model or IR, or their error state,
+        changes. */
+    std::function<void()> onLoadStateChanged;
 
 private:
     void timerCallback() override;
@@ -92,6 +108,7 @@ private:
     juce::AudioParameterFloat* inputGainParam  = nullptr;
     juce::AudioParameterFloat* outputGainParam = nullptr;
     juce::AudioParameterBool*  bypassParam     = nullptr;
+    juce::AudioParameterBool*  cabBypassParam  = nullptr;
 
     juce::dsp::Gain<float> inputGain, outputGain;
 
@@ -104,6 +121,8 @@ private:
 
     AmpModel ampModel;
     ModelLoader modelLoader { ampModel };
+    CabSim cabSim;
+    juce::String irError;
     int reportedLatency = 0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AmpSimAudioProcessor)

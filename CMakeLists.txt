@@ -60,7 +60,8 @@ target_sources(AmpSim PRIVATE
     src/PluginProcessor.cpp
     src/PluginEditor.cpp
     src/ModelLoader.cpp
-    src/dsp/AmpModel.cpp)
+    src/dsp/AmpModel.cpp
+    src/dsp/CabSim.cpp)
 
 target_include_directories(AmpSim PUBLIC src)
 

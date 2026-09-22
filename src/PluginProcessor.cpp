@@ -35,6 +35,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
     layout.add (std::make_unique<juce::AudioParameterBool> (
         juce::ParameterID { ParamID::bypass, 1 }, "Bypass", false));
 
+    layout.add (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { ParamID::cabBypass, 1 }, "Cab Bypass", false));
+
     return layout;
 }
 
@@ -47,13 +50,15 @@ AmpSimAudioProcessor::AmpSimAudioProcessor()
     inputGainParam  = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::inputGain));
     outputGainParam = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::outputGain));
     bypassParam     = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::bypass));
+    cabBypassParam  = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::cabBypass));
 
-    jassert (inputGainParam != nullptr && outputGainParam != nullptr && bypassParam != nullptr);
+    jassert (inputGainParam != nullptr && outputGainParam != nullptr
+             && bypassParam != nullptr && cabBypassParam != nullptr);
 
     modelLoader.onFinished = [this] (ModelLoader::Result)
     {
-        if (onModelChanged != nullptr)
-            onModelChanged();
+        if (onLoadStateChanged != nullptr)
+            onLoadStateChanged();
     };
 
     // Reaps models the audio thread has swapped out, and keeps the reported latency in step
@@ -90,7 +95,10 @@ void AmpSimAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     ampModel.prepare (sampleRate, samplesPerBlock);
     ampModel.reset();
 
-    reportedLatency = ampModel.getLatencySamples();
+    cabSim.prepare (sampleRate, samplesPerBlock);
+    cabSim.reset();
+
+    reportedLatency = ampModel.getLatencySamples() + cabSim.getLatencySamples();
     setLatencySamples (reportedLatency);
 }
 
@@ -104,7 +112,7 @@ void AmpSimAudioProcessor::timerCallback()
 {
     ampModel.collectRetiredModel();
 
-    const auto latency = ampModel.getLatencySamples();
+    const auto latency = ampModel.getLatencySamples() + cabSim.getLatencySamples();
 
     if (latency != reportedLatency)
     {
@@ -125,6 +133,39 @@ void AmpSimAudioProcessor::loadModel (const juce::File& file)
 juce::File AmpSimAudioProcessor::getModelFile() const
 {
     const auto path = apvts.state.getProperty (StateID::modelPath).toString();
+
+    return path.isEmpty() ? juce::File() : juce::File (path);
+}
+
+void AmpSimAudioProcessor::loadImpulseResponse (const juce::File& file)
+{
+    apvts.state.setProperty (StateID::irPath, file.getFullPathName(), nullptr);
+
+    // juce::dsp::Convolution ignores a file it cannot read, which would leave the UI claiming an
+    // IR that is not there. Check it here so a bad file can be reported instead.
+    juce::AudioFormatManager formats;
+    formats.registerBasicFormats();
+
+    const std::unique_ptr<juce::AudioFormatReader> reader (formats.createReaderFor (file));
+
+    if (reader == nullptr)
+    {
+        irError = file.existsAsFile() ? "Not an audio file: " + file.getFileName()
+                                      : "File not found: " + file.getFileName();
+    }
+    else
+    {
+        irError.clear();
+        cabSim.loadImpulseResponse (file);
+    }
+
+    if (onLoadStateChanged != nullptr)
+        onLoadStateChanged();
+}
+
+juce::File AmpSimAudioProcessor::getImpulseResponseFile() const
+{
+    const auto path = apvts.state.getProperty (StateID::irPath).toString();
 
     return path.isEmpty() ? juce::File() : juce::File (path);
 }
@@ -193,7 +234,13 @@ void AmpSimAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     if (getTotalNumInputChannels() > 1)
         juce::FloatVectorOperations::multiply (mono, 1.0f / (float) getTotalNumInputChannels(), numSamples);
 
-    if (ampModel.process (mono, numSamples))
+    const auto modelRan = ampModel.process (mono, numSamples);
+
+    // The cab comes last in the chain: the post-amp pedals (milestone 6) will sit between the
+    // model and here, so that their tails run through the speaker response too.
+    cabSim.process (mono, numSamples, cabBypassParam->get());
+
+    if (modelRan || cabSim.hasImpulseResponse())
         for (int ch = 0; ch < numChannels; ++ch)
             juce::FloatVectorOperations::copy (buffer.getWritePointer (ch), mono, numSamples);
 
@@ -240,6 +287,9 @@ void AmpSimAudioProcessor::setStateInformation (const void* data, int sizeInByte
 
     if (const auto file = getModelFile(); file != juce::File())
         loadModel (file);
+
+    if (const auto ir = getImpulseResponseFile(); ir != juce::File())
+        cabSim.loadImpulseResponse (ir);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

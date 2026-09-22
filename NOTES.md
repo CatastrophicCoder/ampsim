@@ -147,3 +147,37 @@ Still open:
 
 - Not yet opened in a DAW or run as a standalone app.
 - The chain sums to mono before the model, since NAM is mono and the cab comes later.
+
+## 2026-09-22 — Milestone 3: cab IR loader
+
+Done:
+
+- `CabSim` around `juce::dsp::Convolution`: loads a `.wav`/`.aiff` IR, mono, un-normalised, trimmed;
+  `cabBypass` parameter with a 20 ms crossfade; IR path saved on the APVTS tree.
+- "Load cab IR..." button, IR name/error label and a cab bypass toggle in the editor; the file
+  chooser is now one shared helper for both the model and the IR.
+- `onModelChanged` renamed `onLoadStateChanged`, since it now covers both.
+- 7 new tests (31 total). auval and pluginval level 10 still pass.
+
+Worth knowing:
+
+- **`juce::dsp::Convolution::getCurrentIRSize()` is non-zero straight after `prepare()`.** JUCE
+  installs a default engine there, so it cannot answer "has an IR been loaded", and running the
+  signal through the convolution before loading one is *not* a no-op — it scaled a 0.5 DC signal to
+  0.38. The gain tests from milestone 1 caught this immediately, which is the second time the old
+  tests have caught a regression in new code.
+- `Convolution` silently ignores a file it cannot read, so the processor validates with an
+  `AudioFormatManager` first and reports the failure the way a failed model load is reported.
+- `Trim::yes` strips leading and trailing silence from the IR. That is right for a cab (it removes
+  pointless pre-delay) but worth remembering if an IR ever seems to have lost its front end.
+- The test IR is generated into a temp file rather than committed, so the expected output is
+  written down in the test itself instead of hidden in a binary.
+- `AudioFormat::createWriterFor` with explicit sample rate/channels/bit depth is deprecated in
+  JUCE 9; the replacement takes an `AudioFormatWriterOptions` and a `std::unique_ptr<OutputStream>&`
+  by lvalue reference.
+
+Still open:
+
+- Not yet opened in a DAW or run as a standalone app — outstanding since milestone 0.
+- The chain is still mono all the way through; the cab is where stereo would start, once there is
+  anything stereo to do.

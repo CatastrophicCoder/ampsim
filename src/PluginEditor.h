@@ -45,6 +45,12 @@ private:
 
     juce::TextButton loadModelButton { "Load model..." };
     juce::Label modelLabel;
+
+    juce::TextButton loadIRButton { "Load cab IR..." };
+    juce::Label irLabel;
+    juce::ToggleButton cabBypassButton { "Cab bypass" };
+    juce::AudioProcessorValueTreeState::ButtonAttachment cabBypassAttachment;
+
     std::unique_ptr<juce::FileChooser> fileChooser;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AmpSimAudioProcessorEditor)

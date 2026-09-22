@@ -6,8 +6,8 @@ The amp tone comes from a pre-trained [Neural Amp Modeler](https://github.com/sd
 
 See [`ampsim_plan.md`](ampsim_plan.md) for the goal, architecture and milestones.
 
-**Status: milestone 2 (NAM model playing).** Loads a `.nam` model off the audio thread, runs it at
-the rate it was trained at, and remembers it with the session. No cab or pedals yet.
+**Status: milestone 3 (cab IR loader).** Loads a `.nam` model and a cabinet impulse response,
+both remembered with the session. No tone stack or pedals yet.
 
 ## Requirements
 
@@ -45,6 +45,11 @@ is much slower and will not represent real CPU load once NAM is in the chain.
 Click **Load model...** and pick a `.nam` file. NAM Core's own example models are in
 `external/NeuralAmpModelerCore/example_models/`, and the public model libraries linked from the
 [Neural Amp Modeler](https://github.com/sdatkinson/neural-amp-modeler) project work too.
+
+Click **Load cab IR...** and pick a `.wav` or `.aiff` impulse response for the cabinet. It is
+convolved at the end of the chain, with no added latency, and **Cab bypass** switches it out with a
+crossfade. A stereo IR is folded to mono, and the IR's own level is kept rather than normalised, so
+swapping IRs changes tone rather than volume.
 
 The model runs at the sample rate it was trained at (usually 48 kHz). At any other session rate the
 plugin converts in and out, and reports the resulting latency for the host to compensate — about

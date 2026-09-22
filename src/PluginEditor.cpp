@@ -32,62 +32,83 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
       processorRef (p),
       inputKnob  (p.getValueTreeState(), ParamID::inputGain,  "Input"),
       outputKnob (p.getValueTreeState(), ParamID::outputGain, "Output"),
-      bypassAttachment (p.getValueTreeState(), ParamID::bypass, bypassButton)
+      bypassAttachment (p.getValueTreeState(), ParamID::bypass, bypassButton),
+      cabBypassAttachment (p.getValueTreeState(), ParamID::cabBypass, cabBypassButton)
 {
     addAndMakeVisible (inputKnob);
     addAndMakeVisible (outputKnob);
     addAndMakeVisible (bypassButton);
 
-    loadModelButton.onClick = [this]
+    // Held as a member: the chooser has to outlive the click handler, since it runs asynchronously.
+    const auto chooseFile = [this] (const juce::String& title,
+                                    const juce::File& startingFile,
+                                    const juce::String& pattern,
+                                    std::function<void (const juce::File&)> onChosen)
     {
-        // Held as a member: the chooser has to outlive this call, since it runs asynchronously.
-        fileChooser = std::make_unique<juce::FileChooser> ("Load a NAM model",
-                                                           processorRef.getModelFile(),
-                                                           "*.nam");
+        fileChooser = std::make_unique<juce::FileChooser> (title, startingFile, pattern);
 
         fileChooser->launchAsync (juce::FileBrowserComponent::openMode
                                       | juce::FileBrowserComponent::canSelectFiles,
-                                  [this] (const juce::FileChooser& chooser)
+                                  [onChosen] (const juce::FileChooser& chooser)
                                   {
                                       const auto file = chooser.getResult();
 
                                       if (file != juce::File())
-                                          processorRef.loadModel (file);
+                                          onChosen (file);
                                   });
     };
+
+    loadModelButton.onClick = [this, chooseFile]
+    {
+        chooseFile ("Load a NAM model", processorRef.getModelFile(), "*.nam",
+                    [this] (const juce::File& file) { processorRef.loadModel (file); });
+    };
     addAndMakeVisible (loadModelButton);
+
+    loadIRButton.onClick = [this, chooseFile]
+    {
+        chooseFile ("Load a cabinet impulse response", processorRef.getImpulseResponseFile(), "*.wav;*.aiff;*.aif",
+                    [this] (const juce::File& file) { processorRef.loadImpulseResponse (file); });
+    };
+    addAndMakeVisible (loadIRButton);
 
     modelLabel.setJustificationType (juce::Justification::centred);
     addAndMakeVisible (modelLabel);
 
+    irLabel.setJustificationType (juce::Justification::centred);
+    addAndMakeVisible (irLabel);
+
+    addAndMakeVisible (cabBypassButton);
+
     // The load finishes on a background thread, so the editor is told rather than polling.
-    processorRef.onModelChanged = [this] { updateModelDisplay(); };
+    processorRef.onLoadStateChanged = [this] { updateModelDisplay(); };
     updateModelDisplay();
 
-    setSize (420, 320);
+    setSize (420, 400);
 }
 
 AmpSimAudioProcessorEditor::~AmpSimAudioProcessorEditor()
 {
-    processorRef.onModelChanged = nullptr;
+    processorRef.onLoadStateChanged = nullptr;
 }
 
 void AmpSimAudioProcessorEditor::updateModelDisplay()
 {
-    const auto error = processorRef.getModelError();
-
-    if (error.isNotEmpty())
+    const auto show = [] (juce::Label& label, const juce::String& error,
+                          const juce::File& file, const juce::String& emptyText)
     {
-        modelLabel.setText (error, juce::dontSendNotification);
-        modelLabel.setColour (juce::Label::textColourId, juce::Colours::orangered);
-        return;
-    }
+        const auto failed = error.isNotEmpty();
 
-    const auto file = processorRef.getModelFile();
+        label.setText (failed ? error
+                              : (file == juce::File() ? emptyText : file.getFileNameWithoutExtension()),
+                       juce::dontSendNotification);
 
-    modelLabel.setText (file == juce::File() ? "No model loaded" : file.getFileNameWithoutExtension(),
-                        juce::dontSendNotification);
-    modelLabel.setColour (juce::Label::textColourId, juce::Colours::whitesmoke);
+        label.setColour (juce::Label::textColourId,
+                         failed ? juce::Colours::orangered : juce::Colours::whitesmoke);
+    };
+
+    show (modelLabel, processorRef.getModelError(), processorRef.getModelFile(), "No model loaded");
+    show (irLabel, processorRef.getImpulseResponseError(), processorRef.getImpulseResponseFile(), "No cab IR loaded");
 }
 
 void AmpSimAudioProcessorEditor::paint (juce::Graphics& g)
@@ -108,6 +129,12 @@ void AmpSimAudioProcessorEditor::resized()
 
     auto footer = area.removeFromBottom (labelHeight + margin);
     bypassButton.setBounds (footer.withSizeKeepingCentre (110, labelHeight));
+
+    irLabel.setBounds (area.removeFromBottom (labelHeight));
+
+    auto irRow = area.removeFromBottom (labelHeight + margin / 2);
+    cabBypassButton.setBounds (irRow.removeFromRight (120).withSizeKeepingCentre (120, labelHeight));
+    loadIRButton.setBounds (irRow.withSizeKeepingCentre (150, labelHeight));
 
     modelLabel.setBounds (area.removeFromBottom (labelHeight));
     loadModelButton.setBounds (area.removeFromBottom (labelHeight + margin / 2)
