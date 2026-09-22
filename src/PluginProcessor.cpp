@@ -53,6 +53,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
     layout.add (std::make_unique<juce::AudioParameterBool> (
         juce::ParameterID { ParamID::cabBypass, 1 }, "Cab Bypass", false));
 
+    layout.add (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { ParamID::tunerOn, 1 }, "Tuner", false));
+
     // --- Pedals -------------------------------------------------------------------------------
     const auto addSwitch = [&layout] (const char* id, const juce::String& name)
     {
@@ -109,13 +112,15 @@ AmpSimAudioProcessor::AmpSimAudioProcessor()
     outputGainParam = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::outputGain));
     bypassParam     = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::bypass));
     cabBypassParam  = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::cabBypass));
+    tunerParam      = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::tunerOn));
     bassParam       = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::bass));
     midParam        = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::mid));
     trebleParam     = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::treble));
 
     jassert (inputGainParam != nullptr && outputGainParam != nullptr
              && bypassParam != nullptr && cabBypassParam != nullptr
-             && bassParam != nullptr && midParam != nullptr && trebleParam != nullptr);
+             && bassParam != nullptr && midParam != nullptr && trebleParam != nullptr
+             && tunerParam != nullptr);
 
     modelLoader.onFinished = [this] (ModelLoader::Result)
     {
@@ -156,6 +161,12 @@ void AmpSimAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
 
     ampModel.prepare (sampleRate, samplesPerBlock);
     ampModel.reset();
+
+    tuner.prepare (sampleRate);
+    tuner.reset();
+
+    tunerMute.reset (sampleRate, 0.03);
+    tunerMute.setCurrentAndTargetValue (tunerParam->get() ? 0.0f : 1.0f);
 
     pedals.prepare (sampleRate, samplesPerBlock);
     pedals.setSettings (currentPedalSettings());
@@ -349,6 +360,9 @@ void AmpSimAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     inputGain .setGainDecibels (inputGainParam->get());
     outputGain.setGainDecibels (outputGainParam->get());
 
+    // The tuner reads the guitar itself, so it taps in before anything shapes the signal.
+    tuner.pushSamples (mono, numSamples);
+
     // Pedals in front of the amp, then the amp's own Gain — the order a real rig is plugged up
     // in, with the board going into the amp's input rather than the other way round.
     pedals.setSettings (currentPedalSettings());
@@ -373,6 +387,19 @@ void AmpSimAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     pedals.processAfterAmp (mono, numSamples);
 
     cabSim.process (mono, numSamples, cabBypassParam->get());
+
+    // Muting for the tuner happens last, so everything upstream keeps running and the chain does
+    // not have to settle again when you switch back.
+    tunerMute.setTargetValue (tunerParam->get() ? 0.0f : 1.0f);
+
+    if (tunerMute.isSmoothing() || tunerMute.getCurrentValue() < 1.0f)
+    {
+        const auto start = tunerMute.getCurrentValue();
+        tunerMute.skip (numSamples);
+
+        juce::AudioBuffer<float> view (&mono, 1, numSamples);
+        view.applyGainRamp (0, 0, numSamples, start, tunerMute.getCurrentValue());
+    }
 
     for (int ch = 0; ch < numChannels; ++ch)
         juce::FloatVectorOperations::copy (buffer.getWritePointer (ch), mono, numSamples);

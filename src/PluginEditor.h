@@ -49,7 +49,8 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NameplateRow)
 };
 
-class AmpSimAudioProcessorEditor final : public juce::AudioProcessorEditor
+class AmpSimAudioProcessorEditor final : public juce::AudioProcessorEditor,
+                                         private juce::Timer
 {
 public:
     explicit AmpSimAudioProcessorEditor (AmpSimAudioProcessor&);
@@ -59,6 +60,8 @@ public:
     void resized() override;
 
 private:
+    void timerCallback() override;
+    void paintTuner (juce::Graphics&, juce::Rectangle<int>);
     void updateLoadedFileDisplay();
     void chooseFile (const juce::String& title, const juce::File& startingFile,
                      const juce::String& pattern, std::function<void (const juce::File&)> onChosen);
@@ -71,6 +74,9 @@ private:
 
     juce::ToggleButton bypassButton { "bypassed" };
     juce::AudioProcessorValueTreeState::ButtonAttachment bypassAttachment;
+
+    juce::ToggleButton tunerButton { "tuner" };
+    juce::AudioProcessorValueTreeState::ButtonAttachment tunerAttachment;
 
     // Two rows, so the panel says which side of the amp each pedal is on — which is the whole
     // design of the pedal section, not a detail of it.

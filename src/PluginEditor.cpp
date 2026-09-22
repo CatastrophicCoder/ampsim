@@ -144,6 +144,7 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
       trebleKnob (p.getValueTreeState(), ParamID::treble,     "Treble"),
       masterKnob (p.getValueTreeState(), ParamID::outputGain, "Master"),
       bypassAttachment (p.getValueTreeState(), ParamID::bypass, bypassButton),
+      tunerAttachment (p.getValueTreeState(), ParamID::tunerOn, tunerButton),
       gatePedal (p.getValueTreeState(), "gate", ParamID::gateOn,
                  { { ParamID::gateThreshold, "thresh" } }),
       compressorPedal (p.getValueTreeState(), "comp", ParamID::compOn,
@@ -168,6 +169,14 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
 
     bypassButton.setColour (juce::ToggleButton::textColourId, AmpPalette::enamel);
     addAndMakeVisible (bypassButton);
+
+    // Blue, like a pedal's footswitch: the tuner is doing something, not switching something out.
+    tunerButton.setColour (juce::ToggleButton::tickColourId, AmpPalette::reading);
+    tunerButton.onClick = [this] { repaint(); };
+    addAndMakeVisible (tunerButton);
+
+    // Fast enough for a tuner to feel responsive while a string is still ringing.
+    startTimerHz (25);
 
     ampRow.onBrowse = [this]
     {
@@ -199,8 +208,64 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
 
 AmpSimAudioProcessorEditor::~AmpSimAudioProcessorEditor()
 {
+    stopTimer();
     processorRef.onLoadStateChanged = nullptr;
     setLookAndFeel (nullptr);
+}
+
+void AmpSimAudioProcessorEditor::timerCallback()
+{
+    if (! processorRef.isTunerEngaged())
+        return;
+
+    // The analysis itself, on the message thread. See Tuner.
+    processorRef.getTuner().analyse();
+    repaint (getLocalBounds().removeFromTop (headerHeight));
+}
+
+/** The reading, drawn where the strapline normally sits: a note name, and a bar that says how
+    far off it is and which way. In tune is the bar sitting on the centre mark. */
+void AmpSimAudioProcessorEditor::paintTuner (juce::Graphics& g, juce::Rectangle<int> area)
+{
+    const auto reading = processorRef.getTuner().getReading();
+
+    if (! reading.valid)
+    {
+        g.setFont (AmpLookAndFeel::panelFont (12.0f));
+        g.setColour (AmpPalette::enamel.withAlpha (0.4f));
+        g.drawText ("play a string", area, juce::Justification::centredLeft, false);
+        return;
+    }
+
+    auto noteArea = area.removeFromLeft (52);
+
+    g.setFont (AmpLookAndFeel::panelFont (20.0f, true));
+    g.setColour (AmpPalette::enamel);
+    g.drawText (Tuner::noteName (reading.midiNote), noteArea, juce::Justification::centredLeft, false);
+
+    // The meter: ±50 cents across the strip, with the centre marked.
+    auto meter = area.removeFromLeft (juce::jmax (80, area.getWidth() - 70))
+                     .reduced (0, 15).toFloat();
+
+    g.setColour (AmpPalette::railRecess);
+    g.fillRect (meter);
+
+    g.setColour (AmpPalette::enamel.withAlpha (0.25f));
+    g.drawLine (meter.getCentreX(), meter.getY() - 3.0f, meter.getCentreX(), meter.getBottom() + 3.0f, 1.0f);
+
+    const auto inTune = std::abs (reading.cents) < 3.0f;
+    const auto offset = juce::jlimit (-0.5f, 0.5f, reading.cents / 100.0f) * meter.getWidth();
+
+    const juce::Rectangle<float> needle { meter.getCentreX() + juce::jmin (offset, 0.0f),
+                                          meter.getY(), std::abs (offset), meter.getHeight() };
+
+    g.setColour (inTune ? AmpPalette::reading : AmpPalette::attention);
+    g.fillRect (inTune ? meter.withSizeKeepingCentre (4.0f, meter.getHeight()) : needle);
+
+    g.setFont (AmpLookAndFeel::panelFont (12.0f));
+    g.setColour (AmpPalette::enamel.withAlpha (0.5f));
+    g.drawText (juce::String (juce::roundToInt (reading.cents)) + " cents",
+                area.withTrimmedLeft (10), juce::Justification::centredLeft, false);
 }
 
 void AmpSimAudioProcessorEditor::chooseFile (const juce::String& title, const juce::File& startingFile,
@@ -270,7 +335,8 @@ void AmpSimAudioProcessorEditor::paint (juce::Graphics& g)
     heading (deck.removeFromTop (groupLabelHeight), "after the amp, before the cab");
 
     // The name, set once and left alone — the panel's one piece of display type.
-    auto nameArea = header.reduced (gutter, 0);
+    // Leave the right-hand end to the two switches, so nothing is drawn under them.
+    auto nameArea = header.reduced (gutter, 0).withTrimmedRight (220);
 
     const auto nameFont = AmpLookAndFeel::panelFont (21.0f, true).withExtraKerningFactor (0.16f);
     const auto nameWidth = juce::GlyphArrangement::getStringWidthInt (nameFont, "ampsim");
@@ -280,10 +346,19 @@ void AmpSimAudioProcessorEditor::paint (juce::Graphics& g)
     g.drawText ("ampsim", nameArea.removeFromLeft (nameWidth + 18),
                 juce::Justification::centredLeft, false);
 
-    g.setFont (AmpLookAndFeel::panelFont (12.0f));
-    g.setColour (AmpPalette::enamel.withAlpha (0.4f));
-    g.drawText ("neural capture, played through a cabinet", nameArea,
-                juce::Justification::centredLeft, false);
+    // While the tuner is on it takes over the strapline's space: it is the only thing you are
+    // looking at, and a second row for it would be dead panel the rest of the time.
+    if (processorRef.isTunerEngaged())
+    {
+        paintTuner (g, nameArea);
+    }
+    else
+    {
+        g.setFont (AmpLookAndFeel::panelFont (12.0f));
+        g.setColour (AmpPalette::enamel.withAlpha (0.4f));
+        g.drawText ("neural capture, played through a cabinet", nameArea,
+                    juce::Justification::centredLeft, false);
+    }
 
     // Hairlines where the plate meets the rails, so the plate reads as a separate piece of metal.
     g.setColour (juce::Colours::black.withAlpha (0.35f));
@@ -297,6 +372,7 @@ void AmpSimAudioProcessorEditor::resized()
 
     auto header = area.removeFromTop (headerHeight);
     bypassButton.setBounds (header.removeFromRight (130).reduced (gutter, 14));
+    tunerButton.setBounds (header.removeFromRight (80).reduced (0, 14));
 
     auto deck = area.removeFromBottom (deckHeight);
 

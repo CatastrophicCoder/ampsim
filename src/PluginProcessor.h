@@ -5,6 +5,7 @@
 #include "dsp/CabSim.h"
 #include "dsp/PedalChain.h"
 #include "dsp/ToneStack.h"
+#include "dsp/Tuner.h"
 
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -27,6 +28,7 @@ namespace ParamID
     inline constexpr const char* treble     = "treble";
     inline constexpr const char* bypass     = "bypass";
     inline constexpr const char* cabBypass  = "cabBypass";
+    inline constexpr const char* tunerOn    = "tunerOn";
 
     // The pedals. "Engaged" rather than "bypass": a pedal is off until you step on it, and the
     // parameter reads the way the footswitch does.
@@ -126,6 +128,12 @@ public:
 
     bool isImpulseResponseLoaded() const { return cabSim.hasImpulseResponse(); }
 
+    /** The tuner taps the signal before the pedals and the amp, so it reads the guitar rather
+        than what the drive pedal and the model have made of it. Analysis runs on the message
+        thread — see Tuner. */
+    Tuner& getTuner() { return tuner; }
+    bool isTunerEngaged() const { return tunerParam->get(); }
+
     /** Last IR load error, empty if the last one succeeded or none has been attempted. */
     juce::String getImpulseResponseError() const { return irError; }
 
@@ -150,6 +158,7 @@ private:
     juce::AudioParameterFloat* trebleParam     = nullptr;
     juce::AudioParameterBool*  bypassParam     = nullptr;
     juce::AudioParameterBool*  cabBypassParam  = nullptr;
+    juce::AudioParameterBool*  tunerParam      = nullptr;
 
     juce::dsp::Gain<float> inputGain, outputGain;
 
@@ -163,6 +172,10 @@ private:
     AmpModel ampModel;
     ModelLoader modelLoader { ampModel };
     ToneStack toneStack;
+    Tuner tuner;
+
+    // A tuner pedal mutes while you use it, so you can tune without the room hearing it.
+    juce::SmoothedValue<float> tunerMute;
     PedalChain pedals;
     CabSim cabSim;
     juce::String irError;
