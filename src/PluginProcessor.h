@@ -73,6 +73,7 @@ namespace StateID
     inline constexpr const char* irPathEdgeClose = "irPathEdgeClose";
     inline constexpr const char* irPathCentreFar = "irPathCentreFar";
     inline constexpr const char* irPathEdgeFar   = "irPathEdgeFar";
+    inline constexpr const char* presetName      = "presetName";
 }
 
 /** Milestone 2: input gain → NAM amp model → output gain, with a click-free bypass.
@@ -146,6 +147,17 @@ public:
         thread — see Tuner. */
     Tuner& getTuner() { return tuner; }
     MidiLearn& getMidiLearn() { return midiLearn; }
+
+    //==============================================================================
+    /** The whole state, as a preset file stores it. */
+    juce::ValueTree getPresetState() { return apvts.copyState(); }
+
+    /** Applies a preset. Anything the preset leaves empty — a model path, a cab IR — keeps
+        whatever is currently loaded, so a preset that only sets the controls does exactly that. */
+    void applyPresetState (const juce::ValueTree&);
+
+    juce::String getCurrentPresetName() const;
+    void setCurrentPresetName (const juce::String&);
     bool isTunerEngaged() const { return tunerParam->get(); }
 
     /** Last IR load error, empty if the last one succeeded or none has been attempted. */
@@ -157,6 +169,9 @@ public:
 
 private:
     void timerCallback() override;
+
+    /** Shared by setStateInformation and applyPresetState. */
+    void applyState (juce::ValueTree, bool keepLoadedFilesWhenEmpty);
 
     /** Reads the pedal parameters into one settings object, once per block. */
     PedalChain::Settings currentPedalSettings() const;

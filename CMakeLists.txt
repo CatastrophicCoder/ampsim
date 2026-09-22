@@ -61,6 +61,7 @@ target_sources(AmpSim PRIVATE
     src/PluginEditor.cpp
     src/ModelLoader.cpp
     src/MidiLearn.cpp
+    src/PresetManager.cpp
     src/dsp/AmpModel.cpp
     src/dsp/CabSim.cpp
     src/dsp/ToneStack.cpp
@@ -68,6 +69,7 @@ target_sources(AmpSim PRIVATE
     src/ui/AmpLookAndFeel.cpp
     src/ui/PedalTile.cpp
     src/ui/CabinetRow.cpp
+    src/ui/PresetRow.cpp
     src/dsp/PedalChain.cpp
     src/dsp/pedals/DrivePedal.cpp
     src/dsp/pedals/DelayPedal.cpp)

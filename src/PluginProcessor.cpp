@@ -478,10 +478,39 @@ void AmpSimAudioProcessor::setStateInformation (const void* data, int sizeInByte
     if (xml == nullptr || ! xml->hasTagName (apvts.state.getType()))
         return;
 
+    // A session restore is the whole picture, so empty means empty.
+    applyState (juce::ValueTree::fromXml (*xml), false);
+}
+
+void AmpSimAudioProcessor::applyPresetState (const juce::ValueTree& preset)
+{
+    if (preset.isValid())
+        applyState (preset.createCopy(), true);
+}
+
+void AmpSimAudioProcessor::applyState (juce::ValueTree newState, bool keepLoadedFilesWhenEmpty)
+{
+    if (keepLoadedFilesWhenEmpty)
+    {
+        // A preset saved on another machine cannot know where your models live, and a preset that
+        // only sets the controls should not unload your amp. Carry the current paths across
+        // wherever the incoming state has none.
+        const auto carryOver = [this, &newState] (const char* id)
+        {
+            if (newState.getProperty (id).toString().isEmpty())
+                newState.setProperty (id, apvts.state.getProperty (id), nullptr);
+        };
+
+        carryOver (StateID::modelPath);
+
+        for (int slot = 0; slot < CabSim::numSlots; ++slot)
+            carryOver (slotStateID ((CabSim::Slot) slot));
+    }
+
     // Only the parameters are touched here. This runs on the message thread, so the DSP
     // objects are left alone — processBlock picks the new values up on its next call and
     // ramps to them, which is also what stops a preset change from clicking.
-    apvts.replaceState (juce::ValueTree::fromXml (*xml));
+    apvts.replaceState (newState);
 
     midiLearn.rebuildFromState();
 
@@ -489,8 +518,28 @@ void AmpSimAudioProcessor::setStateInformation (const void* data, int sizeInByte
         loadModel (file);
 
     for (int slot = 0; slot < CabSim::numSlots; ++slot)
-        if (const auto ir = getImpulseResponseFile ((CabSim::Slot) slot); ir != juce::File())
-            cabSim.loadImpulseResponse ((CabSim::Slot) slot, ir);
+    {
+        const auto slotToLoad = (CabSim::Slot) slot;
+        const auto ir = getImpulseResponseFile (slotToLoad);
+
+        if (ir != juce::File())
+            cabSim.loadImpulseResponse (slotToLoad, ir);
+        else
+            cabSim.clearSlot (slotToLoad);
+    }
+
+    if (onLoadStateChanged != nullptr)
+        onLoadStateChanged();
+}
+
+juce::String AmpSimAudioProcessor::getCurrentPresetName() const
+{
+    return apvts.state.getProperty (StateID::presetName).toString();
+}
+
+void AmpSimAudioProcessor::setCurrentPresetName (const juce::String& name)
+{
+    apvts.state.setProperty (StateID::presetName, name, nullptr);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

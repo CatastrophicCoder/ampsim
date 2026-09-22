@@ -160,6 +160,8 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
                     { ParamID::delayMix, "mix" } }),
       reverbPedal (p.getValueTreeState(), "reverb", ParamID::reverbOn,
                    { { ParamID::reverbSize, "size" }, { ParamID::reverbMix, "mix" } }),
+      presets (p),
+      presetRow (presets),
       cabinetRow (p)
 {
     setLookAndFeel (&lookAndFeel);
@@ -188,6 +190,13 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
                          &chorusPedal, &delayPedal, &reverbPedal })
         addAndMakeVisible (*pedal);
 
+    presets.onChanged = [this]
+    {
+        presetRow.updateContents();
+        updateLoadedFileDisplay();
+    };
+
+    addAndMakeVisible (presetRow);
     addAndMakeVisible (ampRow);
     addAndMakeVisible (cabinetRow);
 
@@ -210,7 +219,7 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
     processorRef.onLoadStateChanged = [this] { updateLoadedFileDisplay(); };
     updateLoadedFileDisplay();
 
-    setSize (640, 310 - rowHeight + deckHeight);
+    setSize (640, 310 + deckHeight);
 }
 
 AmpSimAudioProcessorEditor::~AmpSimAudioProcessorEditor()
@@ -346,7 +355,7 @@ void AmpSimAudioProcessorEditor::paint (juce::Graphics& g)
     // Same order as resized(), bottom upwards: the pedal deck sits under the amp's nameplates.
     auto header = area.removeFromTop (headerHeight);
     auto deck = area.removeFromBottom (deckHeight);
-    auto footer = area.removeFromBottom (rowHeight + gutter);
+    auto footer = area.removeFromBottom (2 * rowHeight + gutter);
 
     paintPlate (g, area);
 
@@ -433,7 +442,8 @@ void AmpSimAudioProcessorEditor::resized()
     deck.removeFromTop (groupLabelHeight);
     cabinetRow.setBounds (deck.removeFromTop (pedalRowHeight).reduced (gutter, 2));
 
-    auto footer = area.removeFromBottom (rowHeight + gutter).reduced (gutter, gutter / 2);
+    auto footer = area.removeFromBottom (2 * rowHeight + gutter).reduced (gutter, gutter / 2);
+    presetRow.setBounds (footer.removeFromTop (rowHeight));
     ampRow.setBounds (footer.removeFromTop (rowHeight));
 
     LabelledKnob* controls[] { &gainKnob, &bassKnob, &midKnob, &trebleKnob, &masterKnob };

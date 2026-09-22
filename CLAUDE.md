@@ -4,11 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-**Milestone 6 is done, and with it the whole of the Goal.** The chain is
-`gate → comp → drive → Gain → NAM model → Bass/Mid/Treble → Master → chorus → delay → reverb → cab`,
-all mono, with the model and IR paths saved in the session, behind a custom panel. What remains is
-milestone 7: tuner, MIDI, presets, multi-mic cab, installer — all explicitly out of the original
-scope, so treat any of it as new work rather than as unfinished business.
+**Milestone 7 is done bar packaging.** On top of the full chain
+(`gate → comp → drive → Gain → NAM model → Bass/Mid/Treble → Master → chorus → delay → reverb → cab`)
+there is a tuner, a preset system, MIDI controller mapping and a four-corner mic-position cabinet.
+
+What is left from the plan's milestone 7 is the **notarised installer**, which needs an Apple
+Developer Program membership and signing credentials — not something to attempt without them.
 
 Conventions worth following for every block added after this point:
 
@@ -78,6 +79,19 @@ amount of reading the paint code will: see the milestone 5 entry in `NOTES.md`.
 `CabSim` wraps `juce::dsp::Convolution`, which already loads and resamples the IR on its own thread
 and adds no latency in its default uniform-partitioned mode. Bypass is a crossfade, since an IR
 changes the tone enough to click on a hard switch.
+
+## Presets, MIDI and the tuner
+
+- **`PresetManager`** writes the whole state to `~/Library/Application Support/AmpSim/Presets`. Its
+  one rule worth knowing: `applyPresetState` carries over the current model and IR paths wherever
+  the preset has none, so a preset that only sets the controls does not unload the amp. The
+  directory is a constructor argument so tests never write into the user's own.
+- **`MidiLearn`** reads its map on the audio thread through an array of atomics, and **never writes
+  it there** — learning sets an atomic that the message thread commits to the ValueTree, because a
+  ValueTree may only be touched from one thread.
+- **`Tuner`** takes samples from the audio thread into a FIFO and does the YIN analysis on the
+  message thread, from the editor's 25 Hz timer. It taps the chain before the pedals, so it reads
+  the guitar rather than the distorted result.
 
 ## The pedals
 

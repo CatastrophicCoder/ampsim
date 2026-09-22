@@ -4,6 +4,7 @@
 #include "ui/AmpLookAndFeel.h"
 #include "ui/CabinetRow.h"
 #include "ui/PedalTile.h"
+#include "ui/PresetRow.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -90,6 +91,9 @@ private:
     // design of the pedal section, not a detail of it.
     PedalTile gatePedal, compressorPedal, drivePedal;
     PedalTile chorusPedal, delayPedal, reverbPedal;
+
+    PresetManager presets;
+    PresetRow presetRow;
 
     NameplateRow ampRow { "amp", "Load model" };
 

@@ -6,8 +6,8 @@ The amp tone comes from a pre-trained [Neural Amp Modeler](https://github.com/sd
 
 See [`ampsim_plan.md`](ampsim_plan.md) for the goal, architecture and milestones.
 
-**Status: milestone 6 (pedalboard).** The whole chain from the Goal is built: pedals into the amp,
-a NAM model, tone stack, master, pedals after the amp, cabinet IR.
+**Status: milestone 7.** The whole chain from the Goal, plus a tuner, presets, MIDI controller
+mapping and a four-corner mic-position cabinet. Not packaged for distribution.
 
 ## Requirements
 
@@ -59,6 +59,24 @@ Treble are three independent parametric bands (low shelf at 100 Hz, peak at 800 
 Because the bands are parametric rather than a modelled passive network, all three centred is
 genuinely flat, and each control moves only its own band. A real amp's tone stack interacts with
 itself and is mid-scooped at noon — that difference is deliberate, and recorded in the plan.
+
+**Presets** sit above the amp's nameplate: step through them with the arrows, or open the menu to
+load, save, delete, add the built-in set, or open the folder they live in
+(`~/Library/Application Support/AmpSim/Presets`). A preset holds everything — controls, MIDI map,
+and the paths of the model and cabs — but anything it leaves empty keeps whatever is already
+loaded, so a preset that only sets the knobs will not unload your amp.
+
+**The tuner** is the switch in the header. It reads the guitar before the pedals and the amp, shows
+the note and how many cents off it is, and mutes the output while it is on.
+
+**MIDI controllers**: right-click any control to learn a CC for it, or to forget the one it has.
+One controller drives one parameter and one parameter answers to one controller. The mapping is
+saved with the session and travels with a preset.
+
+**The cabinet** has four corners — on and off axis, close and far — and the axis and distance knobs
+blend between them. Click a corner to load or clear an IR. With one corner filled it is a plain IR
+loader; whether the blend sounds like moving a microphone depends entirely on the captures you put
+in the corners.
 
 Below the amp are six pedals in two rows, and the rows are the point: **into the amp** (gate,
 compressor, drive) and **after the amp, before the cab** (chorus, delay, reverb). The placement is

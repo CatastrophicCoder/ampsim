@@ -12,7 +12,8 @@ add_executable(AmpSimTests
     ToneStackTests.cpp
     PedalTests.cpp
     TunerTests.cpp
-    MidiLearnTests.cpp)
+    MidiLearnTests.cpp
+    PresetTests.cpp)
 
 # NAM Core ships example models; the tests use them rather than carrying a copy.
 target_compile_definitions(AmpSimTests PRIVATE

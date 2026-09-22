@@ -311,3 +311,45 @@ Still open:
 - **Nothing here has been heard.** The listening tests from milestones 4 and 6, and opening the
   plugin in a DAW at all, remain outstanding. A compressor's attack, a drive pedal's voicing and a
   reverb's size are judged by ear, and the numbers above only say the blocks do what they claim.
+
+## 2026-09-22 — Milestone 7: tuner, cab grid, MIDI, presets
+
+All four of the deferred items the plan listed, less the notarised installer.
+
+**Tuner.** YIN pitch detection, audio thread into a FIFO, analysis on the message thread at 25 Hz.
+Reads all six open strings to within 2 cents and does not answer an octave out on a tone whose
+second harmonic is louder than its fundamental. Taps before the pedals so it reads the guitar.
+
+**Multi-mic cabinet.** Four IRs at the corners of a mic-position space, blended by two knobs. The
+blend is on the outputs of four convolutions, not by mixing IRs and reloading — convolution is
+linear so it is identical, but nothing reloads as the knobs move. Empty corners drop out of the
+blend and the rest renormalise. **What no test here can establish is whether it sounds like moving
+a microphone**: that depends on the captures, and a grid of IRs of one cab at known mic positions is
+material this project does not have.
+
+**MIDI CC mapping.** Right-click any control to learn or forget a controller.
+
+**Presets.** Named files holding the whole state, with four built-in ones.
+
+Worth knowing:
+
+- **Declaring MIDI input changes the AU's type from `aufx` to `aumf`.** `auval -v aufx` then
+  reports "didn't find the component", and Logic lists the plugin under MIDI-controlled effects
+  rather than with the audio effects. Nothing is released, so no sessions were orphaned, but it is
+  a real compatibility boundary to cross knowingly.
+- **A preset that leaves the model path empty must keep the loaded model.** The first version
+  replaced the whole state, so every factory preset unloaded your amp. `applyState` now carries the
+  current paths across whenever the incoming state has none; a session restore still means empty
+  where it says empty.
+- `juce::AlertWindow` for the preset name is entered with `enterModalState (..., false)`, never a
+  modal loop: a plugin that blocks the host's message thread is a plugin that hangs the DAW.
+- The `·` character in a source string literal came out as mojibake on the panel. Plain ASCII in
+  UI strings until there is a reason not to.
+- Four separate edits to `PluginEditor.cpp` this session were applied by line range and one of them
+  silently swallowed the pedals' `addAndMakeVisible` loop — the tiles simply stopped being drawn.
+  Rendering the panel to a PNG caught it immediately. Prefer unique-anchor replacements.
+
+Still open:
+
+- The **notarised installer**, which needs an Apple Developer Program membership.
+- **Nothing has been heard.** Seven milestones, 72 tests, and not one note played through it.
