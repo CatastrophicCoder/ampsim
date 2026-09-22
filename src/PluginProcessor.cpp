@@ -4,12 +4,13 @@
 namespace
 {
     constexpr float gainRangeDb    = 24.0f;
+    constexpr float toneRangeDb    = 12.0f;
     constexpr double gainRampSeconds   = 0.05;
     constexpr double bypassRampSeconds = 0.02;
 
-    juce::NormalisableRange<float> decibelRange()
+    juce::NormalisableRange<float> decibelRange (float limit)
     {
-        juce::NormalisableRange<float> range { -gainRangeDb, gainRangeDb, 0.1f };
+        juce::NormalisableRange<float> range { -limit, limit, 0.1f };
         range.setSkewForCentre (0.0f);   // 0 dB sits in the middle of the knob's travel
         return range;
     }
@@ -24,13 +25,27 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
                                   .withStringFromValueFunction ([] (float v, int)
                                                                 { return juce::String (v, 1) + " dB"; });
 
+    // Gain drives the model: more level in means more saturation out, which is how a real
+    // preamp gain control works too.
     layout.add (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { ParamID::inputGain, 1 }, "Input Gain",
-        decibelRange(), 0.0f, dbAttributes));
+        juce::ParameterID { ParamID::inputGain, 1 }, "Gain",
+        decibelRange (gainRangeDb), 0.0f, dbAttributes));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
-        juce::ParameterID { ParamID::outputGain, 1 }, "Output Gain",
-        decibelRange(), 0.0f, dbAttributes));
+        juce::ParameterID { ParamID::bass, 1 }, "Bass",
+        decibelRange (toneRangeDb), 0.0f, dbAttributes));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { ParamID::mid, 1 }, "Mid",
+        decibelRange (toneRangeDb), 0.0f, dbAttributes));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { ParamID::treble, 1 }, "Treble",
+        decibelRange (toneRangeDb), 0.0f, dbAttributes));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { ParamID::outputGain, 1 }, "Master",
+        decibelRange (gainRangeDb), 0.0f, dbAttributes));
 
     layout.add (std::make_unique<juce::AudioParameterBool> (
         juce::ParameterID { ParamID::bypass, 1 }, "Bypass", false));
@@ -51,9 +66,13 @@ AmpSimAudioProcessor::AmpSimAudioProcessor()
     outputGainParam = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::outputGain));
     bypassParam     = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::bypass));
     cabBypassParam  = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::cabBypass));
+    bassParam       = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::bass));
+    midParam        = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::mid));
+    trebleParam     = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::treble));
 
     jassert (inputGainParam != nullptr && outputGainParam != nullptr
-             && bypassParam != nullptr && cabBypassParam != nullptr);
+             && bypassParam != nullptr && cabBypassParam != nullptr
+             && bassParam != nullptr && midParam != nullptr && trebleParam != nullptr);
 
     modelLoader.onFinished = [this] (ModelLoader::Result)
     {
@@ -94,6 +113,11 @@ void AmpSimAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
 
     ampModel.prepare (sampleRate, samplesPerBlock);
     ampModel.reset();
+
+    toneStack.prepare (sampleRate, samplesPerBlock);
+    toneStack.setBandGains (bassParam->get(), midParam->get(), trebleParam->get());
+    toneStack.snapToTargets();   // as with the gains: do not sweep in from flat on every start
+    toneStack.reset();
 
     cabSim.prepare (sampleRate, samplesPerBlock);
     cabSim.reset();
@@ -215,16 +239,8 @@ void AmpSimAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             dryBuffer.copyFrom (ch, 0, buffer, ch, 0, numSamples);
     }
 
-    inputGain .setGainDecibels (inputGainParam->get());
-    outputGain.setGainDecibels (outputGainParam->get());
-
-    juce::dsp::AudioBlock<float> block (buffer);
-    juce::dsp::ProcessContextReplacing<float> context (block);
-
-    inputGain.process (context);
-
-    // The chain is mono up to the cab (milestone 3), so the model sees one signal. A stereo
-    // input is summed to mono first, and the result is copied back to every output channel.
+    // The chain is mono: a guitar amp is, and NAM is. A stereo input is summed in, and the
+    // result goes back out to every channel. Everything after this point works on that one signal.
     auto* mono = monoBuffer.getWritePointer (0);
     juce::FloatVectorOperations::copy (mono, buffer.getReadPointer (0), numSamples);
 
@@ -234,17 +250,30 @@ void AmpSimAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     if (getTotalNumInputChannels() > 1)
         juce::FloatVectorOperations::multiply (mono, 1.0f / (float) getTotalNumInputChannels(), numSamples);
 
-    const auto modelRan = ampModel.process (mono, numSamples);
+    juce::dsp::AudioBlock<float> monoBlock (&mono, 1, (size_t) numSamples);
+    juce::dsp::ProcessContextReplacing<float> monoContext (monoBlock);
 
-    // The cab comes last in the chain: the post-amp pedals (milestone 6) will sit between the
-    // model and here, so that their tails run through the speaker response too.
+    inputGain .setGainDecibels (inputGainParam->get());
+    outputGain.setGainDecibels (outputGainParam->get());
+
+    // Gain, before the model, because driving the network harder is what makes it saturate.
+    inputGain.process (monoContext);
+
+    ampModel.process (mono, numSamples);
+
+    // Bass / Mid / Treble after the model and before the cab, where an amp's tone stack sits
+    // relative to its speaker.
+    toneStack.setBandGains (bassParam->get(), midParam->get(), trebleParam->get());
+    toneStack.process (mono, numSamples);
+
+    // Master last in the amp, before the cab. Convolution is linear, so this is the same level
+    // as applying it after the cab — it is here because that is where the control belongs.
+    outputGain.process (monoContext);
+
     cabSim.process (mono, numSamples, cabBypassParam->get());
 
-    if (modelRan || cabSim.hasImpulseResponse())
-        for (int ch = 0; ch < numChannels; ++ch)
-            juce::FloatVectorOperations::copy (buffer.getWritePointer (ch), mono, numSamples);
-
-    outputGain.process (context);
+    for (int ch = 0; ch < numChannels; ++ch)
+        juce::FloatVectorOperations::copy (buffer.getWritePointer (ch), mono, numSamples);
 
     if (needsCrossfade)
     {

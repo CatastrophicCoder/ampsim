@@ -8,7 +8,8 @@ add_executable(AmpSimTests
     StateTests.cpp
     ResamplerTests.cpp
     ModelTests.cpp
-    CabTests.cpp)
+    CabTests.cpp
+    ToneStackTests.cpp)
 
 # NAM Core ships example models; the tests use them rather than carrying a copy.
 target_compile_definitions(AmpSimTests PRIVATE

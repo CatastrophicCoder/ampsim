@@ -4,9 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-**Milestone 3 is done.** The chain is `input gain → NAM model → cab IR → output gain`, with the
-model and IR paths saved in the session. Milestone 4 (the amp-style tone controls) is next, and is
-the one that makes this more than a NAM loader.
+**Milestone 4 is done.** The chain is `Gain → NAM model → Bass/Mid/Treble → Master → cab IR`, all
+mono, with the model and IR paths saved in the session. Milestone 6 (the pedal section) is next;
+milestone 5 is the custom amp-style look, which nothing else depends on.
 
 Conventions worth following for every block added after this point:
 
@@ -53,6 +53,23 @@ translation units and every model fails with "No config parser registered for ar
 `CabSim` wraps `juce::dsp::Convolution`, which already loads and resamples the IR on its own thread
 and adds no latency in its default uniform-partitioned mode. Bypass is a crossfade, since an IR
 changes the tone enough to click on a hard switch.
+
+## The tone stack
+
+`ToneStack` is three `juce::dsp::IIR::Filter<float>` — low shelf, peak, high shelf — with a
+smoothed dB value per band. Two things to keep in mind when touching it:
+
+- **Coefficients are rewritten every 32 samples, not once per block.** A block can be 20 ms, and
+  stepping a 24 dB swing in that few jumps is audible.
+- **Use `juce::dsp::IIR::ArrayCoefficients`, never `Coefficients::makeX`.** The factories allocate a
+  new object per call; the array version returns a `std::array` and assigning it only rewrites the
+  five normalised values in storage `prepare()` has already sized.
+- `snapToTargets()` exists for the same reason `Gain::reset()` is called in `prepareToPlay` — set a
+  target without it and the EQ sweeps in from flat on every playback start. There is a test for it.
+
+The bands are float, so they are not bit-exact at DC: a 100 Hz shelf at 48 kHz has poles close
+enough to z = 1 that float state accumulates about 0.002 dB of error. Inaudible, but it is why the
+gain tests use a relative tolerance rather than an exact one.
 
 **`Convolution::getCurrentIRSize()` is already non-zero after `prepare()`** — JUCE installs a
 default engine there — so it cannot be used to ask "has the user loaded an IR". `CabSim` keeps its
@@ -127,8 +144,12 @@ Input gain → Noise gate → Front-of-amp pedals (comp, overdrive, distortion)
   → Cab sim (IR convolution) → Output gain
 ```
 
-Built so far: input gain, amp model, cab, output gain. Everything else is a later milestone, and
-each new block goes in at the position shown above rather than wherever is convenient.
+Built so far: Gain, amp model, tone stack, Master, cab. The pedals are what remain, and each goes
+in at the position shown above rather than wherever is convenient.
+
+**The chain is mono throughout**, and a stereo input is summed into it before the Gain stage. A
+guitar amp is mono and NAM is mono; the cab is where stereo would begin, once anything in the chain
+is stereo.
 
 **The cab IR is last.** The post-amp pedals run *before* it, so delay repeats and reverb tails pass through the speaker response like the dry signal does — the loop-like position, not the studio convention of effects on the miked sound.
 
@@ -142,13 +163,16 @@ Three structural rules that drive most of the code:
 
 A standard `.nam` capture is a snapshot of one amp setting — the knobs are *not* inside the model. Each front-panel control is a plugin-side stage around it:
 
-| Control | Placement | Implementation |
-| --- | --- | --- |
-| Gain | before the model | input gain in dB (≈ -20 to +20); more level in = more saturation out |
-| Bass / Mid / Treble | after the model, before the post-amp pedals | modelled passive tone stack (Yeh & Smith 2006) *or* low shelf + mid peak + high shelf — still an open question |
-| Presence *(optional)* | after the model | high shelf ≈ 3–5 kHz; not in the minimal control set — add only if the three-band EQ proves too blunt |
-| Master | after the model | output gain; optionally a second waveshaper to imitate power-amp saturation |
-| Model selector | replaces the model | `.nam` files from a user folder, loaded off-thread, atomic pointer swap |
+| Control | Parameter ID | Placement | Implementation |
+| --- | --- | --- | --- |
+| Gain | `inputGain` | before the model | ±24 dB; more level in = more saturation out, which a test asserts against a real capture |
+| Bass / Mid / Treble | `bass` `mid` `treble` | after the model, before Master | ±12 dB parametric bands: low shelf 100 Hz, peak 800 Hz (Q 0.7), high shelf 3.2 kHz. **Settled** against a modelled passive stack — see `ToneStack.h` |
+| Master | `outputGain` | after the tone stack, before the cab | ±24 dB |
+| Presence *(optional)* | — | after the model | high shelf ≈ 3–5 kHz; not in the minimal control set |
+| Model selector | — | replaces the model | `.nam` files loaded off-thread, atomic pointer swap |
+
+The IDs `inputGain` and `outputGain` predate the Gain/Master names and are kept because a saved
+session looks parameters up by ID.
 
 This is milestone 4 and is the part that distinguishes the plugin from a plain NAM loader.
 
@@ -169,7 +193,7 @@ src/
   PluginProcessor.h/.cpp
   PluginEditor.h/.cpp
   ModelLoader.h/.cpp
-  dsp/AmpModel.h/.cpp, ModelResampler.h, CabSim.h/.cpp
+  dsp/AmpModel.h/.cpp, ModelResampler.h, CabSim.h/.cpp, ToneStack.h/.cpp
   ui/                                                        (empty)
 resources/irs/     bundled IR .wav → BinaryData              (empty)
 tests/             Catch2 suites + TestHelpers.h

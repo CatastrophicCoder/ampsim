@@ -279,3 +279,61 @@ TEST_CASE ("The model path is saved with the state and reloaded", "[model][proce
     REQUIRE (pumpUntilModelLoaded (restored));
     REQUIRE (restored.getModelFile().getFileName() == "lstm.nam");
 }
+
+TEST_CASE ("Gain drives the model into saturation rather than just raising the level", "[model][processor]")
+{
+    // The Gain knob's whole claim: it sits before the model, so more level in means more
+    // saturation out. A snapshot capture of a cranked amp compresses hard, so a 12 dB boost at
+    // the input must come out as far less than 12 dB at the output.
+    AmpSimAudioProcessor processor;
+    processor.prepareToPlay (48000.0, test::blockSize);
+    processor.loadModel (exampleModel ("wavenet_a1_standard.nam"));
+
+    REQUIRE (pumpUntilModelLoaded (processor));
+
+    juce::AudioBuffer<float> buffer (processor.getTotalNumOutputChannels(), test::blockSize);
+    juce::MidiBuffer midi;
+
+    const auto outputRmsAtGain = [&] (float gainDb)
+    {
+        test::setParam (processor.getValueTreeState(), ParamID::inputGain, gainDb);
+
+        double phase = 0.0;
+        const auto step = juce::MathConstants<double>::twoPi * 220.0 / 48000.0;
+        double sumSquares = 0.0;
+        int counted = 0;
+
+        for (int b = 0; b < 60; ++b)
+        {
+            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                for (int i = 0; i < test::blockSize; ++i)
+                    buffer.setSample (ch, i, 0.05f * (float) std::sin (phase + step * i));
+
+            phase += step * test::blockSize;
+            processor.processBlock (buffer, midi);
+
+            if (b >= 40)   // let the gain ramp and the model settle
+            {
+                for (int i = 0; i < test::blockSize; ++i)
+                {
+                    const auto sample = (double) buffer.getSample (0, i);
+                    sumSquares += sample * sample;
+                    ++counted;
+                }
+            }
+        }
+
+        return std::sqrt (sumSquares / counted);
+    };
+
+    const auto quiet = outputRmsAtGain (0.0f);
+    const auto loud  = outputRmsAtGain (12.0f);
+
+    const auto ratio = loud / quiet;
+    const auto linearRatio = std::pow (10.0, 12.0 / 20.0);   // 3.98 if nothing saturated
+
+    INFO ("output ratio " << ratio << " for a linear " << linearRatio);
+
+    REQUIRE (ratio > 1.0);                  // the knob does something
+    REQUIRE (ratio < linearRatio * 0.5);    // and that something is saturation, not volume
+}

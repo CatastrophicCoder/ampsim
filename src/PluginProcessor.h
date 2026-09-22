@@ -3,6 +3,7 @@
 #include "ModelLoader.h"
 #include "dsp/AmpModel.h"
 #include "dsp/CabSim.h"
+#include "dsp/ToneStack.h"
 
 #include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -16,8 +17,13 @@
 */
 namespace ParamID
 {
+    // "inputGain" and "outputGain" are the amp's Gain and Master. The IDs keep their original
+    // spelling because a saved session looks parameters up by ID.
     inline constexpr const char* inputGain  = "inputGain";
     inline constexpr const char* outputGain = "outputGain";
+    inline constexpr const char* bass       = "bass";
+    inline constexpr const char* mid        = "mid";
+    inline constexpr const char* treble     = "treble";
     inline constexpr const char* bypass     = "bypass";
     inline constexpr const char* cabBypass  = "cabBypass";
 }
@@ -105,8 +111,11 @@ private:
     juce::AudioProcessorValueTreeState apvts;
 
     // Cached: looking a parameter up by string on the audio thread is a map lookup per block.
-    juce::AudioParameterFloat* inputGainParam  = nullptr;
-    juce::AudioParameterFloat* outputGainParam = nullptr;
+    juce::AudioParameterFloat* inputGainParam  = nullptr;   // "Gain", before the model
+    juce::AudioParameterFloat* outputGainParam = nullptr;   // "Master", after the tone stack
+    juce::AudioParameterFloat* bassParam       = nullptr;
+    juce::AudioParameterFloat* midParam        = nullptr;
+    juce::AudioParameterFloat* trebleParam     = nullptr;
     juce::AudioParameterBool*  bypassParam     = nullptr;
     juce::AudioParameterBool*  cabBypassParam  = nullptr;
 
@@ -121,6 +130,7 @@ private:
 
     AmpModel ampModel;
     ModelLoader modelLoader { ampModel };
+    ToneStack toneStack;
     CabSim cabSim;
     juce::String irError;
     int reportedLatency = 0;

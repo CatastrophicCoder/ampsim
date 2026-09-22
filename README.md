@@ -6,8 +6,8 @@ The amp tone comes from a pre-trained [Neural Amp Modeler](https://github.com/sd
 
 See [`ampsim_plan.md`](ampsim_plan.md) for the goal, architecture and milestones.
 
-**Status: milestone 3 (cab IR loader).** Loads a `.nam` model and a cabinet impulse response,
-both remembered with the session. No tone stack or pedals yet.
+**Status: milestone 4 (amp-style controls).** Gain, Bass, Mid, Treble and Master around a NAM
+model, into a cabinet IR. No pedals yet.
 
 ## Requirements
 
@@ -45,6 +45,15 @@ is much slower and will not represent real CPU load once NAM is in the chain.
 Click **Load model...** and pick a `.nam` file. NAM Core's own example models are in
 `external/NeuralAmpModelerCore/example_models/`, and the public model libraries linked from the
 [Neural Amp Modeler](https://github.com/sdatkinson/neural-amp-modeler) project work too.
+
+The front panel is **Gain — Bass — Mid — Treble — Master**. Gain sits before the model, so turning
+it up drives the network harder and it saturates, the way a preamp gain control does; Bass, Mid and
+Treble are three independent parametric bands (low shelf at 100 Hz, peak at 800 Hz, high shelf at
+3.2 kHz, ±12 dB each) between the model and the cab; Master is the level out of the amp.
+
+Because the bands are parametric rather than a modelled passive network, all three centred is
+genuinely flat, and each control moves only its own band. A real amp's tone stack interacts with
+itself and is mid-scooped at noon — that difference is deliberate, and recorded in the plan.
 
 Click **Load cab IR...** and pick a `.wav` or `.aiff` impulse response for the cabinet. It is
 convolved at the end of the chain, with no added latency, and **Cab bypass** switches it out with a

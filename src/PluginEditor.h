@@ -39,7 +39,8 @@ private:
 
     void updateModelDisplay();
 
-    LabelledKnob inputKnob, outputKnob;
+    // Gain, the three tone bands, then Master — the order they sit in the chain and on the panel.
+    LabelledKnob gainKnob, bassKnob, midKnob, trebleKnob, masterKnob;
     juce::ToggleButton bypassButton { "Bypass" };
     juce::AudioProcessorValueTreeState::ButtonAttachment bypassAttachment;
 

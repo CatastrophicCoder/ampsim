@@ -181,3 +181,46 @@ Still open:
 - Not yet opened in a DAW or run as a standalone app — outstanding since milestone 0.
 - The chain is still mono all the way through; the cab is where stereo would start, once there is
   anything stereo to do.
+
+## 2026-09-22 — Milestone 4: amp-style controls
+
+Settled first: **Bass/Mid/Treble are three independent parametric bands**, not a modelled passive
+stack. Each control does one thing, centred is flat, and every band's response can be asserted in a
+test. What it gives up is the interaction of a real passive network, where the controls load each
+other and all-at-noon is mid-scooped. The corresponding open question in the plan is now answered.
+
+Done:
+
+- `ToneStack`: low shelf 100 Hz, peak 800 Hz (Q 0.7), high shelf 3.2 kHz, ±12 dB each, smoothed.
+- Chain rebuilt in architecture order and made mono throughout:
+  `sum to mono → Gain → model → tone stack → Master → cab → out to all channels`.
+- `inputGain`/`outputGain` are now presented as **Gain** and **Master**. The IDs keep their old
+  spelling on purpose, since a saved session looks parameters up by ID.
+- Editor is a five-knob panel.
+- 7 new tests (38 total). auval and pluginval level 10 still pass.
+
+Worth knowing:
+
+- **`juce::dsp::IIR::Coefficients::makeLowShelf()` and friends allocate** — each call returns a new
+  reference-counted object, so calling them per block is an allocation on the audio thread.
+  `juce::dsp::IIR::ArrayCoefficients` returns a plain `std::array` instead, and assigning it into an
+  existing Coefficients only rewrites the five normalised values in already-sized storage.
+- Coefficients are recomputed every 32 samples rather than per block, because a 512-sample block at
+  48 kHz is 10 ms and a full-range knob sweep in that few steps is audible.
+- `snapToTargets()` is the same lesson as `Gain::reset()` in milestone 1, applied before it could
+  bite; there is a test that fails if it is removed.
+- **Float biquads are not bit-exact at DC.** A 100 Hz shelf at 48 kHz has poles near z = 1, and the
+  float recursion accumulates about 0.002 dB at DC even with identity coefficients. The milestone 1
+  gain tests measured with DC and were asserting bit-accuracy, so they now use a relative tolerance.
+  Checked the coefficients themselves first — they are exactly identity at 0 dB, so the error is in
+  the recursion, not the design.
+- Measured, rather than assumed, that Gain drives the model: with `wavenet_a1_standard.nam`, a
+  +12 dB input boost raises the output by 0.3 dB (ratio 1.036 where linear would be 3.98). The toy
+  example models are nearly linear (3.67–3.77), so a saturation test needs a real capture.
+
+Still open:
+
+- **The milestone's stated criterion — a matched-loudness A/B showing each knob does what its label
+  says — has not been done.** The measured band responses cover the objective half; the listening
+  half needs a guitar and a DAW.
+- Not yet opened in a DAW or run as a standalone app, outstanding since milestone 0.

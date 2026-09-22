@@ -30,13 +30,17 @@ void LabelledKnob::resized()
 AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
     : AudioProcessorEditor (&p),
       processorRef (p),
-      inputKnob  (p.getValueTreeState(), ParamID::inputGain,  "Input"),
-      outputKnob (p.getValueTreeState(), ParamID::outputGain, "Output"),
+      gainKnob   (p.getValueTreeState(), ParamID::inputGain,  "Gain"),
+      bassKnob   (p.getValueTreeState(), ParamID::bass,       "Bass"),
+      midKnob    (p.getValueTreeState(), ParamID::mid,        "Mid"),
+      trebleKnob (p.getValueTreeState(), ParamID::treble,     "Treble"),
+      masterKnob (p.getValueTreeState(), ParamID::outputGain, "Master"),
       bypassAttachment (p.getValueTreeState(), ParamID::bypass, bypassButton),
       cabBypassAttachment (p.getValueTreeState(), ParamID::cabBypass, cabBypassButton)
 {
-    addAndMakeVisible (inputKnob);
-    addAndMakeVisible (outputKnob);
+    for (auto* knob : { &gainKnob, &bassKnob, &midKnob, &trebleKnob, &masterKnob })
+        addAndMakeVisible (*knob);
+
     addAndMakeVisible (bypassButton);
 
     // Held as a member: the chooser has to outlive the click handler, since it runs asynchronously.
@@ -84,7 +88,7 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
     processorRef.onLoadStateChanged = [this] { updateModelDisplay(); };
     updateModelDisplay();
 
-    setSize (420, 400);
+    setSize (660, 380);
 }
 
 AmpSimAudioProcessorEditor::~AmpSimAudioProcessorEditor()
@@ -140,7 +144,9 @@ void AmpSimAudioProcessorEditor::resized()
     loadModelButton.setBounds (area.removeFromBottom (labelHeight + margin / 2)
                                    .withSizeKeepingCentre (150, labelHeight));
 
-    const auto knobWidth = area.getWidth() / 2;
-    inputKnob .setBounds (area.removeFromLeft (knobWidth).reduced (margin / 2, 0));
-    outputKnob.setBounds (area.reduced (margin / 2, 0));
+    LabelledKnob* knobs[] { &gainKnob, &bassKnob, &midKnob, &trebleKnob, &masterKnob };
+    const auto knobWidth = area.getWidth() / (int) std::size (knobs);
+
+    for (auto* knob : knobs)
+        knob->setBounds (area.removeFromLeft (knobWidth).reduced (margin / 4, 0));
 }
