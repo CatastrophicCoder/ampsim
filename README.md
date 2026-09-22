@@ -1,5 +1,8 @@
 # AmpSim
 
+<!-- Both halves of this URL need the real owner/repository once the repo exists. -->
+[![build](https://github.com/OWNER/ampsim/actions/workflows/build.yml/badge.svg)](https://github.com/OWNER/ampsim/actions/workflows/build.yml)
+
 A guitar amp simulator for macOS — AU, VST3 and a standalone app — built with JUCE around a
 [Neural Amp Modeler](https://github.com/sdatkinson/NeuralAmpModelerCore) capture.
 
@@ -129,6 +132,10 @@ auval -v aumf Amp1 Amps
 
 Both pass. The AU is type `aumf`, a music effect rather than `aufx`, because it accepts MIDI for
 controller mapping — in Logic that puts it under MIDI-controlled effects.
+
+CI runs all of this on every push: a Release build, the test suite, both validators, and the
+packaging script, with the installer and disk image uploaded as artefacts. See
+[`.github/workflows/build.yml`](.github/workflows/build.yml).
 
 ## Reading the code
 

@@ -10,9 +10,12 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-build="$root/build-release"
-staging="$root/build-release/package"
-out="$root/build-release/artefacts"
+
+# AMPSIM_BUILD_DIR lets a caller that has already built Release — CI, say — point at that tree
+# instead of paying for a second full build.
+build="${AMPSIM_BUILD_DIR:-$root/build-release}"
+staging="$build/package"
+out="$build/artefacts"
 
 version="$(sed -n 's/^project(AmpSim VERSION \([0-9.]*\).*/\1/p' "$root/CMakeLists.txt")"
 : "${version:?could not read the version out of CMakeLists.txt}"

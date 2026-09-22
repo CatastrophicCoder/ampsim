@@ -1,0 +1,75 @@
+name: build
+
+# Every push and pull request, plus a button in the Actions tab.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push supersedes an in-flight run of the same branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  macos:
+    name: macOS (Release)
+    # macos-latest rather than a pinned version: GitHub retires old runner images, and a pinned
+    # label that has been retired fails before it builds anything.
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # JUCE, NAM Core, Eigen, nlohmann/json and Catch2 are all submodules, and NAM Core has
+          # submodules of its own. Shallow, because no history is needed to build a pinned tag.
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Install Ninja
+        run: brew install ninja
+
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build
+
+      # The offline suite: DSP behaviour, state round-trips, MIDI mapping, presets. This is the
+      # layer the plugin validators never look at.
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      # And the validators: threading and state bugs that a DAW hides. COPY_PLUGIN_AFTER_BUILD has
+      # already put the AU where auval will find it.
+      - name: Validate the Audio Unit
+        run: |
+          killall -9 AudioComponentRegistrar 2>/dev/null || true
+          auval -v aumf Amp1 Amps
+
+      - name: Install pluginval
+        run: |
+          curl -fsSL -o pluginval.zip \
+            https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_macOS.zip
+          unzip -q pluginval.zip
+
+      - name: Validate the VST3
+        # Drop --strictness-level if the runner ever proves flaky about opening editors; the GUI
+        # tests are the part that depends on a window server.
+        run: |
+          ./pluginval.app/Contents/MacOS/pluginval \
+            --strictness-level 10 \
+            --validate build/AmpSim_artefacts/Release/VST3/AmpSim.vst3
+
+      # Proves the installer still builds and signs. Nothing is published from CI.
+      - name: Package
+        # Reuses the build above rather than making a second one; the script only has to
+        # reconfigure to drop the tests.
+        run: AMPSIM_BUILD_DIR=build ./packaging/package.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AmpSim-macOS
+          path: build/artefacts/*
+          if-no-files-found: error
