@@ -1,7 +1,6 @@
 # AmpSim
 
-<!-- Both halves of this URL need the real owner/repository once the repo exists. -->
-[![build](https://github.com/OWNER/ampsim/actions/workflows/build.yml/badge.svg)](https://github.com/OWNER/ampsim/actions/workflows/build.yml)
+[![build](https://github.com/CatastrophicCoder/ampsim/actions/workflows/build.yml/badge.svg)](https://github.com/CatastrophicCoder/ampsim/actions/workflows/build.yml)
 
 A guitar amp simulator for macOS — AU, VST3 and a standalone app — built with JUCE around a
 [Neural Amp Modeler](https://github.com/sdatkinson/NeuralAmpModelerCore) capture.
@@ -43,10 +42,15 @@ JUCE 9.0.2, NeuralAmpModelerCore v0.5.4 (which brings Eigen and nlohmann/json) a
 are pinned submodules.
 
 ```sh
-git submodule update --init --recursive     # first checkout only; NAM has submodules of its own
+git clone --recursive https://github.com/CatastrophicCoder/ampsim.git
+cd ampsim
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 cmake --build build
 ```
+
+Without `--recursive`, or after pulling a change that moves a submodule,
+`git submodule update --init --recursive` does the same job — NAM Core has submodules of its own,
+so the recursion matters.
 
 `COPY_PLUGIN_AFTER_BUILD` is on, so a build drops the AU and VST3 into `~/Library/Audio/Plug-Ins/`.
 Use `-DCMAKE_BUILD_TYPE=Release` for anything you intend to judge by ear — a Debug build is far
