@@ -50,7 +50,7 @@ juce_add_plugin(AmpSim
     PLUGIN_CODE                 Amp1          # unique per plugin; change if you ship a second one
     FORMATS                     AU VST3 Standalone
     IS_SYNTH                    FALSE
-    NEEDS_MIDI_INPUT            FALSE
+    NEEDS_MIDI_INPUT            TRUE          # for CC control of the parameters
     NEEDS_MIDI_OUTPUT           FALSE
     IS_MIDI_EFFECT              FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
@@ -60,6 +60,7 @@ target_sources(AmpSim PRIVATE
     src/PluginProcessor.cpp
     src/PluginEditor.cpp
     src/ModelLoader.cpp
+    src/MidiLearn.cpp
     src/dsp/AmpModel.cpp
     src/dsp/CabSim.cpp
     src/dsp/ToneStack.cpp

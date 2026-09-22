@@ -21,9 +21,15 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    /** Right-click behaviour, wired up by the editor. */
+    void setContextMenuHandler (std::function<void (const juce::String&, juce::Component&)> handler)
+    {
+        slider.onContextMenu = std::move (handler);
+    }
+
 private:
     juce::String name;
-    juce::Slider slider;
+    ParameterSlider slider;
     juce::AudioProcessorValueTreeState::SliderAttachment attachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LabelledKnob)
@@ -64,6 +70,7 @@ private:
     void timerCallback() override;
     void paintTuner (juce::Graphics&, juce::Rectangle<int>);
     void updateLoadedFileDisplay();
+    void showParameterMenu (const juce::String& parameterID, juce::Component& source);
     void chooseFile (const juce::String& title, const juce::File& startingFile,
                      const juce::String& pattern, std::function<void (const juce::File&)> onChosen);
 

@@ -249,6 +249,10 @@ void AmpSimAudioProcessor::timerCallback()
 {
     ampModel.collectRetiredModel();
 
+    // The audio thread captured a controller to learn; writing it into the state is this
+    // thread's job, since a ValueTree may only be touched from one.
+    midiLearn.commitPendingLearn();
+
     const auto latency = ampModel.getLatencySamples() + cabSim.getLatencySamples()
                        + pedals.getLatencySamples();
 
@@ -344,9 +348,12 @@ bool AmpSimAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) c
             && out == juce::AudioChannelSet::stereo());
 }
 
-void AmpSimAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer&)
+void AmpSimAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
     juce::ScopedNoDenormals noDenormals;
+
+    // Before anything else, so a controller move takes effect on the block it arrived in.
+    midiLearn.processMidi (midi);
 
     const auto numSamples  = buffer.getNumSamples();
     const auto numChannels = getTotalNumOutputChannels();
@@ -475,6 +482,8 @@ void AmpSimAudioProcessor::setStateInformation (const void* data, int sizeInByte
     // objects are left alone — processBlock picks the new values up on its next call and
     // ramps to them, which is also what stops a preset change from clicking.
     apvts.replaceState (juce::ValueTree::fromXml (*xml));
+
+    midiLearn.rebuildFromState();
 
     if (const auto file = getModelFile(); file != juce::File())
         loadModel (file);

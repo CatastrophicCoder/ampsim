@@ -9,7 +9,7 @@ namespace
 CompactKnob::CompactKnob (juce::AudioProcessorValueTreeState& state,
                           const juce::String& parameterID,
                           const juce::String& labelText)
-    : name (labelText), attachment (state, parameterID, slider)
+    : name (labelText), slider (parameterID), attachment (state, parameterID, slider)
 {
     slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
     slider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
@@ -46,6 +46,12 @@ PedalTile::PedalTile (juce::AudioProcessorValueTreeState& state,
 
     for (const auto& knob : knobsToAdd)
         addAndMakeVisible (knobs.add (new CompactKnob (state, knob.parameterID, knob.label)));
+}
+
+void PedalTile::setContextMenuHandler (std::function<void (const juce::String&, juce::Component&)> handler)
+{
+    for (auto* knob : knobs)
+        knob->setContextMenuHandler (handler);
 }
 
 void PedalTile::paint (juce::Graphics& g)

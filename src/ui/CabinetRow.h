@@ -36,6 +36,12 @@ public:
 
     void updateContents();
 
+    void setContextMenuHandler (std::function<void (const juce::String&, juce::Component&)> handler)
+    {
+        axisKnob.setContextMenuHandler (handler);
+        distanceKnob.setContextMenuHandler (std::move (handler));
+    }
+
 private:
     void showMenuFor (CabSim::Slot);
 

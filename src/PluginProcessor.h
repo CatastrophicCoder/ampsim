@@ -1,5 +1,6 @@
 #pragma once
 
+#include "MidiLearn.h"
 #include "ModelLoader.h"
 #include "dsp/AmpModel.h"
 #include "dsp/CabSim.h"
@@ -95,7 +96,7 @@ public:
     bool hasEditor() const override                      { return true; }
 
     const juce::String getName() const override          { return JucePlugin_Name; }
-    bool acceptsMidi() const override                    { return false; }
+    bool acceptsMidi() const override                    { return true; }   // CC control
     bool producesMidi() const override                   { return false; }
     bool isMidiEffect() const override                   { return false; }
     double getTailLengthSeconds() const override         { return 0.0; }
@@ -144,6 +145,7 @@ public:
         than what the drive pedal and the model have made of it. Analysis runs on the message
         thread — see Tuner. */
     Tuner& getTuner() { return tuner; }
+    MidiLearn& getMidiLearn() { return midiLearn; }
     bool isTunerEngaged() const { return tunerParam->get(); }
 
     /** Last IR load error, empty if the last one succeeded or none has been attempted. */
@@ -185,6 +187,7 @@ private:
 
     AmpModel ampModel;
     ModelLoader modelLoader { ampModel };
+    MidiLearn midiLearn { apvts };
     ToneStack toneStack;
     Tuner tuner;
 

@@ -98,13 +98,17 @@ to skip building them.
 ## Validate
 
 ```sh
-auval -v aufx Amp1 Amps                                                   # AU
+auval -v aumf Amp1 Amps                                                   # AU
 /Applications/pluginval.app/Contents/MacOS/pluginval --strictness-level 5 \
     --validate build/AmpSim_artefacts/Debug/VST3/AmpSim.vst3              # VST3
 ```
 
 Both pass. Run them on every build; they catch threading and state bugs that a DAW hides — but not
 wrong DSP, which is what `ctest` is for.
+
+The AU is type **`aumf`** (a music effect), not `aufx`, because it accepts MIDI for controller
+mapping. In Logic that means it appears under MIDI-controlled effects rather than with the plain
+audio effects.
 
 ## CLion
 

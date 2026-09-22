@@ -59,7 +59,7 @@ namespace
 LabelledKnob::LabelledKnob (juce::AudioProcessorValueTreeState& state,
                             const juce::String& parameterID,
                             const juce::String& labelText)
-    : name (labelText), attachment (state, parameterID, slider)
+    : name (labelText), slider (parameterID), attachment (state, parameterID, slider)
 {
     slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
     slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 72, 18);
@@ -191,6 +191,21 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
     addAndMakeVisible (ampRow);
     addAndMakeVisible (cabinetRow);
 
+    // Every control offers the same right-click menu, so a mapping table needs no panel space.
+    const auto contextMenu = [this] (const juce::String& parameterID, juce::Component& source)
+    {
+        showParameterMenu (parameterID, source);
+    };
+
+    for (auto* knob : { &gainKnob, &bassKnob, &midKnob, &trebleKnob, &masterKnob })
+        knob->setContextMenuHandler (contextMenu);
+
+    for (auto* pedal : { &gatePedal, &compressorPedal, &drivePedal,
+                         &chorusPedal, &delayPedal, &reverbPedal })
+        pedal->setContextMenuHandler (contextMenu);
+
+    cabinetRow.setContextMenuHandler (contextMenu);
+
     // The load finishes on a background thread, so the editor is told rather than polling.
     processorRef.onLoadStateChanged = [this] { updateLoadedFileDisplay(); };
     updateLoadedFileDisplay();
@@ -258,6 +273,35 @@ void AmpSimAudioProcessorEditor::paintTuner (juce::Graphics& g, juce::Rectangle<
     g.setColour (AmpPalette::enamel.withAlpha (0.5f));
     g.drawText (juce::String (juce::roundToInt (reading.cents)) + " cents",
                 area.withTrimmedLeft (10), juce::Justification::centredLeft, false);
+}
+
+void AmpSimAudioProcessorEditor::showParameterMenu (const juce::String& parameterID,
+                                                    juce::Component& source)
+{
+    auto& midiLearn = processorRef.getMidiLearn();
+
+    const auto mapped = midiLearn.getControllerFor (parameterID);
+    const auto learningThis = midiLearn.isLearning() && midiLearn.getLearningParameter() == parameterID;
+
+    juce::PopupMenu menu;
+
+    if (learningThis)
+        menu.addItem (2, "Stop listening for a controller");
+    else
+        menu.addItem (1, "Learn a MIDI controller");
+
+    if (mapped >= 0)
+        menu.addItem (3, "Forget CC " + juce::String (mapped));
+
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (source),
+                        [this, parameterID] (int result)
+                        {
+                            auto& learn = processorRef.getMidiLearn();
+
+                            if (result == 1) learn.startLearning (parameterID);
+                            if (result == 2) learn.stopLearning();
+                            if (result == 3) learn.clearMapping (parameterID);
+                        });
 }
 
 void AmpSimAudioProcessorEditor::chooseFile (const juce::String& title, const juce::File& startingFile,

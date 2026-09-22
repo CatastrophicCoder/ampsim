@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AmpLookAndFeel.h"
+#include "ParameterSlider.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -19,9 +20,15 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
+    /** Right-click behaviour, wired up by the editor. */
+    void setContextMenuHandler (std::function<void (const juce::String&, juce::Component&)> handler)
+    {
+        slider.onContextMenu = std::move (handler);
+    }
+
 private:
     juce::String name;
-    juce::Slider slider;
+    ParameterSlider slider;
     juce::AudioProcessorValueTreeState::SliderAttachment attachment;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CompactKnob)
@@ -48,6 +55,8 @@ public:
 
     void paint (juce::Graphics&) override;
     void resized() override;
+
+    void setContextMenuHandler (std::function<void (const juce::String&, juce::Component&)> handler);
 
 private:
     juce::String name;
