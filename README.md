@@ -6,8 +6,8 @@ The amp tone comes from a pre-trained [Neural Amp Modeler](https://github.com/sd
 
 See [`ampsim_plan.md`](ampsim_plan.md) for the goal, architecture and milestones.
 
-**Status: milestone 7.** The whole chain from the Goal, plus a tuner, presets, MIDI controller
-mapping and a four-corner mic-position cabinet. Not packaged for distribution.
+**Status: milestone 7 complete.** The whole chain from the Goal, plus a tuner, presets, MIDI
+controller mapping, a four-corner mic-position cabinet, and an installer.
 
 ## Requirements
 
@@ -133,6 +133,21 @@ audio effects.
 Open the project directory — CLion picks up `CMakeLists.txt` directly. In
 *Settings → Build, Execution, Deployment → CMake*, set the generator to Ninja and the toolchain to
 the system clang. The `AmpSim_Standalone` target is the convenient one to run from the IDE.
+
+## Packaging
+
+```sh
+./packaging/package.sh          # or: cmake --build build --target package-macos
+```
+
+Builds Release, ad-hoc signs the three formats and writes an installer and a disk image to
+`build-release/artefacts`. No Apple Developer Program membership is involved, and none is needed to
+build or to package.
+
+What that costs is at the other end: the packages are unsigned, so macOS refuses to open them on
+another machine until the person installing goes to **System Settings → Privacy & Security** and
+clicks **Open Anyway**. [`packaging/README.md`](packaging/README.md) explains that, what ad-hoc
+signing does and does not do, and what would change with a Developer ID.
 
 ## JUCE version policy
 

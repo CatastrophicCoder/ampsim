@@ -92,6 +92,16 @@ target_link_libraries(AmpSim
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
 
+# Packaging is a shell script rather than CPack: it has to ad-hoc sign the bundles between
+# building and packaging them, which CPack has no good place for. See packaging/README.md.
+if(APPLE AND PROJECT_IS_TOP_LEVEL)
+    add_custom_target(package-macos
+        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/packaging/package.sh
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Building and packaging AmpSim for macOS"
+        USES_TERMINAL)
+endif()
+
 if(AMPSIM_BUILD_TESTS)
     enable_testing()
     add_subdirectory(external/Catch2)

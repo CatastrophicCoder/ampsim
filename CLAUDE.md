@@ -8,8 +8,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 (`gate → comp → drive → Gain → NAM model → Bass/Mid/Treble → Master → chorus → delay → reverb → cab`)
 there is a tuner, a preset system, MIDI controller mapping and a four-corner mic-position cabinet.
 
-What is left from the plan's milestone 7 is the **notarised installer**, which needs an Apple
-Developer Program membership and signing credentials — not something to attempt without them.
+The plan's milestone 7 is now complete, installer included: `packaging/package.sh` builds Release,
+ad-hoc signs each bundle and produces a `.pkg` and a `.dmg`. No Developer Program membership is
+needed to build or package — it buys a Developer ID certificate and notarisation, which is what
+removes the first-launch Gatekeeper dialog on someone else's Mac. `packaging/README.md` says
+exactly what would change if one is bought later.
 
 Conventions worth following for every block added after this point:
 

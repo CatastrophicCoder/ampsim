@@ -351,5 +351,38 @@ Worth knowing:
 
 Still open:
 
-- The **notarised installer**, which needs an Apple Developer Program membership.
 - **Nothing has been heard.** Seven milestones, 72 tests, and not one note played through it.
+
+## 2026-09-22 — Milestone 7: packaging
+
+I had said the installer needed an Apple Developer Program membership. That was wrong, and the
+correction is worth writing down: `pkgbuild`, `productbuild`, `hdiutil` and `codesign` all ship
+with the Command Line Tools, and the packages they make work. The membership buys a Developer ID
+certificate and notarisation — the cost of not having it lands on whoever installs the result, not
+on the build.
+
+`packaging/package.sh` builds Release, ad-hoc signs the AU, VST3 and standalone, and produces:
+
+- `AmpSim-0.1.0.pkg`, 8.0 MB — the three formats as separate installer choices, into
+  `/Library/Audio/Plug-Ins/` and `/Applications`
+- `AmpSim-0.1.0.dmg`, 3.2 MB — the standalone app with a link to Applications
+
+Verified rather than assumed:
+
+- `pkgutil --check-signature` → "no signature"; `spctl -a -t install` → "rejected, source=no usable
+  signature". That is exactly the first-launch block, confirmed rather than predicted.
+- `codesign -dvv` on the component → `flags=0x2(adhoc)`, `TeamIdentifier=not set`. Ad-hoc signing
+  matters because Apple silicon will not execute unsigned native code at all, so a host would fail
+  to load the plugin rather than merely warn — but it carries no identity and does not satisfy
+  Gatekeeper.
+- The expanded payload puts the AU and VST3 under `/Library/Audio/Plug-Ins/`, root:wheel.
+- The disk image mounts, and the app on it passes `codesign --verify --strict`.
+
+Worth knowing:
+
+- **`--deep` is deprecated for signing.** Each bundle is signed on its own instead.
+- Since macOS 15 Sequoia, control-clicking and choosing Open no longer bypasses the dialog; the
+  Privacy & Security route, or `xattr -d com.apple.quarantine`, is what works. Both the installer's
+  welcome pane and the disk image's read-me say so.
+- The read-me on the disk image is `.txt`, not `.md`: a clean Mac has no default application for a
+  markdown file.
