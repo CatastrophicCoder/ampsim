@@ -38,6 +38,17 @@ than merely warn. It does not satisfy Gatekeeper, and it is not notarisation.
 Each bundle is signed on its own rather than with `--deep`, which Apple deprecated for signing
 because it re-signs nested code that should be signed on its own terms.
 
+## A note on bundle relocation
+
+All three formats carry the same bundle identifier, because `juce_add_plugin` takes one
+`BUNDLE_ID` for the lot. `pkgbuild` marks bundles relocatable by default, which tells the installer
+to look for an existing bundle with that identifier and install over *that* instead of where the
+package says. With the AU already installed, the standalone app was treated as an upgrade of it and
+never reached `/Applications` — the install reported success and left a receipt, with no app.
+
+`package.sh` therefore generates a component plist per package with `BundleIsRelocatable` set to
+false. Anything added to the installer later needs the same treatment.
+
 ## Building the packages
 
 ```sh
@@ -50,6 +61,15 @@ It builds Release, ad-hoc signs the three formats, and writes to `build-release/
   separately. Installs to `/Library/Audio/Plug-Ins/` and `/Applications`, so it asks for an
   administrator password.
 - `AmpSim-<version>.dmg` — the standalone app alone, with a link to Applications to drag it into.
+
+To install without an administrator password, into your own library rather than the system one:
+
+```sh
+installer -pkg build-release/artefacts/AmpSim-0.1.0.pkg -target CurrentUserHomeDirectory
+```
+
+That puts the plugins in `~/Library/Audio/Plug-Ins/` and the app in `~/Applications`, which every
+host looks in.
 
 ## If you do get a Developer ID later
 

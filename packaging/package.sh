@@ -53,12 +53,32 @@ cp -R "$artefacts/Standalone/AmpSim.app"   "$staging/app/Applications/"
 # --- component packages ------------------------------------------------------------------------
 # One per format, so the installer can offer them separately: plenty of people want the plugin
 # without the standalone, or have no use for VST3.
-pkgbuild --root "$staging/au"   --identifier "$identifier.au"         --version "$version" \
-         --install-location /  "$staging/pkgs/au.pkg"   > /dev/null
-pkgbuild --root "$staging/vst3" --identifier "$identifier.vst3"       --version "$version" \
-         --install-location /  "$staging/pkgs/vst3.pkg" > /dev/null
-pkgbuild --root "$staging/app"  --identifier "$identifier.standalone" --version "$version" \
-         --install-location /  "$staging/pkgs/app.pkg"  > /dev/null
+#
+# Each needs relocation turned off. pkgbuild marks bundles relocatable by default, which means the
+# installer looks for an existing bundle with the same identifier and installs over that instead of
+# where the package says. All three formats share JUCE's single BUNDLE_ID, so with relocation on
+# the standalone app was treated as an upgrade of the already-installed AU component and never
+# reached /Applications at all — a receipt, and no app.
+build_component() {
+    local root="$1" id="$2" pkg="$3"
+    local plist="$staging/$(basename "$pkg" .pkg)-component.plist"
+
+    pkgbuild --analyze --root "$root" "$plist" > /dev/null
+
+    local entries
+    entries="$(/usr/libexec/PlistBuddy -c "Print" "$plist" | grep -c "BundleIsRelocatable" || true)"
+
+    for ((i = 0; i < entries; ++i)); do
+        /usr/libexec/PlistBuddy -c "Set :$i:BundleIsRelocatable false" "$plist"
+    done
+
+    pkgbuild --root "$root" --identifier "$id" --version "$version" \
+             --component-plist "$plist" --install-location / "$pkg" > /dev/null
+}
+
+build_component "$staging/au"   "$identifier.au"         "$staging/pkgs/au.pkg"
+build_component "$staging/vst3" "$identifier.vst3"       "$staging/pkgs/vst3.pkg"
+build_component "$staging/app"  "$identifier.standalone" "$staging/pkgs/app.pkg"
 
 # --- installer ---------------------------------------------------------------------------------
 sed "s/@VERSION@/$version/g" "$root/packaging/distribution.xml" > "$staging/distribution.xml"

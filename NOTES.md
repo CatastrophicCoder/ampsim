@@ -386,3 +386,19 @@ Worth knowing:
   welcome pane and the disk image's read-me say so.
 - The read-me on the disk image is `.txt`, not `.md`: a clean Mac has no default application for a
   markdown file.
+
+## 2026-09-22 — Installed and a packaging bug
+
+Installed the package on this machine with
+`installer -pkg ... -target CurrentUserHomeDirectory`, which needs no administrator password and
+puts everything in the user's own library. The AU validates from its installed location.
+
+**The first attempt installed the plugins but not the app** — success reported, receipt written, no
+`AmpSim.app` anywhere. The cause: `pkgbuild` marks bundles relocatable by default, so the installer
+looks for an existing bundle with the same identifier and installs over that instead of where the
+package says. `juce_add_plugin` gives all three formats the same `BUNDLE_ID`, so with the AU already
+installed the standalone was treated as an upgrade of it and silently went nowhere.
+
+Fixed by generating a component plist per package with `BundleIsRelocatable` false. Anything added
+to the installer later needs the same. Worth remembering that an installer reporting success is not
+evidence that anything was installed where you meant.
