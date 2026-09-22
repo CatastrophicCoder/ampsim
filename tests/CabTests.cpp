@@ -85,7 +85,7 @@ TEST_CASE ("An impulse through the cab comes back as the impulse response", "[ca
 
     CabSim cab;
     cab.prepare (48000.0, test::blockSize);
-    cab.loadImpulseResponse (ir.file);
+    cab.loadImpulseResponse (CabSim::Slot::centreClose, ir.file);
 
     REQUIRE (cab.hasImpulseResponse());
 
@@ -107,7 +107,7 @@ TEST_CASE ("The cab adds no latency", "[cab]")
 
     CabSim cab;
     cab.prepare (48000.0, test::blockSize);
-    cab.loadImpulseResponse (ir.file);
+    cab.loadImpulseResponse (CabSim::Slot::centreClose, ir.file);
 
     measureImpulseResponse (cab);
 
@@ -120,7 +120,7 @@ TEST_CASE ("Cab bypass returns the dry signal", "[cab]")
 
     CabSim cab;
     cab.prepare (48000.0, test::blockSize);
-    cab.loadImpulseResponse (ir.file);
+    cab.loadImpulseResponse (CabSim::Slot::centreClose, ir.file);
     measureImpulseResponse (cab);
 
     std::vector<float> block ((size_t) test::blockSize, 0.25f);
@@ -146,7 +146,7 @@ TEST_CASE ("Toggling cab bypass crossfades rather than stepping", "[cab]")
 
     CabSim cab;
     cab.prepare (48000.0, test::blockSize);
-    cab.loadImpulseResponse (ir.file);
+    cab.loadImpulseResponse (CabSim::Slot::centreClose, ir.file);
     measureImpulseResponse (cab);
 
     std::vector<float> block ((size_t) test::blockSize);
@@ -187,7 +187,7 @@ TEST_CASE ("The IR path is saved with the state and reloaded", "[cab][processor]
     {
         AmpSimAudioProcessor source;
         source.prepareToPlay (test::sampleRate, test::blockSize);
-        source.loadImpulseResponse (ir.file);
+        source.loadImpulseResponse (CabSim::Slot::centreClose, ir.file);
 
         REQUIRE (source.isImpulseResponseLoaded());
         REQUIRE (source.getImpulseResponseError().isEmpty());
@@ -215,10 +215,137 @@ TEST_CASE ("A file that is not audio is reported rather than silently ignored", 
                           .getChildFile ("ampsim_not_audio.txt");
     junk.replaceWithText ("this is not a wav file");
 
-    processor.loadImpulseResponse (junk);
+    processor.loadImpulseResponse (CabSim::Slot::centreClose, junk);
 
     REQUIRE (processor.getImpulseResponseError().isNotEmpty());
     REQUIRE_FALSE (processor.isImpulseResponseLoaded());
 
     junk.deleteFile();
+}
+
+
+TEST_CASE ("A single IR behaves the same however the mic position is set", "[cab]")
+{
+    // With one corner filled there is nothing to interpolate between, so the knobs must do
+    // nothing rather than fade the cab away as they cross an empty corner.
+    const std::vector<float> taps { 0.5f, 0.0f, 0.25f, -0.125f };
+    const TestIR ir (taps);
+
+    for (const auto position : { std::pair { 0.0f, 0.0f }, std::pair { 1.0f, 0.0f },
+                                 std::pair { 0.5f, 0.5f }, std::pair { 1.0f, 1.0f } })
+    {
+        CabSim cab;
+        cab.prepare (48000.0, test::blockSize);
+        cab.loadImpulseResponse (CabSim::Slot::centreClose, ir.file);
+        cab.setMicPosition (position.first, position.second);
+
+        const auto measured = measureImpulseResponse (cab, (int) taps.size());
+
+        INFO ("axis " << position.first << ", distance " << position.second);
+
+        for (size_t i = 0; i < taps.size(); ++i)
+            REQUIRE_THAT (measured[i], WithinAbs (taps[i], 1.0e-4));
+    }
+}
+
+TEST_CASE ("The mic position blends between the corners it is between", "[cab]")
+{
+    // Two corners along the axis control, with deliberately different responses. Neither starts
+    // with silence: Convolution's Trim::yes would strip it and shift the taps forward.
+    const std::vector<float> centre { 0.5f, 0.0f, 0.0f, 0.0f };
+    const std::vector<float> edge   { 0.2f, 0.3f, 0.0f, 0.0f };
+
+    const TestIR centreIR (centre);
+    const TestIR edgeIR (edge);
+
+    const auto responseAt = [&] (float axis)
+    {
+        CabSim cab;
+        cab.prepare (48000.0, test::blockSize);
+        cab.loadImpulseResponse (CabSim::Slot::centreClose, centreIR.file);
+        cab.loadImpulseResponse (CabSim::Slot::edgeClose, edgeIR.file);
+        cab.setMicPosition (axis, 0.0f);
+
+        return measureImpulseResponse (cab, 6);
+    };
+
+    const auto atCentre = responseAt (0.0f);
+    const auto atEdge = responseAt (1.0f);
+    const auto halfway = responseAt (0.5f);
+
+    // Hard over, each corner is exactly its own capture.
+    REQUIRE_THAT (atCentre[0], WithinAbs (0.5, 1.0e-4));
+    REQUIRE_THAT (atCentre[1], WithinAbs (0.0, 1.0e-4));
+    REQUIRE_THAT (atEdge[0], WithinAbs (0.2, 1.0e-4));
+    REQUIRE_THAT (atEdge[1], WithinAbs (0.3, 1.0e-4));
+
+    // Halfway is half of each: convolution is linear, so blending the outputs is the same as
+    // convolving with the blended impulse response.
+    REQUIRE_THAT (halfway[0], WithinAbs (0.35, 1.0e-3));
+    REQUIRE_THAT (halfway[1], WithinAbs (0.15, 1.0e-3));
+}
+
+TEST_CASE ("An unfilled corner does not drop the level as the knob crosses it", "[cab]")
+{
+    // Three corners filled, the fourth empty: the weights are renormalised over what is there.
+    const TestIR ir ({ 0.5f, 0.0f, 0.0f, 0.0f });
+
+    CabSim cab;
+    cab.prepare (48000.0, test::blockSize);
+    cab.loadImpulseResponse (CabSim::Slot::centreClose, ir.file);
+    cab.loadImpulseResponse (CabSim::Slot::edgeClose, ir.file);
+    cab.loadImpulseResponse (CabSim::Slot::centreFar, ir.file);
+    // Slot::edgeFar deliberately left empty.
+
+    cab.setMicPosition (1.0f, 1.0f);   // straight at the missing corner
+
+    const auto measured = measureImpulseResponse (cab, 4);
+
+    REQUIRE_THAT (measured[0], WithinAbs (0.5, 1.0e-3));
+}
+
+TEST_CASE ("Clearing a corner leaves the rest of the grid working", "[cab]")
+{
+    const TestIR ir ({ 0.5f, 0.0f, 0.0f, 0.0f });
+
+    CabSim cab;
+    cab.prepare (48000.0, test::blockSize);
+    cab.loadImpulseResponse (CabSim::Slot::centreClose, ir.file);
+    cab.loadImpulseResponse (CabSim::Slot::edgeClose, ir.file);
+
+    REQUIRE (cab.isSlotLoaded (CabSim::Slot::edgeClose));
+
+    cab.clearSlot (CabSim::Slot::edgeClose);
+
+    REQUIRE_FALSE (cab.isSlotLoaded (CabSim::Slot::edgeClose));
+    REQUIRE (cab.hasImpulseResponse());
+
+    cab.setMicPosition (1.0f, 0.0f);   // pointing at the corner just cleared
+
+    const auto measured = measureImpulseResponse (cab, 4);
+    REQUIRE_THAT (measured[0], WithinAbs (0.5, 1.0e-3));
+}
+
+TEST_CASE ("Every corner's IR path is saved with the state", "[cab][processor][state]")
+{
+    const TestIR centreClose ({ 0.5f, 0.0f });
+    const TestIR edgeFar ({ 0.0f, 0.3f });
+
+    juce::MemoryBlock saved;
+
+    {
+        AmpSimAudioProcessor source;
+        source.prepareToPlay (test::sampleRate, test::blockSize);
+        source.loadImpulseResponse (CabSim::Slot::centreClose, centreClose.file);
+        source.loadImpulseResponse (CabSim::Slot::edgeFar, edgeFar.file);
+        source.getStateInformation (saved);
+    }
+
+    AmpSimAudioProcessor restored;
+    restored.prepareToPlay (test::sampleRate, test::blockSize);
+    restored.setStateInformation (saved.getData(), (int) saved.getSize());
+
+    REQUIRE (restored.getImpulseResponseFile (CabSim::Slot::centreClose) == centreClose.file);
+    REQUIRE (restored.getImpulseResponseFile (CabSim::Slot::edgeFar) == edgeFar.file);
+    REQUIRE (restored.getImpulseResponseFile (CabSim::Slot::edgeClose) == juce::File());
 }

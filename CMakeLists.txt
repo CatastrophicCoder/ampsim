@@ -66,6 +66,7 @@ target_sources(AmpSim PRIVATE
     src/dsp/Tuner.cpp
     src/ui/AmpLookAndFeel.cpp
     src/ui/PedalTile.cpp
+    src/ui/CabinetRow.cpp
     src/dsp/PedalChain.cpp
     src/dsp/pedals/DrivePedal.cpp
     src/dsp/pedals/DelayPedal.cpp)

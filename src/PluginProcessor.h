@@ -29,6 +29,8 @@ namespace ParamID
     inline constexpr const char* bypass     = "bypass";
     inline constexpr const char* cabBypass  = "cabBypass";
     inline constexpr const char* tunerOn    = "tunerOn";
+    inline constexpr const char* micAxis     = "micAxis";
+    inline constexpr const char* micDistance = "micDistance";
 
     // The pedals. "Engaged" rather than "bypass": a pedal is off until you step on it, and the
     // parameter reads the way the footswitch does.
@@ -64,7 +66,12 @@ namespace ParamID
 namespace StateID
 {
     inline constexpr const char* modelPath = "modelPath";
+    // One path per mic-position corner. "irPath" keeps its name: it was the only slot before
+    // there were four, and sessions saved then still look it up.
     inline constexpr const char* irPath    = "irPath";
+    inline constexpr const char* irPathEdgeClose = "irPathEdgeClose";
+    inline constexpr const char* irPathCentreFar = "irPathCentreFar";
+    inline constexpr const char* irPathEdgeFar   = "irPathEdgeFar";
 }
 
 /** Milestone 2: input gain → NAM amp model → output gain, with a click-free bypass.
@@ -120,13 +127,18 @@ public:
     /** Last load error, empty if the last load succeeded or none has been attempted. */
     juce::String getModelError() const { return modelLoader.getLastError(); }
 
-    /** Message thread. Loads a `.wav` impulse response for the cab. */
-    void loadImpulseResponse (const juce::File& file);
+    /** Message thread. Loads a `.wav` impulse response into one corner of the mic-position grid. */
+    void loadImpulseResponse (CabSim::Slot, const juce::File& file);
+    void clearImpulseResponse (CabSim::Slot);
 
-    /** The IR currently loaded, or a non-existent File if none. */
-    juce::File getImpulseResponseFile() const;
+    /** The IR in a slot, or a non-existent File if that corner is empty. */
+    juce::File getImpulseResponseFile (CabSim::Slot = CabSim::Slot::centreClose) const;
 
     bool isImpulseResponseLoaded() const { return cabSim.hasImpulseResponse(); }
+    bool isSlotLoaded (CabSim::Slot slot) const { return cabSim.isSlotLoaded (slot); }
+
+    /** The state key each slot's path is saved under. */
+    static const char* slotStateID (CabSim::Slot);
 
     /** The tuner taps the signal before the pedals and the amp, so it reads the guitar rather
         than what the drive pedal and the model have made of it. Analysis runs on the message
@@ -159,6 +171,8 @@ private:
     juce::AudioParameterBool*  bypassParam     = nullptr;
     juce::AudioParameterBool*  cabBypassParam  = nullptr;
     juce::AudioParameterBool*  tunerParam      = nullptr;
+    juce::AudioParameterFloat* micAxisParam    = nullptr;
+    juce::AudioParameterFloat* micDistanceParam = nullptr;
 
     juce::dsp::Gain<float> inputGain, outputGain;
 

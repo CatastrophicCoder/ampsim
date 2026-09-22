@@ -11,7 +11,7 @@ namespace
 
     /** Both pedal rows, plus a margin at the bottom so the enclosures are not flush with the
         window edge. paint() and resized() both take this from the bottom, in the same order. */
-    constexpr int deckHeight = 2 * (pedalRowHeight + groupLabelHeight) + 10;
+    constexpr int deckHeight = 3 * (pedalRowHeight + groupLabelHeight) + 10;
 
     /** The faint vertical grain of a brushed enamel plate. Drawn once per repaint; cheap enough
         at this size, and it keeps the panel from reading as a flat rectangle of colour. */
@@ -160,7 +160,7 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
                     { ParamID::delayMix, "mix" } }),
       reverbPedal (p.getValueTreeState(), "reverb", ParamID::reverbOn,
                    { { ParamID::reverbSize, "size" }, { ParamID::reverbMix, "mix" } }),
-      cabBypassAttachment (p.getValueTreeState(), ParamID::cabBypass, cabBypassButton)
+      cabinetRow (p)
 {
     setLookAndFeel (&lookAndFeel);
 
@@ -184,26 +184,18 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
                     [this] (const juce::File& file) { processorRef.loadModel (file); });
     };
 
-    cabRow.onBrowse = [this]
-    {
-        chooseFile ("Load a cabinet impulse response", processorRef.getImpulseResponseFile(),
-                    "*.wav;*.aiff;*.aif",
-                    [this] (const juce::File& file) { processorRef.loadImpulseResponse (file); });
-    };
-
     for (auto* pedal : { &gatePedal, &compressorPedal, &drivePedal,
                          &chorusPedal, &delayPedal, &reverbPedal })
         addAndMakeVisible (*pedal);
 
     addAndMakeVisible (ampRow);
-    addAndMakeVisible (cabRow);
-    addAndMakeVisible (cabBypassButton);
+    addAndMakeVisible (cabinetRow);
 
     // The load finishes on a background thread, so the editor is told rather than polling.
     processorRef.onLoadStateChanged = [this] { updateLoadedFileDisplay(); };
     updateLoadedFileDisplay();
 
-    setSize (640, 310 + deckHeight);
+    setSize (640, 310 - rowHeight + deckHeight);
 }
 
 AmpSimAudioProcessorEditor::~AmpSimAudioProcessorEditor()
@@ -299,8 +291,8 @@ void AmpSimAudioProcessorEditor::updateLoadedFileDisplay()
 
     describe (ampRow, processorRef.getModelError(), processorRef.getModelFile(),
               "No model loaded");
-    describe (cabRow, processorRef.getImpulseResponseError(), processorRef.getImpulseResponseFile(),
-              "No cab loaded");
+    cabinetRow.updateContents();
+    cabinetRow.repaint();
 }
 
 void AmpSimAudioProcessorEditor::paint (juce::Graphics& g)
@@ -310,7 +302,7 @@ void AmpSimAudioProcessorEditor::paint (juce::Graphics& g)
     // Same order as resized(), bottom upwards: the pedal deck sits under the amp's nameplates.
     auto header = area.removeFromTop (headerHeight);
     auto deck = area.removeFromBottom (deckHeight);
-    auto footer = area.removeFromBottom (2 * rowHeight + gutter);
+    auto footer = area.removeFromBottom (rowHeight + gutter);
 
     paintPlate (g, area);
 
@@ -333,6 +325,8 @@ void AmpSimAudioProcessorEditor::paint (juce::Graphics& g)
     heading (deck.removeFromTop (groupLabelHeight), "into the amp");
     deck.removeFromTop (pedalRowHeight);
     heading (deck.removeFromTop (groupLabelHeight), "after the amp, before the cab");
+    deck.removeFromTop (pedalRowHeight);
+    heading (deck.removeFromTop (groupLabelHeight), "and out through the speaker");
 
     // The name, set once and left alone — the panel's one piece of display type.
     // Leave the right-hand end to the two switches, so nothing is drawn under them.
@@ -392,14 +386,11 @@ void AmpSimAudioProcessorEditor::resized()
     layOutRow (deck.removeFromTop (pedalRowHeight).reduced (gutter - 4, 2),
                { &chorusPedal, &delayPedal, &reverbPedal });
 
-    auto footer = area.removeFromBottom (2 * rowHeight + gutter).reduced (gutter, gutter / 2);
+    deck.removeFromTop (groupLabelHeight);
+    cabinetRow.setBounds (deck.removeFromTop (pedalRowHeight).reduced (gutter, 2));
 
-    auto ampBounds = footer.removeFromTop (rowHeight);
-    ampRow.setBounds (ampBounds);
-
-    auto cabBounds = footer.removeFromBottom (rowHeight);
-    cabBypassButton.setBounds (cabBounds.removeFromRight (108).withTrimmedLeft (8));
-    cabRow.setBounds (cabBounds);
+    auto footer = area.removeFromBottom (rowHeight + gutter).reduced (gutter, gutter / 2);
+    ampRow.setBounds (footer.removeFromTop (rowHeight));
 
     LabelledKnob* controls[] { &gainKnob, &bassKnob, &midKnob, &trebleKnob, &masterKnob };
 

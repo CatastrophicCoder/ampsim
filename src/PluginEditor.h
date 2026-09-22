@@ -2,6 +2,7 @@
 
 #include "PluginProcessor.h"
 #include "ui/AmpLookAndFeel.h"
+#include "ui/CabinetRow.h"
 #include "ui/PedalTile.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -84,11 +85,9 @@ private:
     PedalTile chorusPedal, delayPedal, reverbPedal;
 
     NameplateRow ampRow { "amp", "Load model" };
-    NameplateRow cabRow { "cab", "Load IR" };
 
-    // Named for what it does to the signal, in the same words as the plugin's own bypass.
-    juce::ToggleButton cabBypassButton { "bypassed" };
-    juce::AudioProcessorValueTreeState::ButtonAttachment cabBypassAttachment;
+    // The cab has its own row on the deck now that it has four corners and two controls.
+    CabinetRow cabinetRow;
 
     std::unique_ptr<juce::FileChooser> fileChooser;
 

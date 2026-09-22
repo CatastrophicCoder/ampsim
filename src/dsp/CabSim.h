@@ -2,49 +2,74 @@
 
 #include <juce_dsp/juce_dsp.h>
 
-/** The cabinet: one impulse response, convolved with the signal.
+#include <array>
+#include <atomic>
 
-    Deliberately the whole of it. A real 4x12 with a mic in front of it is a frequency response and
-    a room, and an IR captures exactly that; multi-mic positioning and cab modelling are out of
-    scope (see the Goal section of ampsim_plan.md).
+/** The cabinet: up to four impulse responses at the corners of a mic-position space, blended.
 
-    `juce::dsp::Convolution` does the hard parts already: it loads and resamples the file on its own
-    background thread, and its default uniform-partitioned mode has no latency, so the plugin
-    reports nothing extra for the cab.
+    A single IR is one microphone in one place. Moving a mic across a speaker changes the response
+    smoothly, so four captures — on and off axis, close and far — with a bilinear blend between
+    them give two continuous controls over mic position.
 
-    Bypass is a crossfade rather than a switch, because an IR changes the tone enough that cutting
-    between them clicks.
+    The blend is done on the **outputs of four convolutions**, not by mixing the IRs and reloading.
+    Convolution is linear, so the two are mathematically identical, but mixing outputs needs no
+    reload as the knobs move: no queued IR loads, no crossfades, nothing to click. It costs four
+    convolutions instead of one, which measured cheap next to the amp model.
+
+    With one IR loaded it behaves exactly as a single-IR loader, and runs only that one convolution.
+
+    What this cannot do is tell you whether it sounds like moving a microphone. That depends
+    entirely on the captures put in the corners; a grid of IRs of the same cab at known positions
+    is source material this project does not ship.
 */
 class CabSim
 {
 public:
-    // Explicit because the non-copyable macro below declares a copy constructor, which suppresses
-    // the implicit default one.
+    /** The corners of the mic-position space. Order matters: it is the bilinear layout. */
+    enum class Slot
+    {
+        centreClose = 0,   // on axis, at the grille
+        edgeClose,         // off axis, at the grille
+        centreFar,         // on axis, backed off
+        edgeFar,           // off axis, backed off
+        count
+    };
+
+    static constexpr int numSlots = (int) Slot::count;
+
     CabSim() = default;
 
     void prepare (double sampleRate, int maxBlockSize);
     void reset();
 
-    /** Message thread. The file is read and resampled on the convolution's own thread, so the
-        new IR becomes audible a moment later. The caller is expected to have checked the file. */
-    void loadImpulseResponse (const juce::File& file);
+    /** Message thread. Each slot is read and resampled on its convolution's own thread. */
+    void loadImpulseResponse (Slot, const juce::File&);
+    void clearSlot (Slot);
+
+    /** @param axis 0 = on the dust cap, 1 = at the cone's edge.
+        @param distance 0 = against the grille, 1 = backed off. */
+    void setMicPosition (float axis, float distance);
 
     /** Audio thread. Processes one mono block in place. */
     void process (float* samples, int numSamples, bool bypassed);
 
-    /** True once an IR has been handed over. Deliberately our own flag rather than
-        `Convolution::getCurrentIRSize()`, which is already non-zero after prepare(): JUCE installs
-        a default engine there, and running the signal through it is not a no-op. */
-    bool hasImpulseResponse() const      { return irLoaded.load(); }
-    int getLatencySamples() const        { return convolution.getLatency(); }
+    bool hasImpulseResponse() const      { return loadedSlots.load() != 0; }
+    bool isSlotLoaded (Slot slot) const  { return (loadedSlots.load() & (1 << (int) slot)) != 0; }
+    int getLatencySamples() const        { return convolutions[0].getLatency(); }
 
 private:
-    juce::dsp::Convolution convolution;
-    std::atomic<bool> irLoaded { false };
+    void updateWeights();
+
+    std::array<juce::dsp::Convolution, numSlots> convolutions;
+    std::array<juce::SmoothedValue<float>, numSlots> weights;
+    std::array<juce::AudioBuffer<float>, numSlots> slotBuffers;
+
+    std::atomic<int> loadedSlots { 0 };   // bit per slot
+    float micAxis = 0.0f, micDistance = 0.0f;
 
     // 1 = fully bypassed, ramped so the switch cannot click.
     juce::SmoothedValue<float> bypassMix;
-    juce::AudioBuffer<float> dryBuffer;
+    juce::AudioBuffer<float> dryBuffer, mixBuffer;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CabSim)
 };

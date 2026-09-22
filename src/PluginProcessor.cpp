@@ -56,6 +56,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
     layout.add (std::make_unique<juce::AudioParameterBool> (
         juce::ParameterID { ParamID::tunerOn, 1 }, "Tuner", false));
 
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { ParamID::micAxis, 1 }, "Mic Axis",
+        juce::NormalisableRange<float> { 0.0f, 1.0f }, 0.0f));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { ParamID::micDistance, 1 }, "Mic Distance",
+        juce::NormalisableRange<float> { 0.0f, 1.0f }, 0.0f));
+
     // --- Pedals -------------------------------------------------------------------------------
     const auto addSwitch = [&layout] (const char* id, const juce::String& name)
     {
@@ -113,6 +121,8 @@ AmpSimAudioProcessor::AmpSimAudioProcessor()
     bypassParam     = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::bypass));
     cabBypassParam  = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::cabBypass));
     tunerParam      = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::tunerOn));
+    micAxisParam    = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::micAxis));
+    micDistanceParam = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::micDistance));
     bassParam       = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::bass));
     midParam        = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::mid));
     trebleParam     = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::treble));
@@ -265,9 +275,31 @@ juce::File AmpSimAudioProcessor::getModelFile() const
     return path.isEmpty() ? juce::File() : juce::File (path);
 }
 
-void AmpSimAudioProcessor::loadImpulseResponse (const juce::File& file)
+const char* AmpSimAudioProcessor::slotStateID (CabSim::Slot slot)
 {
-    apvts.state.setProperty (StateID::irPath, file.getFullPathName(), nullptr);
+    switch (slot)
+    {
+        case CabSim::Slot::edgeClose: return StateID::irPathEdgeClose;
+        case CabSim::Slot::centreFar: return StateID::irPathCentreFar;
+        case CabSim::Slot::edgeFar:   return StateID::irPathEdgeFar;
+        case CabSim::Slot::centreClose:
+        case CabSim::Slot::count:
+        default:                      return StateID::irPath;
+    }
+}
+
+void AmpSimAudioProcessor::clearImpulseResponse (CabSim::Slot slot)
+{
+    apvts.state.setProperty (slotStateID (slot), juce::String(), nullptr);
+    cabSim.clearSlot (slot);
+
+    if (onLoadStateChanged != nullptr)
+        onLoadStateChanged();
+}
+
+void AmpSimAudioProcessor::loadImpulseResponse (CabSim::Slot slot, const juce::File& file)
+{
+    apvts.state.setProperty (slotStateID (slot), file.getFullPathName(), nullptr);
 
     // juce::dsp::Convolution ignores a file it cannot read, which would leave the UI claiming an
     // IR that is not there. Check it here so a bad file can be reported instead.
@@ -284,16 +316,16 @@ void AmpSimAudioProcessor::loadImpulseResponse (const juce::File& file)
     else
     {
         irError.clear();
-        cabSim.loadImpulseResponse (file);
+        cabSim.loadImpulseResponse (slot, file);
     }
 
     if (onLoadStateChanged != nullptr)
         onLoadStateChanged();
 }
 
-juce::File AmpSimAudioProcessor::getImpulseResponseFile() const
+juce::File AmpSimAudioProcessor::getImpulseResponseFile (CabSim::Slot slot) const
 {
-    const auto path = apvts.state.getProperty (StateID::irPath).toString();
+    const auto path = apvts.state.getProperty (slotStateID (slot)).toString();
 
     return path.isEmpty() ? juce::File() : juce::File (path);
 }
@@ -386,6 +418,7 @@ void AmpSimAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     // the speaker response the way they would coming out of a real cabinet.
     pedals.processAfterAmp (mono, numSamples);
 
+    cabSim.setMicPosition (micAxisParam->get(), micDistanceParam->get());
     cabSim.process (mono, numSamples, cabBypassParam->get());
 
     // Muting for the tuner happens last, so everything upstream keeps running and the chain does
@@ -446,8 +479,9 @@ void AmpSimAudioProcessor::setStateInformation (const void* data, int sizeInByte
     if (const auto file = getModelFile(); file != juce::File())
         loadModel (file);
 
-    if (const auto ir = getImpulseResponseFile(); ir != juce::File())
-        cabSim.loadImpulseResponse (ir);
+    for (int slot = 0; slot < CabSim::numSlots; ++slot)
+        if (const auto ir = getImpulseResponseFile ((CabSim::Slot) slot); ir != juce::File())
+            cabSim.loadImpulseResponse ((CabSim::Slot) slot, ir);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
