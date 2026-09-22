@@ -1,3 +1,13 @@
+/*
+    This file is part of AmpSim, a guitar amp simulator built on Neural Amp Modeler.
+    Copyright (C) 2026 Kimmo Fonsell
+
+    AmpSim is free software: you can redistribute it and/or modify it under the terms of the GNU
+    Affero General Public License as published by the Free Software Foundation, either version 3
+    of the License, or (at your option) any later version. See the LICENSE file, or
+    <https://www.gnu.org/licenses/>.
+*/
+
 #include "PluginEditor.h"
 
 namespace

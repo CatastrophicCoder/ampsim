@@ -1,3 +1,13 @@
+/*
+    This file is part of AmpSim, a guitar amp simulator built on Neural Amp Modeler.
+    Copyright (C) 2026 Kimmo Fonsell
+
+    AmpSim is free software: you can redistribute it and/or modify it under the terms of the GNU
+    Affero General Public License as published by the Free Software Foundation, either version 3
+    of the License, or (at your option) any later version. See the LICENSE file, or
+    <https://www.gnu.org/licenses/>.
+*/
+
 #pragma once
 
 #include <juce_dsp/juce_dsp.h>
@@ -54,13 +64,20 @@ public:
     void process (float* samples, int numSamples, bool bypassed);
 
     bool hasImpulseResponse() const      { return loadedSlots.load() != 0; }
+
+    /** The length of the impulse response actually running in a slot.
+
+        JUCE installs a one-sample default engine during prepare() and reads the file on its own
+        thread, so a size of 1 means nothing has arrived yet. That is why hasImpulseResponse()
+        reports what has been asked for rather than this. */
+    int getLoadedSize (Slot slot) const  { return convolutions[(size_t) slot].getCurrentIRSize(); }
     bool isSlotLoaded (Slot slot) const  { return (loadedSlots.load() & (1 << (int) slot)) != 0; }
     int getLatencySamples() const        { return convolutions[0].getLatency(); }
 
 private:
     void updateWeights();
 
-    std::array<juce::dsp::Convolution, numSlots> convolutions;
+    mutable std::array<juce::dsp::Convolution, numSlots> convolutions;
     std::array<juce::SmoothedValue<float>, numSlots> weights;
     std::array<juce::AudioBuffer<float>, numSlots> slotBuffers;
 

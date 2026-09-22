@@ -1,3 +1,13 @@
+/*
+    This file is part of AmpSim, a guitar amp simulator built on Neural Amp Modeler.
+    Copyright (C) 2026 Kimmo Fonsell
+
+    AmpSim is free software: you can redistribute it and/or modify it under the terms of the GNU
+    Affero General Public License as published by the Free Software Foundation, either version 3
+    of the License, or (at your option) any later version. See the LICENSE file, or
+    <https://www.gnu.org/licenses/>.
+*/
+
 #include "TestHelpers.h"
 #include "dsp/CabSim.h"
 
@@ -43,25 +53,59 @@ namespace
         juce::File file;
     };
 
-    /** Runs blocks until the convolution has swapped the new IR in, then returns the impulse
-        response the cab actually produces. */
-    std::vector<float> measureImpulseResponse (CabSim& cab, int numSamples = 16)
+    std::vector<float> impulseThrough (CabSim& cab, int numSamples)
     {
         std::vector<float> block ((size_t) test::blockSize, 0.0f);
-
-        // The convolution loads on its own thread and crossfades the new engine in.
-        for (int b = 0; b < 40; ++b)
-        {
-            std::fill (block.begin(), block.end(), 0.0f);
-            cab.process (block.data(), test::blockSize, false);
-            juce::Thread::sleep (2);
-        }
-
-        std::fill (block.begin(), block.end(), 0.0f);
         block[0] = 1.0f;
         cab.process (block.data(), test::blockSize, false);
 
         return { block.begin(), block.begin() + numSamples };
+    }
+
+    /** The impulse response the cab actually produces, once the IR being loaded has arrived.
+
+        Two things have to finish, in different domains. The file is read on the convolution's own
+        thread, which takes wall-clock time — JUCE reports a one-sample default engine until it
+        lands, so that is what to poll for. The new engine is then crossfaded in over about 50 ms
+        of *processed samples*, which is deterministic and just needs blocks pushed through.
+
+        Waiting on a fixed duration instead passes on an idle machine and fails on a busy one.
+    */
+    std::vector<float> measureImpulseResponse (CabSim& cab, int numSamples = 16)
+    {
+        const auto deadline = juce::Time::getMillisecondCounter() + 5000;
+
+        const auto everySlotArrived = [&cab]
+        {
+            for (int slot = 0; slot < CabSim::numSlots; ++slot)
+                if (cab.isSlotLoaded ((CabSim::Slot) slot)
+                    && cab.getLoadedSize ((CabSim::Slot) slot) <= 1)
+                    return false;
+
+            return true;
+        };
+
+        std::vector<float> silence ((size_t) test::blockSize, 0.0f);
+
+        while (! everySlotArrived() && juce::Time::getMillisecondCounter() < deadline)
+        {
+            std::fill (silence.begin(), silence.end(), 0.0f);
+            cab.process (silence.data(), test::blockSize, false);
+            juce::Thread::sleep (2);
+        }
+
+        // A timeout here means an IR never arrived — which a one-tap fixture also looks like.
+        // Fail on it rather than quietly measuring JUCE's default engine.
+        REQUIRE (everySlotArrived());
+
+        // The crossfade is measured in samples, not seconds: 12 blocks is well past its 50 ms.
+        for (int b = 0; b < 12; ++b)
+        {
+            std::fill (silence.begin(), silence.end(), 0.0f);
+            cab.process (silence.data(), test::blockSize, false);
+        }
+
+        return impulseThrough (cab, numSamples);
     }
 }
 
@@ -252,7 +296,9 @@ TEST_CASE ("The mic position blends between the corners it is between", "[cab]")
 {
     // Two corners along the axis control, with deliberately different responses. Neither starts
     // with silence: Convolution's Trim::yes would strip it and shift the taps forward.
-    const std::vector<float> centre { 0.5f, 0.0f, 0.0f, 0.0f };
+    // Two taps each, and neither leading with silence: a single tap after Trim::yes cannot be
+    // told apart from the default engine JUCE installs, and leading silence would be stripped.
+    const std::vector<float> centre { 0.5f, 0.1f, 0.0f, 0.0f };
     const std::vector<float> edge   { 0.2f, 0.3f, 0.0f, 0.0f };
 
     const TestIR centreIR (centre);
@@ -275,20 +321,20 @@ TEST_CASE ("The mic position blends between the corners it is between", "[cab]")
 
     // Hard over, each corner is exactly its own capture.
     REQUIRE_THAT (atCentre[0], WithinAbs (0.5, 1.0e-4));
-    REQUIRE_THAT (atCentre[1], WithinAbs (0.0, 1.0e-4));
+    REQUIRE_THAT (atCentre[1], WithinAbs (0.1, 1.0e-4));
     REQUIRE_THAT (atEdge[0], WithinAbs (0.2, 1.0e-4));
     REQUIRE_THAT (atEdge[1], WithinAbs (0.3, 1.0e-4));
 
     // Halfway is half of each: convolution is linear, so blending the outputs is the same as
     // convolving with the blended impulse response.
     REQUIRE_THAT (halfway[0], WithinAbs (0.35, 1.0e-3));
-    REQUIRE_THAT (halfway[1], WithinAbs (0.15, 1.0e-3));
+    REQUIRE_THAT (halfway[1], WithinAbs (0.20, 1.0e-3));
 }
 
 TEST_CASE ("An unfilled corner does not drop the level as the knob crosses it", "[cab]")
 {
     // Three corners filled, the fourth empty: the weights are renormalised over what is there.
-    const TestIR ir ({ 0.5f, 0.0f, 0.0f, 0.0f });
+    const TestIR ir ({ 0.5f, 0.25f });
 
     CabSim cab;
     cab.prepare (48000.0, test::blockSize);
@@ -306,7 +352,7 @@ TEST_CASE ("An unfilled corner does not drop the level as the knob crosses it", 
 
 TEST_CASE ("Clearing a corner leaves the rest of the grid working", "[cab]")
 {
-    const TestIR ir ({ 0.5f, 0.0f, 0.0f, 0.0f });
+    const TestIR ir ({ 0.5f, 0.25f });
 
     CabSim cab;
     cab.prepare (48000.0, test::blockSize);

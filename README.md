@@ -1,166 +1,172 @@
 # AmpSim
 
-A minimal guitar amp simulator plugin for macOS (AU / VST3 / Standalone), built with JUCE.
-The amp tone comes from a pre-trained [Neural Amp Modeler](https://github.com/sdatkinson/NeuralAmpModelerCore)
-`.nam` model; the plugin supplies the amp-style controls, the cab IR loader and the pedal chain around it.
+A guitar amp simulator for macOS — AU, VST3 and a standalone app — built with JUCE around a
+[Neural Amp Modeler](https://github.com/sdatkinson/NeuralAmpModelerCore) capture.
 
-See [`ampsim_plan.md`](ampsim_plan.md) for the goal, architecture and milestones.
+![The AmpSim panel](docs/panel.png)
 
-**Status: milestone 7 complete.** The whole chain from the Goal, plus a tuner, presets, MIDI
-controller mapping, a four-corner mic-position cabinet, and an installer.
+The amp itself is a `.nam` file: a neural network trained on a real amplifier. What this project
+adds is everything a capture on its own does not give you — an amp's controls, a cabinet, a
+pedalboard in the order a real rig is plugged up, and a tuner.
 
-## Requirements
+It is deliberately small. There is one amp model at a time, one cabinet, six pedals, and no attempt
+at a channel switcher, a rack, or a library of tones.
 
-| Tool | Version used | Install |
+## The signal chain
+
+```
+gate → compressor → drive → Gain → NAM model → Bass/Mid/Treble → Master
+     → chorus → delay → reverb → cabinet IR
+```
+
+Mono from end to end, because a guitar amp is and a NAM capture is; a stereo input is summed in at
+the top. The placement is fixed rather than user-reorderable, because it is the point: a drive
+pedal in front of the amp changes what the amp distorts, while modulation and echoes belong after
+it so the repeats are of the already-distorted tone.
+
+## Building
+
+Full Xcode is not needed — the Command Line Tools build and sign all three formats, and `auval`
+ships with macOS.
+
+| | Version used here | |
 | --- | --- | --- |
 | Xcode Command Line Tools | Apple clang 17 | `xcode-select --install` |
-| CMake | 4.4.3 (JUCE needs ≥ 3.22) | `brew install cmake` |
+| CMake | 4.4.3 (JUCE needs ≥ 3.24) | `brew install cmake` |
 | Ninja | 1.13.2 | `brew install ninja` |
-| JUCE | 9.0.2, pinned submodule | `git submodule update --init --recursive` |
-| NeuralAmpModelerCore | v0.5.4, pinned submodule (brings Eigen and nlohmann/json) | as above |
-| Catch2 | v3.9.1, pinned submodule | as above |
-| pluginval | 1.0.4 | `brew install --cask pluginval` |
+| pluginval | 1.0.4 (optional) | `brew install --cask pluginval` |
 
-Full Xcode is *not* required: the Command Line Tools are enough to build and validate all three
-formats. `auval` ships with macOS.
-
-## Build
+JUCE 9.0.2, NeuralAmpModelerCore v0.5.4 (which brings Eigen and nlohmann/json) and Catch2 v3.9.1
+are pinned submodules.
 
 ```sh
-git submodule update --init --recursive           # first checkout only; NAM has its own submodules
+git submodule update --init --recursive     # first checkout only; NAM has submodules of its own
 cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
-cmake --build build                               # all three formats
-cmake --build build --target AmpSim_Standalone    # or one at a time
+cmake --build build
 ```
 
-`COPY_PLUGIN_AFTER_BUILD` is on, so a build installs into `~/Library/Audio/Plug-Ins/Components`
-(AU) and `~/Library/Audio/Plug-Ins/VST3`. The standalone app is at
-`build/AmpSim_artefacts/Debug/Standalone/AmpSim.app`.
+`COPY_PLUGIN_AFTER_BUILD` is on, so a build drops the AU and VST3 into `~/Library/Audio/Plug-Ins/`.
+Use `-DCMAKE_BUILD_TYPE=Release` for anything you intend to judge by ear — a Debug build is far
+slower and says nothing useful about CPU load.
 
-Use `-DCMAKE_BUILD_TYPE=Release` for anything you intend to listen to critically — the Debug build
-is much slower and will not represent real CPU load once NAM is in the chain.
+JUCE is pinned on purpose: Apple toolchain and JUCE updates are a reliable source of "the build
+broke and nothing changed". Update it deliberately, in its own commit, and re-validate afterwards.
 
-## Using it
-
-Click **Load model...** and pick a `.nam` file. NAM Core's own example models are in
-`external/NeuralAmpModelerCore/example_models/`, and the public model libraries linked from the
-[Neural Amp Modeler](https://github.com/sdatkinson/neural-amp-modeler) project work too.
-
-The panel is a pale enamelled plate with graphite knobs: the blue arc around each control is its
-value, read against the scale behind it, and red means something is switched out of the signal.
-Below the plate, two nameplates show the loaded model and cab, and turn red with the reason if a
-file cannot be read.
-
-The front panel is **Gain — Bass — Mid — Treble — Master**. Gain sits before the model, so turning
-it up drives the network harder and it saturates, the way a preamp gain control does; Bass, Mid and
-Treble are three independent parametric bands (low shelf at 100 Hz, peak at 800 Hz, high shelf at
-3.2 kHz, ±12 dB each) between the model and the cab; Master is the level out of the amp.
-
-Because the bands are parametric rather than a modelled passive network, all three centred is
-genuinely flat, and each control moves only its own band. A real amp's tone stack interacts with
-itself and is mid-scooped at noon — that difference is deliberate, and recorded in the plan.
-
-**Presets** sit above the amp's nameplate: step through them with the arrows, or open the menu to
-load, save, delete, add the built-in set, or open the folder they live in
-(`~/Library/Application Support/AmpSim/Presets`). A preset holds everything — controls, MIDI map,
-and the paths of the model and cabs — but anything it leaves empty keeps whatever is already
-loaded, so a preset that only sets the knobs will not unload your amp.
-
-**The tuner** is the switch in the header. It reads the guitar before the pedals and the amp, shows
-the note and how many cents off it is, and mutes the output while it is on.
-
-**MIDI controllers**: right-click any control to learn a CC for it, or to forget the one it has.
-One controller drives one parameter and one parameter answers to one controller. The mapping is
-saved with the session and travels with a preset.
-
-**The cabinet** has four corners — on and off axis, close and far — and the axis and distance knobs
-blend between them. Click a corner to load or clear an IR. With one corner filled it is a plain IR
-loader; whether the blend sounds like moving a microphone depends entirely on the captures you put
-in the corners.
-
-Below the amp are six pedals in two rows, and the rows are the point: **into the amp** (gate,
-compressor, drive) and **after the amp, before the cab** (chorus, delay, reverb). The placement is
-fixed, because it is what a working pedalboard does — a drive pedal in front changes what the amp
-distorts, while modulation and echoes belong after it so the repeats are of the distorted tone. A
-blue lamp means the pedal is in your signal; the red lamps on the amp mean something is switched
-out of it.
-
-The chorus, delay and reverb keep running while switched off, so engaging one picks up repeats
-already in flight rather than starting from an empty line.
-
-Click **Load cab IR...** and pick a `.wav` or `.aiff` impulse response for the cabinet. It is
-convolved at the end of the chain, with no added latency, and **Cab bypass** switches it out with a
-crossfade. A stereo IR is folded to mono, and the IR's own level is kept rather than normalised, so
-swapping IRs changes tone rather than volume.
-
-The model runs at the sample rate it was trained at (usually 48 kHz). At any other session rate the
-plugin converts in and out, and reports the resulting latency for the host to compensate — about
-220 samples at 44.1 kHz. The drive pedal's 4x oversampler adds a further 5 samples, and runs whether
-or not the pedal is engaged so that this number never changes under the host.
-
-## Test
-
-```sh
-cmake --build build --target AmpSimTests
-ctest --test-dir build                        # all tests
-ctest --test-dir build --output-on-failure    # with output from failures
-ctest --test-dir build -R "bypass"            # one test, or a pattern
-ctest --test-dir build -N                     # list without running
-```
-
-The tests link the plugin's shared-code target, so they exercise the same objects the AU, VST3 and
-Standalone builds do. They check DSP behaviour offline — gain values, ramp continuity, state
-round-trips — which is the layer `auval` and `pluginval` do not look at. Pass `-DAMPSIM_BUILD_TESTS=OFF`
-to skip building them.
-
-## Validate
-
-```sh
-auval -v aumf Amp1 Amps                                                   # AU
-/Applications/pluginval.app/Contents/MacOS/pluginval --strictness-level 5 \
-    --validate build/AmpSim_artefacts/Debug/VST3/AmpSim.vst3              # VST3
-```
-
-Both pass. Run them on every build; they catch threading and state bugs that a DAW hides — but not
-wrong DSP, which is what `ctest` is for.
-
-The AU is type **`aumf`** (a music effect), not `aufx`, because it accepts MIDI for controller
-mapping. In Logic that means it appears under MIDI-controlled effects rather than with the plain
-audio effects.
-
-## CLion
-
-Open the project directory — CLion picks up `CMakeLists.txt` directly. In
-*Settings → Build, Execution, Deployment → CMake*, set the generator to Ninja and the toolchain to
-the system clang. The `AmpSim_Standalone` target is the convenient one to run from the IDE.
-
-## Packaging
+## Installing
 
 ```sh
 ./packaging/package.sh          # or: cmake --build build --target package-macos
 ```
 
-Builds Release, ad-hoc signs the three formats and writes an installer and a disk image to
-`build-release/artefacts`. No Apple Developer Program membership is involved, and none is needed to
-build or to package.
+Builds Release, ad-hoc signs everything and writes an installer and a disk image to
+`build-release/artefacts`. No Apple Developer Program membership is needed to build or package.
 
-What that costs is at the other end: the packages are unsigned, so macOS refuses to open them on
-another machine until the person installing goes to **System Settings → Privacy & Security** and
-clicks **Open Anyway**. [`packaging/README.md`](packaging/README.md) explains that, what ad-hoc
-signing does and does not do, and what would change with a Developer ID.
+The cost lands on whoever installs it: the packages carry no Developer ID, so macOS blocks them on
+first launch until the person goes to **System Settings → Privacy & Security** and clicks **Open
+Anyway**. [`packaging/README.md`](packaging/README.md) covers that, what ad-hoc signing does and
+does not do, and what would change with a Developer ID.
 
-## JUCE version policy
+## Using it
 
-JUCE is pinned to the 9.0.2 tag as a submodule under `external/JUCE`, deliberately: Apple toolchain
-and JUCE updates are a known source of "the build broke and nothing changed". Update it on purpose,
-in its own commit, and re-run `auval` and `pluginval` afterwards.
+**Nothing is bundled.** No amp model and no cabinet impulse response ship with this repository, and
+without them the plugin passes audio through untouched. NAM Core's own example models sit in
+`external/NeuralAmpModelerCore/example_models/` — `wavenet_a1_standard.nam` and `A2.nam` are real
+captures; the others are tiny test models that barely distort. The public NAM model libraries work
+too. Cabinet IRs you will have to bring.
 
-## Licensing
+**Amp.** Gain sits before the model, so turning it up drives the network harder and it saturates,
+the way a preamp gain control does — with a real capture, 12 dB more input yields well under a
+decibel more output. Bass, Mid and Treble are independent parametric bands (low shelf 100 Hz, peak
+800 Hz, high shelf 3.2 kHz, ±12 dB) between the model and the cab. Master is the level out of the
+amp. Because the bands are parametric rather than a modelled passive network, all three centred is
+genuinely flat and each moves only its own band — a real tone stack interacts with itself and is
+mid-scooped at noon.
 
-JUCE 8 and later are dual-licensed: AGPLv3, or a free Personal tier below a revenue limit. Which one
-this project uses is **not yet decided** (it is an open question in the plan), and it determines
-whether this repository can be made public.
+**Cabinet.** Four corners of a mic position — on and off axis, close and far — with axis and
+distance knobs blending between them. Click a corner to load or clear an IR. Fill one corner and it
+is a plain IR loader. A stereo IR is folded to mono and its own level is kept rather than
+normalised, so moving between captures changes tone rather than volume.
 
-JUCE 9 has no splash screen, so `JUCE_DISPLAY_SPLASH_SCREEN` is obsolete and the build warns if it
-is set. Nothing in the build needs to be changed to satisfy either licence; the choice is about
-what you may do with a distributed binary.
+**Pedals.** Six, in the two groups the chain diagram shows. A blue lamp means the pedal is in your
+signal; a red lamp on the amp means something is switched *out* of it. Chorus, delay and reverb keep
+running while switched off, so engaging one picks up repeats already in flight instead of starting
+from an empty line.
+
+**Tuner.** The switch in the header. It reads the guitar before the pedals and the amp, shows the
+note and how far off it is in cents, and mutes the output while it is on.
+
+**Presets** are files in `~/Library/Application Support/AmpSim/Presets`. A preset holds everything —
+controls, MIDI map, and the paths of the model and cabs — but anything it leaves empty keeps what is
+already loaded, so a preset that only sets the knobs will not unload your amp.
+
+**MIDI.** Right-click any control to learn a CC for it, or to forget the one it has. One controller
+drives one parameter and one parameter answers to one controller. The map is saved with the session
+and travels with a preset.
+
+**Latency.** The model runs at the rate it was trained at — usually 48 kHz — and the plugin converts
+in and out at any other session rate, reporting about 220 samples at 44.1 kHz for the host to
+compensate. The drive pedal's 4x oversampler adds 5 more, and runs whether or not the pedal is
+engaged so that the figure never changes under the host.
+
+## Testing
+
+```sh
+ctest --test-dir build                        # 73 tests
+ctest --test-dir build --output-on-failure
+ctest --test-dir build -R "bypass"            # one test, or a pattern
+```
+
+The tests link the plugin's own shared-code target, so they exercise the same objects the AU, VST3
+and standalone builds ship. They measure DSP behaviour — band responses, resampler latency against
+a real impulse, whether switching a pedal introduces a discontinuity the pedal does not already
+make — which is the layer plugin validators never look at. `-DAMPSIM_BUILD_TESTS=OFF` skips them.
+
+```sh
+auval -v aumf Amp1 Amps
+/Applications/pluginval.app/Contents/MacOS/pluginval --strictness-level 10 \
+    --validate build/AmpSim_artefacts/Debug/VST3/AmpSim.vst3
+```
+
+Both pass. The AU is type `aumf`, a music effect rather than `aufx`, because it accepts MIDI for
+controller mapping — in Logic that puts it under MIDI-controlled effects.
+
+## Reading the code
+
+[`CLAUDE.md`](CLAUDE.md) is the architecture note: what each block is, which thread may touch it,
+and the handful of JUCE behaviours that cost time to discover — a default-constructed `dsp::Gain`
+sitting at zero, `Convolution` installing an engine before any IR is loaded, `IIR::Coefficients`
+factories allocating on every call. It is written for whoever works on this next, including an AI
+assistant.
+
+## What it does not do
+
+- **macOS and Apple silicon only.** Nothing is Mac-specific in the DSP, but no other platform has
+  been built or tested.
+- **Mono.** Stereo input is summed at the top of the chain.
+- **One model, one cabinet, no channel switching.**
+- **The mic-position blend is unproven musically.** The interpolation is exact and tested, but
+  whether it sounds like moving a microphone depends entirely on having a grid of IRs of one cab
+  captured at known positions. None ship here.
+- **Nothing is notarised**, so anyone you give a build to has to allow it through Gatekeeper.
+
+## Licence
+
+[GNU AGPL v3](LICENSE). AmpSim links JUCE, which since version 8 is offered under AGPLv3 or a paid
+licence; this project takes the open-source option, so the same terms apply to it. In practice that
+means anyone distributing a binary built from this source has to make the corresponding source
+available. Read JUCE's current terms at [juce.com](https://juce.com) before relying on any of this —
+they have changed between major versions.
+
+Third-party code, all as pinned submodules rather than vendored copies:
+
+| | Licence |
+| --- | --- |
+| [JUCE](https://github.com/juce-framework/JUCE) | AGPLv3 or commercial |
+| [NeuralAmpModelerCore](https://github.com/sdatkinson/NeuralAmpModelerCore) | MIT |
+| [Eigen](https://gitlab.com/libeigen/eigen) | MPL2 |
+| [nlohmann/json](https://github.com/nlohmann/json) | MIT |
+| [Catch2](https://github.com/catchorg/Catch2) | BSL-1.0 |
+| VST3 SDK (bundled with JUCE) | GPLv3 or Steinberg's proprietary terms |
+
+Amp captures and impulse responses carry their own licences, and some are captures of trademarked
+amplifiers — a personal build can use them; publishing a plugin with an amp's name on it cannot.

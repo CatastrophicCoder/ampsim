@@ -72,6 +72,13 @@ Two things that are easy to get wrong here:
 - **A slider's text box takes its colours from the slider, not the LookAndFeel.** Clearing
   `textBoxOutlineColourId` and `textBoxBackgroundColourId` on the LookAndFeel does nothing; set them
   on the `juce::Slider`.
+- **`Slider::setPopupDisplayEnabled` takes the component the bubble lives in.** Passing the knob
+  itself clips the popup to a 60 px control and it disappears. `CompactKnob` sets the editor as the
+  parent in `parentHierarchyChanged()`, since a knob has no parent when it is constructed.
+  `BubbleComponent` also centres itself on the control without pulling itself back inside the
+  parent, so a control near the window edge needs a margin.
+- **Give every parameter a `stringFromValue`.** Without one JUCE prints the raw float, and a mix
+  knob reads 0.3499999. A test in `StateTests.cpp` fails on more than one decimal anywhere.
 
 **Look at the panel rather than reasoning about it.** An offline harness that renders the editor
 with `createComponentSnapshot` to a PNG takes a couple of minutes to write and catches things no
@@ -137,6 +144,12 @@ The bands are float, so they are not bit-exact at DC: a 100 Hz shelf at 48 kHz h
 enough to z = 1 that float state accumulates about 0.002 dB of error. Inaudible, but it is why the
 gain tests use a relative tolerance rather than an exact one.
 
+**A `Convolution` only installs a loaded IR while it is processing.** A cabinet corner sitting at
+zero weight would still be running JUCE's default engine when the mic position first swept onto it,
+so `CabSim` keeps feeding a corner until `getCurrentIRSize()` rises above 1 and leaves it alone
+after that. The same fact is what makes the cab tests wait on that size rather than on a duration —
+a fixed wait passes on an idle machine and fails on a busy one.
+
 **`Convolution::getCurrentIRSize()` is already non-zero after `prepare()`** — JUCE installs a
 default engine there — so it cannot be used to ask "has the user loaded an IR". `CabSim` keeps its
 own flag; processing through the convolution before loading an IR is *not* a no-op and quietly
@@ -144,11 +157,10 @@ changes the level. The processor also checks the file with an `AudioFormatManage
 `Convolution` ignores a file it cannot read, which would otherwise leave the UI claiming an IR that
 is not there.
 
-`ampsim_plan.md` is the source of truth for scope, architecture and sequencing; `NOTES.md` is the
-running session log, and gets an entry per working session. Read the plan before implementation
-work: it records decisions already settled (the amp is NAM Core, not circuit modelling; pedal
-placement mirrors hardware; post-amp pedals run before the cab) and open questions that are *not*
-settled. Do not re-litigate the settled ones, and do not silently answer the open ones — ask.
+The design decisions that shaped this, and are not up for quiet revision: the amp is a NAM capture
+rather than circuit modelling; pedal placement mirrors a hardware rig and is not user-reorderable;
+the post-amp pedals run before the cab; Bass/Mid/Treble are independent parametric bands rather than
+a modelled passive stack. Each is explained where it is implemented.
 
 ## What the project is
 

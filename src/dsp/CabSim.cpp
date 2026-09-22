@@ -1,3 +1,13 @@
+/*
+    This file is part of AmpSim, a guitar amp simulator built on Neural Amp Modeler.
+    Copyright (C) 2026 Kimmo Fonsell
+
+    AmpSim is free software: you can redistribute it and/or modify it under the terms of the GNU
+    Affero General Public License as published by the Free Software Foundation, either version 3
+    of the License, or (at your option) any later version. See the LICENSE file, or
+    <https://www.gnu.org/licenses/>.
+*/
+
 #include "CabSim.h"
 
 namespace
@@ -132,8 +142,29 @@ void CabSim::process (float* samples, int numSamples, bool bypassed)
     {
         auto& weight = weights[(size_t) slot];
 
-        if ((slots & (1 << slot)) == 0 || (! weight.isSmoothing() && weight.getCurrentValue() <= 0.0f))
+        if ((slots & (1 << slot)) == 0)
         {
+            weight.skip (numSamples);
+            continue;
+        }
+
+        if (! weight.isSmoothing() && weight.getCurrentValue() <= 0.0f)
+        {
+            // A juce::dsp::Convolution only installs a loaded impulse response while it is
+            // processing. A corner the mic position has never been moved to would therefore still
+            // be running JUCE's default engine, and the first sweep onto it would cross into that
+            // before the real IR appeared. Keep feeding a corner until its IR is actually in —
+            // getCurrentIRSize() is 1 until then — and leave it alone afterwards.
+            if (convolutions[(size_t) slot].getCurrentIRSize() <= 1)
+            {
+                auto* priming = slotBuffers[(size_t) slot].getWritePointer (0);
+                juce::FloatVectorOperations::copy (priming, samples, numSamples);
+
+                juce::dsp::AudioBlock<float> block (&priming, 1, (size_t) numSamples);
+                juce::dsp::ProcessContextReplacing<float> context (block);
+                convolutions[(size_t) slot].process (context);
+            }
+
             weight.skip (numSamples);
             continue;
         }
