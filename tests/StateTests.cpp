@@ -66,3 +66,24 @@ TEST_CASE ("Garbage state is ignored rather than crashing", "[state]")
 
     REQUIRE_THAT (test::getParam (state, ParamID::inputGain), WithinAbs (5.0, 1.0e-4));
 }
+
+TEST_CASE ("No control reports its value to more than one decimal place", "[parameters]")
+{
+    // JUCE prints the raw float unless a parameter says otherwise, which put seven decimals in
+    // the pedal and cabinet knobs' value popups. getText is public on the base class, so this
+    // checks what a host or a value popup would actually show, at several points of the range.
+    AmpSimAudioProcessor processor;
+
+    for (auto* parameter : processor.getParameters())
+    {
+        for (const auto normalised : { 0.0f, 0.137f, 0.5f, 0.921f, 1.0f })
+        {
+            const auto text = parameter->getText (normalised, 0);
+            const auto decimals = text.fromFirstOccurrenceOf (".", false, false)
+                                      .initialSectionContainingOnly ("0123456789");
+
+            INFO (parameter->getName (40) << " at " << normalised << " reads \"" << text << "\"");
+            REQUIRE (decimals.length() <= 1);
+        }
+    }
+}

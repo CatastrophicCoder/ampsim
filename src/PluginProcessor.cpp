@@ -8,6 +8,19 @@ namespace
     constexpr double gainRampSeconds   = 0.05;
     constexpr double bypassRampSeconds = 0.02;
 
+    /** One decimal, and a unit where there is one. Without a formatter JUCE prints the raw float,
+        so a mix knob's value popup read 0.3499999 rather than 0.3. */
+    juce::AudioParameterFloatAttributes oneDecimal (const juce::String& unit = {})
+    {
+        return juce::AudioParameterFloatAttributes()
+                   .withLabel (unit)
+                   .withStringFromValueFunction ([unit] (float value, int)
+                   {
+                       return juce::String (value, 1)
+                            + (unit.isEmpty() ? juce::String() : " " + unit);
+                   });
+    }
+
     juce::NormalisableRange<float> decibelRange (float limit)
     {
         juce::NormalisableRange<float> range { -limit, limit, 0.1f };
@@ -58,11 +71,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { ParamID::micAxis, 1 }, "Mic Axis",
-        juce::NormalisableRange<float> { 0.0f, 1.0f }, 0.0f));
+        juce::NormalisableRange<float> { 0.0f, 1.0f }, 0.0f, oneDecimal()));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { ParamID::micDistance, 1 }, "Mic Distance",
-        juce::NormalisableRange<float> { 0.0f, 1.0f }, 0.0f));
+        juce::NormalisableRange<float> { 0.0f, 1.0f }, 0.0f, oneDecimal()));
 
     // --- Pedals -------------------------------------------------------------------------------
     const auto addSwitch = [&layout] (const char* id, const juce::String& name)
@@ -78,7 +91,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
         layout.add (std::make_unique<juce::AudioParameterFloat> (
             juce::ParameterID { id, 1 }, name,
             juce::NormalisableRange<float> { minimum, maximum }, defaultValue,
-            juce::AudioParameterFloatAttributes().withLabel (unit)));
+            oneDecimal (unit)));
     };
 
     addSwitch (ParamID::gateOn, "Gate");
@@ -99,7 +112,17 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
     addKnob (ParamID::chorusMix, "Chorus Mix", 0.0f, 1.0f, 0.4f);
 
     addSwitch (ParamID::delayOn, "Delay");
-    addKnob (ParamID::delayTime, "Delay Time", 0.02f, DelayPedal::maxDelaySeconds, 0.35f, "s");
+    // Milliseconds, not seconds to one decimal: the shortest setting is 20 ms, which would read
+    // "0.0 s" — a number that is wrong rather than merely coarse.
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { ParamID::delayTime, 1 }, "Delay Time",
+        juce::NormalisableRange<float> { 0.02f, DelayPedal::maxDelaySeconds }, 0.35f,
+        juce::AudioParameterFloatAttributes()
+            .withLabel ("ms")
+            .withStringFromValueFunction ([] (float seconds, int)
+            {
+                return juce::String (juce::roundToInt (seconds * 1000.0f)) + " ms";
+            })));
     addKnob (ParamID::delayFeedback, "Delay Feedback", 0.0f, 0.95f, 0.35f);
     addKnob (ParamID::delayMix, "Delay Mix", 0.0f, 1.0f, 0.3f);
 
