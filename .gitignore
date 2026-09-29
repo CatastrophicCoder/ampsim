@@ -13,5 +13,10 @@ cmake-build-*/
 .idea/shelf/
 .idea/copilot.data.migration.ask2agent.xml
 
+# Amp captures and cabinet impulse responses. Kept out of the repository on purpose: a capture
+# carries the name of a trademarked amplifier, and commercial IR packs are licensed to you rather
+# than to everyone who clones this. Point the plugin at them on disk instead.
+models/
+
 # Local, machine-specific session notes
 NOTES.local.md
