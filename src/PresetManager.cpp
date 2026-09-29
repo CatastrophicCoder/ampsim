@@ -51,9 +51,17 @@ PresetManager::PresetManager (AmpSimAudioProcessor& processorToUse, juce::File d
     : processor (processorToUse), directory (directoryToUse)
 {
     if (directory == juce::File())
-        directory = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory)
-                        .getChildFile ("AmpSim")
-                        .getChildFile ("Presets");
+    {
+        auto base = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory);
+
+       #if JUCE_MAC
+        // JUCE's userApplicationDataDirectory is ~/Library on macOS, not ~/Library/Application
+        // Support. Everything an app stores for itself belongs in the latter.
+        base = base.getChildFile ("Application Support");
+       #endif
+
+        directory = base.getChildFile ("AmpSim").getChildFile ("Presets");
+    }
 
     directory.createDirectory();
 }
