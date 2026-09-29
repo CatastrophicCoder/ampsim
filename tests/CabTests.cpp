@@ -135,14 +135,18 @@ TEST_CASE ("An impulse through the cab comes back as the impulse response", "[ca
 
     const auto measured = measureImpulseResponse (cab, (int) taps.size() + 2);
 
-    for (size_t i = 0; i < taps.size(); ++i)
+    // Shape, not level: the cab normalises, so what comes back is the impulse response scaled by
+    // one factor. Each tap must keep its proportion to the first.
+    REQUIRE (std::abs (measured[0]) > 1.0e-4f);
+
+    for (size_t i = 1; i < taps.size(); ++i)
     {
         INFO ("tap " << i);
-        REQUIRE_THAT (measured[i], WithinAbs (taps[i], 1.0e-4));
+        REQUIRE_THAT (measured[i] / measured[0], WithinAbs (taps[i] / taps[0], 1.0e-3));
     }
 
     // Nothing beyond the IR's own length.
-    REQUIRE_THAT (measured[taps.size()], WithinAbs (0.0, 1.0e-4));
+    REQUIRE_THAT (measured[taps.size()] / measured[0], WithinAbs (0.0, 1.0e-3));
 }
 
 TEST_CASE ("The cab adds no latency", "[cab]")
@@ -275,6 +279,8 @@ TEST_CASE ("A single IR behaves the same however the mic position is set", "[cab
     const std::vector<float> taps { 0.5f, 0.0f, 0.25f, -0.125f };
     const TestIR ir (taps);
 
+    std::vector<float> reference;
+
     for (const auto position : { std::pair { 0.0f, 0.0f }, std::pair { 1.0f, 0.0f },
                                  std::pair { 0.5f, 0.5f }, std::pair { 1.0f, 1.0f } })
     {
@@ -287,8 +293,15 @@ TEST_CASE ("A single IR behaves the same however the mic position is set", "[cab
 
         INFO ("axis " << position.first << ", distance " << position.second);
 
+        if (reference.empty())
+        {
+            reference = measured;
+            REQUIRE (std::abs (reference[0]) > 1.0e-4f);
+            continue;
+        }
+
         for (size_t i = 0; i < taps.size(); ++i)
-            REQUIRE_THAT (measured[i], WithinAbs (taps[i], 1.0e-4));
+            REQUIRE_THAT (measured[i], WithinAbs (reference[i], 1.0e-4));
     }
 }
 
@@ -319,16 +332,15 @@ TEST_CASE ("The mic position blends between the corners it is between", "[cab]")
     const auto atEdge = responseAt (1.0f);
     const auto halfway = responseAt (0.5f);
 
-    // Hard over, each corner is exactly its own capture.
-    REQUIRE_THAT (atCentre[0], WithinAbs (0.5, 1.0e-4));
-    REQUIRE_THAT (atCentre[1], WithinAbs (0.1, 1.0e-4));
-    REQUIRE_THAT (atEdge[0], WithinAbs (0.2, 1.0e-4));
-    REQUIRE_THAT (atEdge[1], WithinAbs (0.3, 1.0e-4));
+    // Hard over, each corner is its own capture: different shapes, so different tap ratios.
+    REQUIRE_THAT (atCentre[1] / atCentre[0], WithinAbs (0.1 / 0.5, 1.0e-3));
+    REQUIRE_THAT (atEdge[1] / atEdge[0], WithinAbs (0.3 / 0.2, 1.0e-3));
 
     // Halfway is half of each: convolution is linear, so blending the outputs is the same as
-    // convolving with the blended impulse response.
-    REQUIRE_THAT (halfway[0], WithinAbs (0.35, 1.0e-3));
-    REQUIRE_THAT (halfway[1], WithinAbs (0.20, 1.0e-3));
+    // convolving with the blended impulse response. True of the normalised output too, since one
+    // factor is applied to the whole grid.
+    REQUIRE_THAT (halfway[0], WithinAbs (0.5 * (atCentre[0] + atEdge[0]), 1.0e-3));
+    REQUIRE_THAT (halfway[1], WithinAbs (0.5 * (atCentre[1] + atEdge[1]), 1.0e-3));
 }
 
 TEST_CASE ("An unfilled corner does not drop the level as the knob crosses it", "[cab]")
@@ -343,11 +355,14 @@ TEST_CASE ("An unfilled corner does not drop the level as the knob crosses it", 
     cab.loadImpulseResponse (CabSim::Slot::centreFar, ir.file);
     // Slot::edgeFar deliberately left empty.
 
+    cab.setMicPosition (0.0f, 0.0f);
+    const auto atFilledCorner = measureImpulseResponse (cab, 4);
+
     cab.setMicPosition (1.0f, 1.0f);   // straight at the missing corner
+    const auto atMissingCorner = measureImpulseResponse (cab, 4);
 
-    const auto measured = measureImpulseResponse (cab, 4);
-
-    REQUIRE_THAT (measured[0], WithinAbs (0.5, 1.0e-3));
+    REQUIRE (std::abs (atFilledCorner[0]) > 1.0e-4f);
+    REQUIRE_THAT (atMissingCorner[0], WithinAbs (atFilledCorner[0], 1.0e-3));
 }
 
 TEST_CASE ("Clearing a corner leaves the rest of the grid working", "[cab]")
@@ -366,10 +381,14 @@ TEST_CASE ("Clearing a corner leaves the rest of the grid working", "[cab]")
     REQUIRE_FALSE (cab.isSlotLoaded (CabSim::Slot::edgeClose));
     REQUIRE (cab.hasImpulseResponse());
 
-    cab.setMicPosition (1.0f, 0.0f);   // pointing at the corner just cleared
+    cab.setMicPosition (0.0f, 0.0f);
+    const auto atRemaining = measureImpulseResponse (cab, 4);
 
-    const auto measured = measureImpulseResponse (cab, 4);
-    REQUIRE_THAT (measured[0], WithinAbs (0.5, 1.0e-3));
+    cab.setMicPosition (1.0f, 0.0f);   // pointing at the corner just cleared
+    const auto atCleared = measureImpulseResponse (cab, 4);
+
+    REQUIRE (std::abs (atRemaining[0]) > 1.0e-4f);
+    REQUIRE_THAT (atCleared[0], WithinAbs (atRemaining[0], 1.0e-3));
 }
 
 TEST_CASE ("Every corner's IR path is saved with the state", "[cab][processor][state]")
@@ -394,4 +413,114 @@ TEST_CASE ("Every corner's IR path is saved with the state", "[cab][processor][s
     REQUIRE (restored.getImpulseResponseFile (CabSim::Slot::centreClose) == centreClose.file);
     REQUIRE (restored.getImpulseResponseFile (CabSim::Slot::edgeFar) == edgeFar.file);
     REQUIRE (restored.getImpulseResponseFile (CabSim::Slot::edgeClose) == juce::File());
+}
+
+TEST_CASE ("The cab's level does not depend on how hot the IR file is", "[cab]")
+{
+    // The promise of normalisation: a capture carrying 15 dB of broadband gain and the same
+    // capture at a sane level should come out at the same loudness. Same shape, ten times the
+    // scale — the output must not move.
+    const TestIR quiet ({ 0.6f, 0.3f, -0.15f });
+    const TestIR hot   ({ 6.0f, 3.0f, -1.5f });
+
+    const auto responseFor = [] (const juce::File& file)
+    {
+        CabSim cab;
+        cab.prepare (48000.0, test::blockSize);
+        cab.loadImpulseResponse (CabSim::Slot::centreClose, file);
+
+        return measureImpulseResponse (cab, 4);
+    };
+
+    const auto fromQuiet = responseFor (quiet.file);
+    const auto fromHot = responseFor (hot.file);
+
+    INFO ("quiet " << fromQuiet[0] << ", hot " << fromHot[0]);
+
+    REQUIRE (std::abs (fromQuiet[0]) > 1.0e-4f);
+    REQUIRE_THAT (fromHot[0], WithinAbs (fromQuiet[0], 1.0e-3));
+}
+
+TEST_CASE ("Normalisation brings a capture to about unity", "[cab]")
+{
+    // Not exact — the factor is an average across the guitar band, and a two-tap impulse response
+    // is not flat — but a cab must not be a 20 dB gain stage.
+    const TestIR ir ({ 4.0f, 2.0f, -1.0f });
+
+    CabSim cab;
+    cab.prepare (48000.0, test::blockSize);
+    cab.loadImpulseResponse (CabSim::Slot::centreClose, ir.file);
+
+    const auto measured = measureImpulseResponse (cab, 4);
+
+    INFO ("correction " << cab.getNormalisationDb() << " dB, first tap " << measured[0]);
+
+    REQUIRE (cab.getNormalisationDb() < -6.0f);          // it did tame something
+    REQUIRE (std::abs (measured[0]) < 2.0f);             // and the result is not a gain stage
+    REQUIRE (std::abs (measured[0]) > 0.05f);            // nor has it been flattened to nothing
+}
+
+TEST_CASE ("The corners keep their level relative to each other", "[cab]")
+{
+    // One factor for the whole grid, not one per corner: a corner that really is 6 dB quieter —
+    // a mic backed off, or off axis — has to stay 6 dB quieter, or the mic position control is
+    // reduced to an EQ.
+    const std::vector<float> loud { 0.6f, 0.3f, -0.15f };
+    std::vector<float> quiet;
+
+    for (auto tap : loud)
+        quiet.push_back (tap * 0.5f);   // exactly 6 dB down, same shape
+
+    const TestIR loudIR (loud);
+    const TestIR quietIR (quiet);
+
+    CabSim cab;
+    cab.prepare (48000.0, test::blockSize);
+    cab.loadImpulseResponse (CabSim::Slot::centreClose, loudIR.file);
+    cab.loadImpulseResponse (CabSim::Slot::edgeClose, quietIR.file);
+
+    cab.setMicPosition (0.0f, 0.0f);
+    const auto atLoudCorner = measureImpulseResponse (cab, 4);
+
+    cab.setMicPosition (1.0f, 0.0f);
+    const auto atQuietCorner = measureImpulseResponse (cab, 4);
+
+    REQUIRE (std::abs (atLoudCorner[0]) > 1.0e-4f);
+
+    const auto ratio = atQuietCorner[0] / atLoudCorner[0];
+
+    INFO ("quiet corner is " << juce::Decibels::gainToDecibels (std::abs (ratio)) << " dB down");
+    REQUIRE_THAT (ratio, WithinAbs (0.5, 0.02));
+}
+
+TEST_CASE ("The normalisation factor does not depend on the order corners are filled", "[cab]")
+{
+    const TestIR loudIR ({ 0.8f, 0.4f });
+    const TestIR quietIR ({ 0.2f, 0.1f });
+
+    const auto responseWithOrder = [&] (bool loudFirst)
+    {
+        CabSim cab;
+        cab.prepare (48000.0, test::blockSize);
+
+        if (loudFirst)
+        {
+            cab.loadImpulseResponse (CabSim::Slot::centreClose, loudIR.file);
+            cab.loadImpulseResponse (CabSim::Slot::edgeClose, quietIR.file);
+        }
+        else
+        {
+            cab.loadImpulseResponse (CabSim::Slot::edgeClose, quietIR.file);
+            cab.loadImpulseResponse (CabSim::Slot::centreClose, loudIR.file);
+        }
+
+        cab.setMicPosition (0.0f, 0.0f);
+        return measureImpulseResponse (cab, 4);
+    };
+
+    const auto loudFirst = responseWithOrder (true);
+    const auto quietFirst = responseWithOrder (false);
+
+    REQUIRE (std::abs (loudFirst[0]) > 1.0e-4f);
+    REQUIRE_THAT (quietFirst[0], WithinAbs (loudFirst[0], 1.0e-3));
 }

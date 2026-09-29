@@ -91,8 +91,14 @@ mid-scooped at noon.
 
 **Cabinet.** Four corners of a mic position — on and off axis, close and far — with axis and
 distance knobs blending between them. Click a corner to load or clear an IR. Fill one corner and it
-is a plain IR loader. A stereo IR is folded to mono and its own level is kept rather than
-normalised, so moving between captures changes tone rather than volume.
+is a plain IR loader. A stereo IR is folded to mono.
+
+Captures are not made to a common level — a commercial pack can carry 15 dB of broadband gain — so
+the cab normalises, using the average magnitude across the range a guitar occupies. One factor is
+applied to the whole grid rather than one per corner, so a corner that really is quieter, a mic
+backed off or off axis, stays quieter; only the grid's overall level is brought to unity. The factor
+comes from the loudest loaded corner, so filling the corners in a different order cannot change the
+result.
 
 **Pedals.** Six, in the two groups the chain diagram shows. A blue lamp means the pedal is in your
 signal; a red lamp on the amp means something is switched *out* of it. Chorus, delay and reverb keep

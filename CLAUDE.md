@@ -90,6 +90,13 @@ amount of reading the paint code will: see the milestone 5 entry in `NOTES.md`.
 and adds no latency in its default uniform-partitioned mode. Bypass is a crossfade, since an IR
 changes the tone enough to click on a hard switch.
 
+**Level is normalised across the grid, not per corner.** `measureBandGain()` takes the average
+magnitude response over 80 Hz–6 kHz at load time, on the message thread, and the loudest loaded
+corner sets one factor for all four. Per-corner normalisation would flatten the level differences
+that make a mic position mean anything; total energy as the metric would under-read by half, because
+it counts the sub-bass and the air a 4x12 rolls away. JUCE's own `Normalise::yes` is not used — it
+normalises each IR independently, which is the thing to avoid here.
+
 ## Presets, MIDI and the tuner
 
 - **`PresetManager`** writes the whole state to `~/Library/Application Support/AmpSim/Presets`. Its

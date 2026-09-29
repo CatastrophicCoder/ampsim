@@ -14,6 +14,56 @@ namespace
 {
     constexpr double bypassRampSeconds = 0.02;
     constexpr double weightRampSeconds = 0.05;
+
+    // The band a guitar cabinet actually delivers. Below and above this a 4x12 rolls off hard,
+    // and counting those regions would say an impulse response is quieter than it sounds.
+    constexpr double lowestBandFrequency = 80.0;
+    constexpr double highestBandFrequency = 6000.0;
+    constexpr int bandPoints = 24;
+}
+
+float CabSim::measureBandGain (const juce::File& file)
+{
+    juce::AudioFormatManager formats;
+    formats.registerBasicFormats();
+
+    const std::unique_ptr<juce::AudioFormatReader> reader (formats.createReaderFor (file));
+
+    if (reader == nullptr || reader->lengthInSamples <= 0)
+        return 1.0f;
+
+    juce::AudioBuffer<float> ir ((int) reader->numChannels, (int) reader->lengthInSamples);
+    reader->read (&ir, 0, ir.getNumSamples(), 0, true, true);
+
+    const auto* samples = ir.getReadPointer (0);
+    const auto numSamples = ir.getNumSamples();
+    const auto sampleRate = reader->sampleRate;
+
+    // The RMS of |H(f)| over log-spaced points across the band: one number for "how loud is this
+    // capture", independent of whatever signal happens to be played through it.
+    double sumOfSquares = 0.0;
+
+    for (int point = 0; point < bandPoints; ++point)
+    {
+        const auto proportion = (double) point / (double) (bandPoints - 1);
+        const auto frequency = lowestBandFrequency
+                             * std::pow (highestBandFrequency / lowestBandFrequency, proportion);
+
+        double real = 0.0, imaginary = 0.0;
+
+        for (int i = 0; i < numSamples; ++i)
+        {
+            const auto angle = juce::MathConstants<double>::twoPi * frequency * i / sampleRate;
+            real += samples[i] * std::cos (angle);
+            imaginary -= samples[i] * std::sin (angle);
+        }
+
+        sumOfSquares += real * real + imaginary * imaginary;
+    }
+
+    const auto gain = std::sqrt (sumOfSquares / bandPoints);
+
+    return gain > 1.0e-6 ? (float) gain : 1.0f;
 }
 
 void CabSim::prepare (double sampleRate, int maxBlockSize)
@@ -29,6 +79,9 @@ void CabSim::prepare (double sampleRate, int maxBlockSize)
 
     bypassMix.reset (sampleRate, bypassRampSeconds);
     bypassMix.setCurrentAndTargetValue (0.0f);
+
+    normalisation.reset (sampleRate, weightRampSeconds);
+    normalisation.setCurrentAndTargetValue (normalisationTarget.load());
 
     dryBuffer.setSize (1, maxBlockSize, false, false, true);
     mixBuffer.setSize (1, maxBlockSize, false, false, true);
@@ -58,14 +111,39 @@ void CabSim::loadImpulseResponse (Slot slot, const juce::File& file)
                                                      0,
                                                      juce::dsp::Convolution::Normalise::no);
 
+    // Measured here, on the message thread, because it reads the file.
+    slotBandGain[(size_t) slot] = measureBandGain (file);
+
     loadedSlots.fetch_or (1 << (int) slot);
+    updateNormalisation();
     updateWeights();
 }
 
 void CabSim::clearSlot (Slot slot)
 {
     loadedSlots.fetch_and (~(1 << (int) slot));
+    slotBandGain[(size_t) slot] = 1.0f;
+
+    updateNormalisation();
     updateWeights();
+}
+
+void CabSim::updateNormalisation()
+{
+    // The loudest loaded corner sets the factor, so filling the corners in a different order
+    // cannot change the result. A corner that is genuinely quieter stays quieter.
+    auto loudest = 0.0f;
+
+    for (int slot = 0; slot < numSlots; ++slot)
+        if (isSlotLoaded ((Slot) slot))
+            loudest = juce::jmax (loudest, slotBandGain[(size_t) slot]);
+
+    normalisationTarget.store (loudest > 1.0e-6f ? 1.0f / loudest : 1.0f);
+}
+
+float CabSim::getNormalisationDb() const
+{
+    return hasImpulseResponse() ? juce::Decibels::gainToDecibels (normalisationTarget.load()) : 0.0f;
 }
 
 void CabSim::setMicPosition (float axis, float distance)
@@ -182,6 +260,15 @@ void CabSim::process (float* samples, int numSamples, bool bypassed)
         juce::AudioBuffer<float> view (&mixed, 1, numSamples);
         view.addFromWithRamp (0, 0, slotData, numSamples, start, weight.getCurrentValue());
     }
+
+    // One factor for the whole grid, so the corners keep their level relative to each other.
+    normalisation.setTargetValue (normalisationTarget.load());
+
+    const auto startGain = normalisation.getCurrentValue();
+    normalisation.skip (numSamples);
+
+    juce::AudioBuffer<float> mixedView (&mixed, 1, numSamples);
+    mixedView.applyGainRamp (0, 0, numSamples, startGain, normalisation.getCurrentValue());
 
     juce::FloatVectorOperations::copy (samples, mixed, numSamples);
 

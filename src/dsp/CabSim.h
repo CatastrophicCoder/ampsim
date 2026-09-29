@@ -10,6 +10,7 @@
 
 #pragma once
 
+#include <juce_audio_formats/juce_audio_formats.h>
 #include <juce_dsp/juce_dsp.h>
 
 #include <array>
@@ -31,6 +32,12 @@
     What this cannot do is tell you whether it sounds like moving a microphone. That depends
     entirely on the captures put in the corners; a grid of IRs of the same cab at known positions
     is source material this project does not ship.
+
+    **Levels.** Captures are not made to a common level — a commercial pack can carry 15 dB of
+    broadband gain — so the cab normalises. One factor is applied to the whole grid rather than one
+    per corner, because a corner that really is quieter (a mic backed off, or off axis) should stay
+    quieter; only the grid's overall level is brought to unity. The factor comes from the loudest
+    loaded corner, so it does not depend on the order the corners were filled in.
 */
 class CabSim
 {
@@ -65,6 +72,9 @@ public:
 
     bool hasImpulseResponse() const      { return loadedSlots.load() != 0; }
 
+    /** The gain the normalisation is applying to the whole grid, in dB. 0 when nothing is loaded. */
+    float getNormalisationDb() const;
+
     /** The length of the impulse response actually running in a slot.
 
         JUCE installs a one-sample default engine during prepare() and reads the file on its own
@@ -76,6 +86,12 @@ public:
 
 private:
     void updateWeights();
+    void updateNormalisation();
+
+    /** The average magnitude response across the range a guitar occupies, which is what decides
+        how loud an impulse response sounds. Total energy would count the deep sub-bass and the
+        air above 6 kHz that a speaker cabinet rolls away, and under-read the level by half. */
+    static float measureBandGain (const juce::File&);
 
     mutable std::array<juce::dsp::Convolution, numSlots> convolutions;
     std::array<juce::SmoothedValue<float>, numSlots> weights;
@@ -83,6 +99,10 @@ private:
 
     std::atomic<int> loadedSlots { 0 };   // bit per slot
     float micAxis = 0.0f, micDistance = 0.0f;
+
+    std::array<float, numSlots> slotBandGain { 1.0f, 1.0f, 1.0f, 1.0f };
+    std::atomic<float> normalisationTarget { 1.0f };
+    juce::SmoothedValue<float> normalisation;
 
     // 1 = fully bypassed, ramped so the switch cannot click.
     juce::SmoothedValue<float> bypassMix;
