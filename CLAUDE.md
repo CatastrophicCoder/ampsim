@@ -129,6 +129,11 @@ Things that are easy to get wrong here:
   inside the parent, so a control near the window edge needs a margin.
 - **A `const char*` literal must be ASCII.** `juce::String` asserts on anything else and renders
   mojibake in a Release build, so an em dash in a caption comes out as `â€`.
+- **A value ring reads outward from wherever the control is doing nothing** — the middle for a
+  band that cuts and boosts, the bottom for an amount, the top for a high cut that is switched out
+  of the way when it is turned up. `ParameterSlider::ringOrigin` overrides the default guess; the
+  cab's high cut is the one control that needs it, and without it wore a full ring while doing
+  nothing.
 - **Give every parameter a `stringFromValue`.** Without one JUCE prints the raw float, and a mix
   knob reads 0.3499999. A test in `StateTests.cpp` fails on more than one decimal anywhere.
 
@@ -158,6 +163,14 @@ to `~/Library/Application Support/AmpSim/Bundled/` by `BundledAssets::install()`
 `CabSim` wraps `juce::dsp::Convolution`, which already loads and resamples the IR on its own thread
 and adds no latency in its default uniform-partitioned mode. Bypass is a crossfade, since an IR
 changes the tone enough to click on a hard switch.
+
+**The two cuts are skipped at their end stops.** `setCutoffs()` takes a low cut and a high cut,
+second order, applied inside the cab so that bypassing the cabinet takes them with it. No IIR
+filter is transparent, so a 20 Hz high pass left permanently in circuit would colour every cabinet
+slightly whether or not anyone had touched the control — each is therefore skipped entirely while
+its smoothed value sits at `lowCutOffHz` / `highCutOffHz`, which keeps the default path the one
+that was there before they existed. The high cut is also held below 0.45 × the sample rate, or a
+session at 44.1 kHz gets a resonance where the control says it is doing nothing.
 
 **Level is normalised across the grid, not per corner.** `measureBandGain()` takes the average
 magnitude response over 80 Hz–6 kHz at load time, on the message thread, and the loudest loaded
@@ -210,6 +223,14 @@ Four things that were learned the hard way here:
   fed — engaging one that has been sitting empty starts its delayed copy from silence, and that
   onset is a click however long the crossfade is. `BypassCrossfade::scratchFor()` gives them a
   buffer to chew on and throw away.
+- **The drive boosts into the clipper above a corner rather than across the band.** `boostFilter`
+  is a first-order high pass at `boostCornerHz` (700 Hz), and what the drive knob scales is that
+  filtered copy added to the signal — so the low end reaches the shaper at the level it arrived
+  while the rest is driven up to 36 dB harder. Clipping everything equally is what turns a
+  palm-muted low string to mush, and is the one thing a pedal in front of an amp is there not to
+  do. The boost is the gain *minus one*, so the knob at zero adds nothing and the pedal starts
+  exactly where it did before this existed. The gap between 80 Hz and 1.5 kHz at full drive
+  measures about 18 dB, which is the first-order slope's and the real pedal's.
 - **The drive pedal's oversampler runs whether or not the pedal is engaged**, so the 5 samples of
   latency it reports never change under the host. The price is that the plugin is no longer
   bit-transparent with everything off — about 3 parts in 100,000 — which is why the gain tests use
@@ -340,6 +361,7 @@ A standard `.nam` capture is a snapshot of one amp setting — the knobs are *no
 | Gain | `inputGain` | before the model | ±24 dB; more level in = more saturation out, which a test asserts against a real capture |
 | Bass / Mid / Treble | `bass` `mid` `treble` | after the model, before Master | ±12 dB parametric bands: low shelf 100 Hz, peak 800 Hz (Q 0.7), high shelf 3.2 kHz. **Settled** against a modelled passive stack — see `ToneStack.h` |
 | Master | `outputGain` | after the tone stack, before the cab | ±24 dB |
+| Cab Low/High Cut | `cabLowCut` `cabHighCut` | inside the cab, after the convolution | second order, 20 Hz–1 kHz and 1–20 kHz, skipped at their end stops |
 | Power | `power` | the end of the chain | mutes, on the same ramp as the tuner. Not `bypass`: an amp that is off makes no sound, it does not pass your guitar through. A fully bypassed plugin ignores it, because then the amp is out of the chain |
 | Presence *(optional)* | — | after the model | high shelf ≈ 3–5 kHz; not in the minimal control set |
 | Model selector | — | replaces the model | `.nam` files loaded off-thread, atomic pointer swap |

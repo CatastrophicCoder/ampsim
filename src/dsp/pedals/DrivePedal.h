@@ -33,6 +33,12 @@ public:
     /** Jump to the current settings instead of ramping into them on every playback start. */
     void snapParameters();
 
+    /** The corner the boost into the clipper starts at. Below it the signal reaches the shaper at
+        the level it arrived, so the low end stays defined instead of being flattened along with
+        everything else — which is what a drive in front of an amp is for. A screamer does this
+        with a high pass inside its gain stage; this is the same arrangement. */
+    static constexpr double boostCornerHz = 700.0;
+
     /** @param drive 0–1, edge-of-breakup to fuzzy.  @param tone 0–1, dark to bright. */
     void setParameters (float drive, float tone, float levelDb);
 
@@ -47,9 +53,9 @@ private:
     juce::dsp::Oversampling<float> oversampling { 1, oversampleFactor,
                                                   juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR };
 
-    juce::dsp::Gain<float> inputDrive, level;
-    juce::dsp::IIR::Filter<float> toneFilter;
-    juce::SmoothedValue<float> toneAmount;
+    juce::dsp::Gain<float> level;
+    juce::dsp::IIR::Filter<float> boostFilter, toneFilter;
+    juce::SmoothedValue<float> toneAmount, boostGain;
 
     double oversampledRate = 192000.0;
     BypassCrossfade bypass;

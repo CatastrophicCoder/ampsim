@@ -39,6 +39,12 @@ public:
         every knob on the panel is wired to one. */
     const juce::String& getParameterID() const noexcept  { return parameterID; }
 
+    /** Where the value ring is drawn outward from, as a proportion of the travel, or a negative
+        number to work it out from the range. A control that does nothing at the top of its travel
+        — a high cut at 20 kHz — would otherwise wear a full ring while it is switched out of the
+        way, which is the opposite of what the ring is for. */
+    float ringOrigin = -1.0f;
+
     std::function<void (const juce::String& parameterID, juce::Component& source)> onContextMenu;
 
 private:

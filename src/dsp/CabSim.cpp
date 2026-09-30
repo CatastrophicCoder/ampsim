@@ -86,6 +86,17 @@ void CabSim::prepare (double sampleRate, int maxBlockSize)
     dryBuffer.setSize (1, maxBlockSize, false, false, true);
     mixBuffer.setSize (1, maxBlockSize, false, false, true);
 
+    preparedRate = sampleRate;
+
+    lowCutFilter.prepare (spec);
+    highCutFilter.prepare (spec);
+
+    lowCutHz.reset (sampleRate, 0.05);
+    highCutHz.reset (sampleRate, 0.05);
+    lowCutHz.setCurrentAndTargetValue (lowCutOffHz);
+    highCutHz.setCurrentAndTargetValue (highCutOffHz);
+    snapCutoffs();
+
     updateWeights();
 
     for (auto& weight : weights)
@@ -195,6 +206,32 @@ void CabSim::updateWeights()
     }
 }
 
+void CabSim::setCutoffs (float lowHz, float highHz)
+{
+    lowCutHz.setTargetValue (juce::jlimit (lowCutOffHz, 1000.0f, lowHz));
+    highCutHz.setTargetValue (juce::jlimit (1000.0f, highCutOffHz, highHz));
+}
+
+void CabSim::snapCutoffs()
+{
+    lowCutHz.setCurrentAndTargetValue (lowCutHz.getTargetValue());
+    highCutHz.setCurrentAndTargetValue (highCutHz.getTargetValue());
+    updateCutoffs();
+    lowCutFilter.reset();
+    highCutFilter.reset();
+}
+
+void CabSim::updateCutoffs()
+{
+    *lowCutFilter.coefficients =
+        juce::dsp::IIR::ArrayCoefficients<float>::makeHighPass (preparedRate, lowCutHz.getCurrentValue());
+
+    // A low pass sitting on Nyquist is not a low pass; hold it below, so a session at 44.1 kHz
+    // does not get a resonance where the control says it is doing nothing.
+    *highCutFilter.coefficients = juce::dsp::IIR::ArrayCoefficients<float>::makeLowPass (
+        preparedRate, (float) juce::jmin ((double) highCutHz.getCurrentValue(), preparedRate * 0.45));
+}
+
 void CabSim::process (float* samples, int numSamples, bool bypassed)
 {
     bypassMix.setTargetValue (bypassed ? 1.0f : 0.0f);
@@ -269,6 +306,39 @@ void CabSim::process (float* samples, int numSamples, bool bypassed)
 
     juce::AudioBuffer<float> mixedView (&mixed, 1, numSamples);
     mixedView.applyGainRamp (0, 0, numSamples, startGain, normalisation.getCurrentValue());
+
+    // The two cuts, inside the cab rather than after it, so bypassing the cabinet takes them with
+    // it — they are adjustments to the speaker, not to the amp.
+    //
+    // Each is skipped entirely while its control sits at the end of its travel. No IIR filter is
+    // transparent, so a 20 Hz high pass left permanently in circuit would colour every cabinet
+    // slightly whether or not anyone had touched the control. Skipped, the default path is the
+    // one that was there before these existed.
+    for (int i = 0; i < numSamples; i += cutoffUpdateInterval)
+    {
+        const auto count = juce::jmin (cutoffUpdateInterval, numSamples - i);
+
+        lowCutHz.skip (i == 0 ? 0 : cutoffUpdateInterval);
+        highCutHz.skip (i == 0 ? 0 : cutoffUpdateInterval);
+
+        const auto cutLow = lowCutHz.getCurrentValue() > lowCutOffHz;
+        const auto cutHigh = highCutHz.getCurrentValue() < highCutOffHz;
+
+        if (! cutLow && ! cutHigh)
+            continue;
+
+        updateCutoffs();
+
+        for (int n = i; n < i + count; ++n)
+        {
+            auto sample = mixed[n];
+
+            if (cutLow)  sample = lowCutFilter.processSample (sample);
+            if (cutHigh) sample = highCutFilter.processSample (sample);
+
+            mixed[n] = sample;
+        }
+    }
 
     juce::FloatVectorOperations::copy (samples, mixed, numSamples);
 

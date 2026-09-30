@@ -33,6 +33,20 @@ namespace
                    });
     }
 
+    /** A frequency, to the nearest hertz below a kilohertz and to a tenth of one above: a cut at
+        "8000 Hz" is a number nobody needs five digits of. */
+    juce::AudioParameterFloatAttributes hertz()
+    {
+        return juce::AudioParameterFloatAttributes()
+                   .withStringFromValueFunction ([] (float value, int)
+                   {
+                       if (value < 1000.0f)
+                           return juce::String (juce::roundToInt (value)) + " Hz";
+
+                       return juce::String (value / 1000.0f, 1) + " kHz";
+                   });
+    }
+
     juce::AudioParameterFloatAttributes oneDecimal (const juce::String& unit = {})
     {
         return juce::AudioParameterFloatAttributes()
@@ -42,6 +56,15 @@ namespace
                        return juce::String (value, 1)
                             + (unit.isEmpty() ? juce::String() : " " + unit);
                    });
+    }
+
+    /** A frequency control has to be logarithmic, or the whole useful part sits in the last
+        eighth of the travel. */
+    juce::NormalisableRange<float> frequencyRange (float low, float high, float centre)
+    {
+        juce::NormalisableRange<float> range { low, high };
+        range.setSkewForCentre (centre);
+        return range;
     }
 
     juce::NormalisableRange<float> decibelRange (float limit)
@@ -104,6 +127,16 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { ParamID::micDistance, 1 }, "Mic Distance",
         juce::NormalisableRange<float> { 0.0f, 1.0f }, 0.0f, percentage()));
+
+    // Both default to the end of their travel, where they do nothing: a cabinet arrives as its
+    // impulse response describes it, and these are there to be reached for.
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { ParamID::cabLowCut, 1 }, "Cab Low Cut",
+        frequencyRange (CabSim::lowCutOffHz, 1000.0f, 120.0f), CabSim::lowCutOffHz, hertz()));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { ParamID::cabHighCut, 1 }, "Cab High Cut",
+        frequencyRange (1000.0f, CabSim::highCutOffHz, 6000.0f), CabSim::highCutOffHz, hertz()));
 
     // --- Pedals -------------------------------------------------------------------------------
     const auto addSwitch = [&layout] (const char* id, const juce::String& name)
@@ -177,6 +210,8 @@ AmpSimAudioProcessor::AmpSimAudioProcessor()
     powerParam      = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::power));
     micAxisParam    = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::micAxis));
     micDistanceParam = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::micDistance));
+    cabLowCutParam  = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::cabLowCut));
+    cabHighCutParam = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::cabHighCut));
     bassParam       = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::bass));
     midParam        = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::mid));
     trebleParam     = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::treble));
@@ -263,6 +298,8 @@ void AmpSimAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     toneStack.reset();
 
     cabSim.prepare (sampleRate, samplesPerBlock);
+    cabSim.setCutoffs (cabLowCutParam->get(), cabHighCutParam->get());
+    cabSim.snapCutoffs();       // as with the tone stack: do not sweep in from the ends on a start
     cabSim.reset();
 
     reportedLatency = ampModel.getLatencySamples() + cabSim.getLatencySamples()
@@ -503,6 +540,7 @@ void AmpSimAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     pedals.processAfterAmp (mono, numSamples);
 
     cabSim.setMicPosition (micAxisParam->get(), micDistanceParam->get());
+    cabSim.setCutoffs (cabLowCutParam->get(), cabHighCutParam->get());
     cabSim.process (mono, numSamples, cabBypassParam->get());
 
     // Muting happens last, so everything upstream keeps running and the chain does not have to

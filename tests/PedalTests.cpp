@@ -540,3 +540,47 @@ TEST_CASE ("A reverb at zero mix is inaudible rather than six decibels loud", "[
     // about, and the old dry scaling made this twice the input.
     REQUIRE_THAT (Signal::rms (output, test::blockSize), WithinAbs (Signal::rms (input, test::blockSize), 1.0e-6));
 }
+
+TEST_CASE ("The drive pedal boosts into the clipper above a corner, not across the band", "[pedals]")
+{
+    // What a drive in front of an amp is for. Clipping the whole range equally flattens a
+    // palm-muted low string along with everything else; a screamer boosts only what is above a
+    // few hundred hertz into its clipping stage and lets the rest through at the level it
+    // arrived, which is what keeps the low end defined under distortion.
+    const auto gainAt = [] (double frequency, float drive)
+    {
+        PedalChain::Settings settings;
+        settings.driveEngaged = true;
+        settings.driveAmount = drive;
+        settings.driveTone = 1.0f;      // wide open, so the tone control is not what is measured
+        settings.driveLevelDb = 0.0f;
+
+        auto chain = makeChain (settings);
+
+        // Small enough that the shaper is still near enough linear to read a gain off it.
+        const auto input = Signal::sine (frequency, test::blockSize * 40, 0.0005f);
+        const auto output = runThrough (*chain, input, true);
+
+        const auto measureFrom = test::blockSize * 20;
+        return juce::Decibels::gainToDecibels (Signal::rms (output, measureFrom)
+                                                   / Signal::rms (input, measureFrom));
+    };
+
+    const auto lowAtFull = gainAt (80.0, 1.0f);
+    const auto midAtFull = gainAt (1500.0, 1.0f);
+
+    INFO ("at full drive: 80 Hz " << lowAtFull << " dB, 1.5 kHz " << midAtFull << " dB");
+
+    // The band above the corner is driven far harder than the band below it. The gap is the
+    // first-order slope's, which is what the pedal this stands in for has: about 18 dB, so the
+    // low end is still driven, just nothing like as hard.
+    REQUIRE (midAtFull - lowAtFull > 15.0f);
+
+    // And with the knob down the pedal is flat, so the corner is something the drive control
+    // brings in rather than a filter sitting in the signal path whatever you do.
+    const auto lowAtZero = gainAt (80.0, 0.0f);
+    const auto midAtZero = gainAt (1500.0, 0.0f);
+
+    INFO ("at zero drive: 80 Hz " << lowAtZero << " dB, 1.5 kHz " << midAtZero << " dB");
+    REQUIRE (std::abs (midAtZero - lowAtZero) < 1.0f);
+}

@@ -46,6 +46,8 @@ namespace ParamID
     inline constexpr const char* power      = "power";
     inline constexpr const char* micAxis     = "micAxis";
     inline constexpr const char* micDistance = "micDistance";
+    inline constexpr const char* cabLowCut   = "cabLowCut";
+    inline constexpr const char* cabHighCut  = "cabHighCut";
 
     // The pedals. "Engaged" rather than "bypass": a pedal is off until you step on it, and the
     // parameter reads the way the footswitch does.
@@ -221,6 +223,8 @@ private:
     juce::AudioParameterBool*  cabBypassParam  = nullptr;
     juce::AudioParameterBool*  tunerParam      = nullptr;
     juce::AudioParameterBool*  powerParam      = nullptr;
+    juce::AudioParameterFloat* cabLowCutParam = nullptr;
+    juce::AudioParameterFloat* cabHighCutParam = nullptr;
     juce::AudioParameterFloat* micAxisParam    = nullptr;
     juce::AudioParameterFloat* micDistanceParam = nullptr;
 

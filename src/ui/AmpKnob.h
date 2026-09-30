@@ -37,6 +37,9 @@ public:
     /** The knob's cap. Black on an amp's plate, raised grey on a page. */
     void setBodyColour (juce::Colour);
 
+    /** Where the value ring starts, as a proportion of the travel. See ParameterSlider. */
+    void setRingOrigin (float proportion)  { slider.ringOrigin = proportion; repaint(); }
+
     /** Names cut into a metal fascia rather than set on a dark page: light type with a dark
         impression above it, so the light reads as coming from in front and slightly above. */
     void setEngravedOnMetal (bool);

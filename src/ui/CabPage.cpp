@@ -16,13 +16,13 @@ namespace
 
     // The cab is a box like the amp is, so the two pages read as parts of one rig. The four mic
     // positions sit on its grille, which is where a microphone in front of a cabinet actually is.
-    constexpr int cabWidth   = 470;
+    constexpr int cabWidth   = 424;
     constexpr int cabHeight  = 252;
     constexpr int shellInset = 14;
 
     constexpr int columnGap  = 22;
-    constexpr int knobColumn = 256;
-    constexpr int plateHeight = 162;
+    constexpr int knobColumn = 302;
+    constexpr int plateHeight = 262;   // two rows of two
 
     const char* positionNames[CabSim::numSlots]
     {
@@ -89,6 +89,8 @@ CabPage::CabPage (AmpSimAudioProcessor& p)
     : processorRef (p),
       axisKnob (p.getValueTreeState(), ParamID::micAxis, "AXIS"),
       distanceKnob (p.getValueTreeState(), ParamID::micDistance, "DISTANCE"),
+      lowCutKnob (p.getValueTreeState(), ParamID::cabLowCut, "LOW CUT"),
+      highCutKnob (p.getValueTreeState(), ParamID::cabHighCut, "HIGH CUT"),
       bypassAttachment (p.getValueTreeState(), ParamID::cabBypass, bypassButton)
 {
     for (int slot = 0; slot < CabSim::numSlots; ++slot)
@@ -98,12 +100,16 @@ CabPage::CabPage (AmpSimAudioProcessor& p)
         addAndMakeVisible (button);
     }
 
-    for (auto* knob : { &axisKnob, &distanceKnob })
+    for (auto* knob : { &axisKnob, &distanceKnob, &lowCutKnob, &highCutKnob })
     {
         knob->setBodyColour (AmpMaterials::knobCap);
         knob->setEngravedOnMetal (true);
         addAndMakeVisible (*knob);
     }
+
+    // The high cut does nothing at the top of its travel, so its ring fills downward from there
+    // as it is brought in — a full ring on a filter that is switched out would say the opposite.
+    highCutKnob.setRingOrigin (1.0f);
 
     bypassButton.setColour (juce::ToggleButton::tickColourId, AmpPalette::bypassed);
     addAndMakeVisible (bypassButton);
@@ -166,19 +172,24 @@ juce::Rectangle<int> CabPage::content() const
 {
     return getLocalBounds().withSizeKeepingCentre (
                juce::jmin (getWidth(), cabWidth + columnGap + knobColumn),
-               juce::jmin (getHeight(), captionHeight + cabHeight));
+               juce::jmin (getHeight(), captionHeight + juce::jmax (cabHeight, plateHeight)));
 }
 
 juce::Rectangle<int> CabPage::cabinet() const
 {
-    return content().withTrimmedTop (captionHeight).withWidth (cabWidth);
+    return content().withTrimmedTop (captionHeight)
+                    .withWidth (cabWidth)
+                    .withSizeKeepingCentre (cabWidth, cabHeight);
 }
 
 juce::Rectangle<int> CabPage::knobPlate() const
 {
-    return content().withTrimmedTop (captionHeight)
-                    .removeFromRight (knobColumn)
-                    .withSizeKeepingCentre (knobColumn, plateHeight);
+    return getLocalBounds().withSizeKeepingCentre (
+               juce::jmin (getWidth(), cabWidth + columnGap + knobColumn),
+               juce::jmin (getHeight(), captionHeight + juce::jmax (cabHeight, plateHeight)))
+           .withTrimmedTop (captionHeight)
+           .removeFromRight (knobColumn)
+           .withSizeKeepingCentre (knobColumn, plateHeight);
 }
 
 void CabPage::paint (juce::Graphics& g)
@@ -212,9 +223,16 @@ void CabPage::resized()
     bypassButton.setBounds (knobPlate().withY (knobPlate().getY() - 28).withHeight (22)
                                        .withTrimmedLeft (4));
 
-    auto plate = knobPlate().reduced (16, 16);
-    axisKnob.setBounds (plate.removeFromLeft (plate.getWidth() / 2).reduced (6, 0));
-    distanceKnob.setBounds (plate.reduced (6, 0));
+    auto plate = knobPlate().reduced (16, 18);
+
+    const auto rowHeight = plate.getHeight() / 2;
+    auto top = plate.removeFromTop (rowHeight);
+    auto bottom = plate;
+
+    axisKnob.setBounds (top.removeFromLeft (top.getWidth() / 2).reduced (6, 0));
+    distanceKnob.setBounds (top.reduced (6, 0));
+    lowCutKnob.setBounds (bottom.removeFromLeft (bottom.getWidth() / 2).reduced (6, 0));
+    highCutKnob.setBounds (bottom.reduced (6, 0));
 
     // Left to right is on axis to off axis; top to bottom is close to far, so the two knobs beside
     // the cab move along the axes the grille is laid out on.

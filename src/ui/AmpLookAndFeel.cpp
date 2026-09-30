@@ -9,6 +9,7 @@
 */
 
 #include "AmpLookAndFeel.h"
+#include "ParameterSlider.h"
 
 const juce::Colour AmpPalette::background { 0xff131519 };
 const juce::Colour AmpPalette::bar        { 0xff0e1013 };
@@ -171,7 +172,7 @@ AmpLookAndFeel::AmpLookAndFeel()
 }
 
 void AmpLookAndFeel::drawKnob (juce::Graphics& g, juce::Rectangle<float> bounds, float proportion,
-                               bool centred, juce::Colour bodyColour, juce::Colour trackColour,
+                               float originProportion, juce::Colour bodyColour, juce::Colour trackColour,
                                float ringThickness)
 {
     const auto centre = bounds.getCentre();
@@ -186,10 +187,11 @@ void AmpLookAndFeel::drawKnob (juce::Graphics& g, juce::Rectangle<float> bounds,
     g.strokePath (track, juce::PathStrokeType (ringThickness, juce::PathStrokeType::curved,
                                                juce::PathStrokeType::rounded));
 
-    // A control that rests in the middle reads its value out from there; one that runs bottom to
-    // top reads from the bottom. Either way the ring shows the distance travelled, not the
-    // absolute position, which is the thing you actually want to see at a glance.
-    const auto origin = centred ? rotaryStart + 0.5f * (rotaryEnd - rotaryStart) : rotaryStart;
+    // The ring is drawn outward from wherever the control is doing nothing — the middle for a
+    // band that cuts and boosts, the bottom for an amount, the top for a cut that is switched out
+    // of the way when it is turned up. What it shows is the distance travelled from there, not the
+    // absolute position, which is the thing worth seeing at a glance.
+    const auto origin = rotaryStart + originProportion * (rotaryEnd - rotaryStart);
 
     if (std::abs (angle - origin) > 1.0e-3f)
     {
@@ -229,7 +231,13 @@ void AmpLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int widt
     const auto centred = slider.getMinimum() < 0.0 && slider.getMaximum() > 0.0;
     const auto thickness = juce::jmax (2.5f, bounds.getWidth() * 0.055f);
 
-    drawKnob (g, bounds, sliderPos, centred,
+    auto origin = centred ? 0.5f : 0.0f;
+
+    if (const auto* parameterSlider = dynamic_cast<const ParameterSlider*> (&slider))
+        if (parameterSlider->ringOrigin >= 0.0f)
+            origin = parameterSlider->ringOrigin;
+
+    drawKnob (g, bounds, sliderPos, origin,
               slider.findColour (knobBodyColourId), slider.findColour (knobTrackColourId), thickness);
 }
 

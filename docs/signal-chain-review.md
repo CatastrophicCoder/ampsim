@@ -197,6 +197,11 @@ nodal DK method covers the general case.
   preset format.
 - **Cost.** Small.
 
+**Done.** A first-order high pass at 700 Hz, with the drive knob scaling the filtered copy added
+back to the signal, so the low end reaches the shaper unboosted. At full drive the gap between
+80 Hz and 1.5 kHz measures about 18 dB. The knob at zero adds nothing, so the pedal starts where
+it did.
+
 ## 2.5 Cabinet low cut and high cut
 
 **What.** Two filters after the convolution, with the cab's other controls.
@@ -207,6 +212,9 @@ nodal DK method covers the general case.
 - **Against.** It is EQ, and the host has EQ. The argument for having it here rather than in the
   next plugin along is convenience and that it travels with the preset, not capability.
 - **Cost.** Small.
+
+**Done.** Second order, inside the cab so a bypassed cabinet takes them with it, and each skipped
+entirely at its end stop so the default path is unchanged.
 
 ## 2.6 A keyed gate after the amp
 
@@ -272,13 +280,13 @@ distinct from the drive, pitch effects, and tempo sync on the delay.**
 
 # Summary
 
-| | Audible benefit | Fixes something wrong | Cost | Fits stated scope |
-| --- | --- | --- | --- | --- |
+| | Audible benefit | Fixes something wrong | Cost | Fits stated scope | |
+| --- | --- | --- | --- | --- | --- |
 | 2.1 Model level calibration | High when swapping captures | Yes (1.1) | Small to moderate | Yes — it is the amp block |
 | 2.2 Presence / Depth | Moderate | No | Small | Adds controls beyond the plan's list |
 | 2.3 Modelled tone stack | Disputed — see 2.3 | No | Large | Replaces a settled decision |
-| 2.4 Drive pre-filter | Moderate | Arguably (1.4) | Small | Yes — improves an existing pedal |
-| 2.5 Cab low/high cut | High in practice | No | Small | Adds controls to an existing block |
+| 2.4 Drive pre-filter | Moderate | Arguably (1.4) | Small | Yes — improves an existing pedal | **done** |
+| 2.5 Cab low/high cut | High in practice | No | Small | Adds controls to an existing block | **done** |
 | 2.6 Keyed gate | High on high-gain sounds | Yes (1.2) | Moderate | Tension with the board metaphor |
 | 2.7a Reverb mix fix | Low | Yes (1.3) | Small | Yes |
 | 2.7b Spring reverb | Moderate, style-dependent | No | Large | Replaces an existing block |

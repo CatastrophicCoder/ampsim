@@ -53,6 +53,38 @@ namespace
         juce::File file;
     };
 
+    /** The gain the cab applies to a steady sine, in dB, measured once it has settled. */
+    float sineGainThrough (CabSim& cab, double frequency, double sampleRate)
+    {
+        constexpr int blocks = 60;
+        std::vector<float> block ((size_t) test::blockSize);
+
+        double sumIn = 0.0, sumOut = 0.0;
+        int index = 0;
+
+        for (int b = 0; b < blocks; ++b)
+        {
+            for (auto& sample : block)
+                sample = 0.25f * (float) std::sin (juce::MathConstants<double>::twoPi
+                                                       * frequency * index++ / sampleRate);
+
+            const auto reference = block;
+            cab.process (block.data(), test::blockSize, false);
+
+            // The first half is thrown away: the filters and the convolution both have to settle.
+            if (b < blocks / 2)
+                continue;
+
+            for (size_t i = 0; i < block.size(); ++i)
+            {
+                sumIn += (double) reference[i] * reference[i];
+                sumOut += (double) block[i] * block[i];
+            }
+        }
+
+        return juce::Decibels::gainToDecibels ((float) std::sqrt (sumOut / juce::jmax (1.0e-20, sumIn)));
+    }
+
     std::vector<float> impulseThrough (CabSim& cab, int numSamples)
     {
         std::vector<float> block ((size_t) test::blockSize, 0.0f);
@@ -523,4 +555,75 @@ TEST_CASE ("The normalisation factor does not depend on the order corners are fi
 
     REQUIRE (std::abs (loudFirst[0]) > 1.0e-4f);
     REQUIRE_THAT (quietFirst[0], WithinAbs (loudFirst[0], 1.0e-3));
+}
+
+namespace
+{
+    /** A fixture with more than one tap in it: JUCE trims a convolution's trailing zeros, so a
+        single-tap impulse response arrives looking exactly like one that never arrived. */
+    const std::vector<float> decayingTaps { 1.0f, 0.5f, 0.25f, 0.125f };
+
+    /** What the cuts do to a frequency, against the same cab with them at their end stops. The
+        impulse response's own colour cancels out, so the measurement is of the filters alone. */
+    float cutEffectAt (double frequency, float lowCutHz, float highCutHz)
+    {
+        CabSim cab;
+        cab.prepare (48000.0, test::blockSize);
+
+        const TestIR ir { decayingTaps };
+        cab.loadImpulseResponse (CabSim::Slot::centreClose, ir.file);
+        measureImpulseResponse (cab);       // waits for the impulse response to arrive
+
+        const auto uncut = sineGainThrough (cab, frequency, 48000.0);
+
+        cab.setCutoffs (lowCutHz, highCutHz);
+        cab.snapCutoffs();
+
+        return sineGainThrough (cab, frequency, 48000.0) - uncut;
+    }
+}
+
+TEST_CASE ("The cab's cuts do nothing until they are moved", "[cab]")
+{
+    // No IIR filter is transparent, so a high pass left permanently in circuit would colour every
+    // cabinet slightly whether or not anyone had touched the control. At the ends of their travel
+    // both are skipped, and the path is the one that was there before they existed.
+    CabSim cab;
+    cab.prepare (48000.0, test::blockSize);
+
+    const TestIR ir { decayingTaps };
+    cab.loadImpulseResponse (CabSim::Slot::centreClose, ir.file);
+
+    const auto untouched = measureImpulseResponse (cab);
+
+    cab.setCutoffs (CabSim::lowCutOffHz, CabSim::highCutOffHz);
+    cab.snapCutoffs();
+
+    const auto again = impulseThrough (cab, (int) untouched.size());
+
+    for (size_t i = 0; i < untouched.size(); ++i)
+        REQUIRE_THAT (again[i], WithinAbs (untouched[i], 1.0e-6));
+}
+
+TEST_CASE ("The cab's low cut removes what is under it and leaves what is over", "[cab]")
+{
+    const auto under = cutEffectAt (50.0, 200.0f, CabSim::highCutOffHz);
+    const auto over = cutEffectAt (2000.0, 200.0f, CabSim::highCutOffHz);
+
+    INFO ("a 200 Hz low cut: " << under << " dB at 50 Hz, " << over << " dB at 2 kHz");
+
+    // Two octaves under the corner, at twelve decibels an octave.
+    REQUIRE (under < -20.0f);
+    REQUIRE_THAT (over, WithinAbs (0.0, 0.5));
+}
+
+TEST_CASE ("The cab's high cut removes what is over it and leaves what is under", "[cab]")
+{
+    const auto over = cutEffectAt (16000.0, CabSim::lowCutOffHz, 4000.0f);
+    const auto under = cutEffectAt (400.0, CabSim::lowCutOffHz, 4000.0f);
+
+    INFO ("a 4 kHz high cut: " << over << " dB at 16 kHz, " << under << " dB at 400 Hz");
+
+    REQUIRE (over < -20.0f);
+    REQUIRE_THAT (under, WithinAbs (0.0, 0.5));
 }

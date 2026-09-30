@@ -49,8 +49,8 @@ public:
 
     void setContextMenuHandler (std::function<void (const juce::String&, juce::Component&)> handler)
     {
-        axisKnob.setContextMenuHandler (handler);
-        distanceKnob.setContextMenuHandler (std::move (handler));
+        for (auto* knob : { &axisKnob, &distanceKnob, &lowCutKnob, &highCutKnob })
+            knob->setContextMenuHandler (handler);
     }
 
 private:
@@ -62,7 +62,7 @@ private:
     AmpSimAudioProcessor& processorRef;
 
     juce::OwnedArray<CabinetSlotButton> slots;
-    AmpKnob axisKnob, distanceKnob;
+    AmpKnob axisKnob, distanceKnob, lowCutKnob, highCutKnob;
 
     juce::ToggleButton bypassButton { "cab bypassed" };
     juce::AudioProcessorValueTreeState::ButtonAttachment bypassAttachment;

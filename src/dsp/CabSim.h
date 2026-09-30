@@ -67,6 +67,19 @@ public:
         @param distance 0 = against the grille, 1 = backed off. */
     void setMicPosition (float axis, float distance);
 
+    /** Audio thread. The two cuts every IR loader has, and the two adjustments people make most
+        often to a capture: rumble below what a speaker can produce, and fizz above what it keeps.
+        Second order, so they take hold without needing to be dragged far into the useful range. */
+    void setCutoffs (float lowCutHz, float highCutHz);
+
+    /** Message thread. Jumps the cuts to where they are set instead of sweeping in from the ends
+        on every playback start, for the same reason ToneStack::snapToTargets exists. */
+    void snapCutoffs();
+
+    /** The ends of the two ranges, at which each filter is doing nothing worth hearing. */
+    static constexpr float lowCutOffHz = 20.0f;
+    static constexpr float highCutOffHz = 20000.0f;
+
     /** Audio thread. Processes one mono block in place. */
     void process (float* samples, int numSamples, bool bypassed);
 
@@ -87,6 +100,11 @@ public:
 private:
     void updateWeights();
     void updateNormalisation();
+    void updateCutoffs();
+
+    /** Rewritten this often rather than once a block, so an automated sweep does not step. The
+        same interval, and the same reason, as ToneStack. */
+    static constexpr int cutoffUpdateInterval = 32;
 
     /** The average magnitude response across the range a guitar occupies, which is what decides
         how loud an impulse response sounds. Total energy would count the deep sub-bass and the
@@ -103,6 +121,10 @@ private:
     std::array<float, numSlots> slotBandGain { 1.0f, 1.0f, 1.0f, 1.0f };
     std::atomic<float> normalisationTarget { 1.0f };
     juce::SmoothedValue<float> normalisation;
+
+    juce::dsp::IIR::Filter<float> lowCutFilter, highCutFilter;
+    juce::SmoothedValue<float> lowCutHz, highCutHz;
+    double preparedRate = 48000.0;
 
     // 1 = fully bypassed, ramped so the switch cannot click.
     juce::SmoothedValue<float> bypassMix;

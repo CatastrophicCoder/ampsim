@@ -109,6 +109,6 @@ public:
     /** Draws a control's ring and pointer at an arbitrary size, so a pedal's knobs and the amp's
         share one drawing and differ only in scale. */
     static void drawKnob (juce::Graphics&, juce::Rectangle<float> bounds, float proportion,
-                          bool centred, juce::Colour bodyColour, juce::Colour trackColour,
+                          float originProportion, juce::Colour bodyColour, juce::Colour trackColour,
                           float ringThickness);
 };

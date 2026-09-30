@@ -34,8 +34,9 @@ void DrivePedal::prepare (double sampleRate, int maxBlockSize)
     const juce::dsp::ProcessSpec overSpec { oversampledRate,
                                             (juce::uint32) (maxBlockSize << oversampleFactor), 1 };
 
-    inputDrive.prepare (overSpec);
-    inputDrive.setRampDurationSeconds (0.05);
+    boostFilter.prepare (overSpec);
+    *boostFilter.coefficients = juce::dsp::IIR::ArrayCoefficients<float>::makeFirstOrderHighPass (
+        oversampledRate, boostCornerHz);
 
     toneFilter.prepare (overSpec);
 
@@ -43,6 +44,7 @@ void DrivePedal::prepare (double sampleRate, int maxBlockSize)
     level.setRampDurationSeconds (0.05);
 
     toneAmount.reset (oversampledRate, 0.05);
+    boostGain.reset (oversampledRate, 0.05);
 
     bypass.prepare (sampleRate, maxBlockSize);
 }
@@ -50,8 +52,8 @@ void DrivePedal::prepare (double sampleRate, int maxBlockSize)
 void DrivePedal::reset()
 {
     oversampling.reset();
-    inputDrive.reset();
     level.reset();
+    boostFilter.reset();
     toneFilter.reset();
 }
 
@@ -62,17 +64,19 @@ int DrivePedal::getLatencySamples() const
 
 void DrivePedal::setParameters (float drive, float tone, float levelDb)
 {
-    // Up to 36 dB into the shaper: the difference between a transparent boost and a fuzz.
-    inputDrive.setGainDecibels (juce::jmap (drive, 0.0f, 1.0f, 0.0f, 36.0f));
+    // Up to 36 dB of boost into the shaper: the difference between a transparent lift and a fuzz.
+    // Minus the unity the signal already arrives with, so the knob at zero adds nothing and the
+    // pedal starts exactly where it always did.
+    boostGain.setTargetValue (juce::Decibels::decibelsToGain (juce::jmap (drive, 0.0f, 1.0f, 0.0f, 36.0f)) - 1.0f);
     toneAmount.setTargetValue (tone);
     level.setGainDecibels (levelDb);
 }
 
 void DrivePedal::snapParameters()
 {
-    inputDrive.reset();
     level.reset();
     toneAmount.setCurrentAndTargetValue (toneAmount.getTargetValue());
+    boostGain.setCurrentAndTargetValue (boostGain.getTargetValue());
 }
 
 void DrivePedal::process (float* samples, int numSamples, bool bypassed)
@@ -88,9 +92,6 @@ void DrivePedal::process (float* samples, int numSamples, bool bypassed)
 
     if (engaged)
     {
-        juce::dsp::ProcessContextReplacing<float> context (upsampled);
-        inputDrive.process (context);
-
         // A one-pole low pass swept across the useful range: dark at 0, open at 1.
         const auto cutoff = juce::jmap (toneAmount.getNextValue(), 0.0f, 1.0f, 900.0f, 7000.0f);
         toneAmount.skip ((int) upsampled.getNumSamples() - 1);
@@ -101,7 +102,14 @@ void DrivePedal::process (float* samples, int numSamples, bool bypassed)
         auto* data = upsampled.getChannelPointer (0);
 
         for (size_t i = 0; i < upsampled.getNumSamples(); ++i)
-            data[i] = toneFilter.processSample (shape (data[i]));
+        {
+            // Only what is above the corner is driven hard; the rest arrives at the shaper as it
+            // was. Clipping the whole range equally is what turns a palm-muted low string to mush,
+            // and it is the one thing a pedal in front of an amp is there not to do.
+            const auto boosted = data[i] + boostGain.getNextValue() * boostFilter.processSample (data[i]);
+
+            data[i] = toneFilter.processSample (shape (boosted));
+        }
     }
 
     oversampling.processSamplesDown (block);
