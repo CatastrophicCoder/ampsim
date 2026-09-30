@@ -7,6 +7,72 @@ finished; this replaces it and holds only what is still outstanding.
 blocks in the chain and what could be done to them, with the case against each. Nothing in it is
 agreed, which is why it is not here.
 
+## Agreed, not built
+
+Asked for and not yet started. The notes under each are what is known now, not decisions — but a
+couple of them are things whoever picks the item up would otherwise find out the hard way.
+
+### A fuzz in the dirt slot
+
+A fourth choice alongside the distortion, the overdrive and the clean boost. The slot mechanism is
+already there, so this is a `DirtPedal::Type`, a `StringArray` entry, a shaper and a colour.
+
+Worth knowing before writing the shaper: **a fuzz is not a distortion turned up.** What makes one
+recognisable is the behaviour at the edges rather than the amount — a hard, heavily asymmetric
+clip with the bias well off centre, so the waveform is lopsided; a thin, splutter-prone response
+to a signal that is fading or picked softly, which is the "dying battery" character people buy one
+for; and far more gain before it gets there. Turning the existing `shapeHard` up will not produce
+any of that.
+
+### Transpose, on the top bar
+
+A switch and a semitone dial, ±12, holding a constant interval — retuning the instrument rather
+than harmonising with it. Most useful on a distorted sound, where a drop tuning is the point.
+
+Three things that decide how big this is:
+
+- **It has to be polyphonic.** A guitar plays chords, so a monophonic shifter is no use. That means
+  a phase vocoder over an FFT, or something bought in — and JUCE has no pitch shifter, so it is
+  code to write rather than a class to configure. This is nearly all of the work.
+- **It belongs at the very front**, ahead of the gate, so the amp distorts the shifted note the way
+  it would a genuinely detuned string. Putting it after the amp would sound like a pitch shifter on
+  a guitar amp, which is a different effect.
+- **The tuner should keep reading the strings, not the shifted signal.** It taps before the pedals
+  today; it would need to tap before the transpose too, or it would tell you to tune to the
+  interval rather than to the guitar.
+
+It will add latency, and the amount depends on the window length the shifter needs, so the figure
+has to be reported and the existing latency test extended. Quality falls off towards ±12; the
+settings people actually use are −1, −2 and −12.
+
+### A metronome, on the top bar
+
+Its own volume, a time signature, and possibly a choice of sound. Tempo comes from the host, which
+`currentDelaySeconds()` already reads for the delay's sync.
+
+**The thing to settle first is where its sound goes.** A metronome inside a plugin on a track is in
+that track's signal path, so it is recorded along with the guitar and it is heard by anything
+downstream. That is almost never what anyone wants. The options are all product decisions rather
+than technical ones:
+
+- only in the standalone, where there is no track to bleed into;
+- in the plugin too, and documented as something to switch off before recording;
+- or not audible through the plugin's output at all, which for an audio plugin means it has nowhere
+  to go.
+
+A standalone also has no transport to follow, so it needs its own tempo and its own start and stop,
+which the plugin version would not.
+
+### Room on the top bar for both
+
+The bar is full. At 780 logical points it currently holds the wordmark, a 244-point preset field,
+the scale button, the tuner and the bypass, and the tuner already takes the middle over while it is
+engaged. A transpose switch with a dial and a metronome with three controls do not fit beside them.
+
+Ways out, none chosen: widen the panel; give the bar a second row; put the metronome behind a
+button that opens a small panel; or let each of them take the bar's middle the way the tuner does,
+which keeps the layout but means only one can be on screen at a time.
+
 ## Still to settle
 
 ### Whether the pedals get names of their own
