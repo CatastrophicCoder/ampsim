@@ -14,14 +14,14 @@
 
 namespace
 {
-    /** The built-in presets: parameter values only, so loading one keeps your amp and cab. */
+    /** The built-in preset. Only one ships: what a fresh instance starts on, naming the built-in
+        amp and cabinet. Anything beyond that is the player's to save. */
     struct FactoryPreset
     {
         const char* name;
 
-        /** Whether the preset names the built-in amp and cab. Only "Default" does: the rest set
-            the controls and leave whatever is loaded alone, which is what makes them useful on
-            top of your own amp. */
+        /** Whether the preset names the built-in amp and cab. Default does; a preset that leaves
+            them empty keeps whatever is already loaded. */
         bool includesBundledFiles;
 
         std::vector<std::pair<const char*, float>> values;
@@ -34,29 +34,6 @@ namespace
           { { ParamID::inputGain, 0.0f }, { ParamID::bass, 0.0f }, { ParamID::mid, 0.0f },
             { ParamID::treble, 0.0f }, { ParamID::outputGain, -6.0f },
             { ParamID::micAxis, 0.0f }, { ParamID::micDistance, 0.0f } } },
-
-        { "Clean start", false,
-          { { ParamID::inputGain, -6.0f }, { ParamID::bass, 1.0f }, { ParamID::mid, 0.0f },
-            { ParamID::treble, 2.0f }, { ParamID::outputGain, 0.0f } } },
-
-        { "Crunch", false,
-          { { ParamID::inputGain, 6.0f }, { ParamID::bass, 2.0f }, { ParamID::mid, 3.0f },
-            { ParamID::treble, 1.0f }, { ParamID::outputGain, -2.0f },
-            { ParamID::driveOn, 1.0f }, { ParamID::driveAmount, 0.35f }, { ParamID::driveTone, 0.6f } } },
-
-        { "Lead", false,
-          { { ParamID::inputGain, 14.0f }, { ParamID::bass, -1.0f }, { ParamID::mid, 5.0f },
-            { ParamID::treble, 2.0f }, { ParamID::outputGain, -4.0f },
-            { ParamID::gateOn, 1.0f }, { ParamID::gateThreshold, -52.0f },
-            { ParamID::delayOn, 1.0f }, { ParamID::delayTime, 0.42f },
-            { ParamID::delayFeedback, 0.3f }, { ParamID::delayMix, 0.22f } } },
-
-        { "Ambient", false,
-          { { ParamID::inputGain, -2.0f }, { ParamID::bass, 3.0f }, { ParamID::mid, -3.0f },
-            { ParamID::treble, 3.0f }, { ParamID::outputGain, -2.0f },
-            { ParamID::compOn, 1.0f }, { ParamID::compAmount, 0.6f }, { ParamID::compLevel, 4.0f },
-            { ParamID::chorusOn, 1.0f }, { ParamID::chorusRate, 0.7f }, { ParamID::chorusDepth, 0.5f },
-            { ParamID::reverbOn, 1.0f }, { ParamID::reverbSize, 0.75f }, { ParamID::reverbMix, 0.35f } } },
     };
 }
 

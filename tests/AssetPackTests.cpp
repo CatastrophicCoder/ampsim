@@ -146,25 +146,3 @@ TEST_CASE ("A fresh instance lands on the Default preset", "[assetpack][preset]"
         REQUIRE (processor.getImpulseResponseFile (slot) == juce::File());
     }
 }
-
-TEST_CASE ("The tone presets leave the loaded amp and cab alone", "[preset]")
-{
-    // Only Default names files. The rest set the controls, so they can be tried on top of
-    // whatever the player has loaded.
-    struct EnableBundledAssets
-    {
-        EnableBundledAssets()  { AmpSimAudioProcessor::loadBundledAssetsOnCreation = true; }
-        ~EnableBundledAssets() { AmpSimAudioProcessor::loadBundledAssetsOnCreation = false; }
-    } enabled;
-
-    AmpSimAudioProcessor processor;
-    processor.prepareToPlay (48000.0, test::blockSize);
-
-    const auto ownModel = juce::File (AMPSIM_TEST_MODEL_DIR).getChildFile ("lstm.nam");
-    processor.loadModel (ownModel);
-
-    REQUIRE (processor.getPresets().load ("Lead").isEmpty());
-
-    REQUIRE (processor.getModelFile() == ownModel);
-    REQUIRE (processor.getCurrentPresetName() == "Lead");
-}

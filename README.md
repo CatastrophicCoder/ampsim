@@ -120,8 +120,10 @@ controls, MIDI map, and the paths of the model and cabs — but anything it leav
 already loaded, so a preset that only sets the knobs will not unload your amp.
 
 A new instance lands on **Default**, which names the built-in amp and cabinet and fills only the
-close on-axis corner. The other factory presets — Clean start, Crunch, Lead, Ambient — name no files
-at all, so they can be tried on top of whatever you have loaded.
+close on-axis corner. It is the only preset that ships; the rest of the list is yours to save.
+
+A preset you save with no model or cab loaded keeps whatever is already there when it is recalled,
+so a preset can carry only the controls if that is what you want from it.
 
 **MIDI.** Right-click any control to learn a CC for it, or to forget the one it has. One controller
 drives one parameter and one parameter answers to one controller. The map is saved with the session

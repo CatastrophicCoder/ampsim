@@ -45,8 +45,8 @@ public:
 
     juce::String getCurrentName() const;
 
-    /** Writes the built-in presets if they are not there. Each sets the controls only, so
-        loading one keeps whatever model and cab are loaded. */
+    /** Writes the built-in preset if it is not there. Only Default ships; everything else in the
+        list is the player's own. */
     void createFactoryPresetsIfMissing();
 
     /** Called on the message thread when the list or the current preset changes. */

@@ -163,7 +163,7 @@ TEST_CASE ("Loading a preset that is not there reports it", "[preset]")
     REQUIRE (presets.save ("   ").isNotEmpty());
 }
 
-TEST_CASE ("The factory presets are written once and set only the controls", "[preset]")
+TEST_CASE ("The built-in preset is written once and not overwritten afterwards", "[preset]")
 {
     TempPresetDirectory temp;
 
@@ -173,24 +173,15 @@ TEST_CASE ("The factory presets are written once and set only the controls", "[p
 
     presets.createFactoryPresetsIfMissing();
 
-    const auto names = presets.getNames();
-    REQUIRE (names.contains ("Clean start"));
-    REQUIRE (names.contains ("Lead"));
+    // One built-in preset, and only one: the rest of the list belongs to whoever uses this.
+    REQUIRE (presets.getNames() == juce::StringArray { "Default" });
 
-    // A model stays loaded across a factory preset.
-    const auto model = juce::File (AMPSIM_TEST_MODEL_DIR).getChildFile ("wavenet.nam");
-    processor.loadModel (model);
-
-    REQUIRE (presets.load ("Lead").isEmpty());
-    REQUIRE (processor.getModelFile() == model);
-    REQUIRE (processor.getValueTreeState().getParameter (ParamID::gateOn)->getValue() > 0.5f);
-
-    // Running it again must not overwrite an edited factory preset.
+    // Edited and saved over, it must survive the next run.
     test::setParam (processor.getValueTreeState(), ParamID::inputGain, 20.0f);
-    REQUIRE (presets.save ("Lead").isEmpty());
+    REQUIRE (presets.save ("Default").isEmpty());
 
     presets.createFactoryPresetsIfMissing();
-    REQUIRE (presets.load ("Lead").isEmpty());
+    REQUIRE (presets.load ("Default").isEmpty());
     REQUIRE_THAT (test::getParam (processor.getValueTreeState(), ParamID::inputGain),
                   WithinAbs (20.0, 0.05));
 }
