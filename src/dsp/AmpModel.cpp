@@ -94,7 +94,10 @@ std::unique_ptr<LoadedModel> AmpModel::prepareForLoading (std::unique_ptr<nam::D
     const auto modelRate = dsp->GetExpectedSampleRate();
     const auto effectiveRate = modelRate > 0.0 ? modelRate : hostRate.load();
 
-    loaded->resampler.prepare (hostRate.load(), effectiveRate, maxBlockSize.load());
+    loaded->preparedHostRate = hostRate.load();
+    loaded->preparedMaxBlockSize = maxBlockSize.load();
+
+    loaded->resampler.prepare (loaded->preparedHostRate, effectiveRate, loaded->preparedMaxBlockSize);
 
     // Reset() sizes NAM's internal buffers and prewarms the network — the expensive part, and the
     // reason this must not happen on the audio thread.
@@ -120,11 +123,42 @@ void AmpModel::collectRetiredModel()
     delete retiredModel.exchange (nullptr);
 }
 
+bool AmpModel::repreparePendingModelIfNeeded()
+{
+    if (! pendingNeedsPreparing.exchange (false))
+        return false;
+
+    // Take it out of the slot to work on it. The audio thread only ever reads the slot, so it
+    // simply sees nothing pending while this is happening.
+    std::unique_ptr<LoadedModel> model (pendingModel.exchange (nullptr));
+
+    if (model == nullptr || model->dsp == nullptr)
+        return false;
+
+    const auto modelRate = model->dsp->GetExpectedSampleRate();
+    const auto effectiveRate = modelRate > 0.0 ? modelRate : hostRate.load();
+
+    model->preparedHostRate = hostRate.load();
+    model->preparedMaxBlockSize = maxBlockSize.load();
+
+    model->resampler.prepare (model->preparedHostRate, effectiveRate, model->preparedMaxBlockSize);
+    model->dsp->Reset (effectiveRate, model->resampler.getMaxModelBlockSize());
+
+    // A newer model may have arrived while this one was out of the slot; if so, that one wins.
+    LoadedModel* expected = nullptr;
+
+    if (pendingModel.compare_exchange_strong (expected, model.get()))
+        model.release();
+
+    return true;
+}
+
 bool AmpModel::process (float* samples, int numSamples)
 {
     // Only start a swap once the previous model has been collected, so the hand-back slot is
     // always free and the audio thread never has to delete anything.
-    const auto swapWaiting = pendingModel.load() != nullptr && retiredModel.load() == nullptr;
+    const auto swapWaiting = pendingModel.load() != nullptr && retiredModel.load() == nullptr
+                          && ! pendingNeedsPreparing.load();
 
     if (swapWaiting && ! swapInProgress)
     {
@@ -134,6 +168,21 @@ bool AmpModel::process (float* samples, int numSamples)
 
     if (swapInProgress && ! swapFade.isSmoothing() && swapFade.getCurrentValue() <= 0.0f)
     {
+        // Only take a model that was sized for the settings in force now. One prepared for others
+        // — a load that finished before prepareToPlay ran — would have FIFOs too small for the
+        // blocks arriving, so hand it back to the message thread to re-prepare instead.
+        if (auto* waiting = pendingModel.load())
+        {
+            if (! juce::approximatelyEqual (waiting->preparedHostRate, hostRate.load())
+                || waiting->preparedMaxBlockSize != maxBlockSize.load())
+            {
+                pendingNeedsPreparing.store (true);
+                swapInProgress = false;
+                swapFade.setTargetValue (1.0f);
+                return currentModel != nullptr && currentModel->dsp != nullptr;
+            }
+        }
+
         if (auto* incoming = pendingModel.exchange (nullptr))
         {
             retiredModel.store (currentModel.release());

@@ -107,7 +107,15 @@ public:
             return;
         }
 
-        jassert (numHostSamples <= maxHostBlock);
+        // A guard, not an assertion: an assertion is compiled out of a release build, and the
+        // failure this catches is a write past the end of the FIFOs rather than a wrong number.
+        // Silence for a block is a glitch; the alternative is memory corruption.
+        if (numHostSamples > maxHostBlock)
+        {
+            jassertfalse;
+            juce::FloatVectorOperations::clear (data, numHostSamples);
+            return;
+        }
 
         // 1. Take the block in.
         std::copy (data, data + numHostSamples, hostFifo.begin() + hostFifoCount);

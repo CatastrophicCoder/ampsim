@@ -282,6 +282,9 @@ void AmpSimAudioProcessor::timerCallback()
 {
     ampModel.collectRetiredModel();
 
+    // A model whose load finished before prepareToPlay was sized for nothing; this re-sizes it.
+    ampModel.repreparePendingModelIfNeeded();
+
     // The audio thread captured a controller to learn; writing it into the state is this
     // thread's job, since a ValueTree may only be touched from one.
     midiLearn.commitPendingLearn();

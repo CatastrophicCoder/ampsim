@@ -28,6 +28,17 @@ Conventions worth following for every block added after this point:
 - Anything expensive — parsing, allocating, `Reset()`, prewarming — happens on a loader thread and
   reaches the audio thread as a finished object swapped in by pointer. See `AmpModel`.
 
+## The standalone
+
+Two macOS things that make it look broken rather than misconfigured:
+
+- **`MICROPHONE_PERMISSION_ENABLED TRUE` in `juce_add_plugin` is load-bearing.** Without it the app
+  has no `NSMicrophoneUsageDescription` and macOS denies audio input without ever prompting: the
+  device appears, and silence arrives. The AU and VST3 are unaffected — a plugin records under its
+  host's permission — so nothing but a real standalone catches it.
+- **JUCE mutes a standalone's input by default** (`shouldMuteInput` in its settings file). Right for
+  a synth, wrong for an amp; it is a checkbox in the Options dialog.
+
 ## The model chain
 
 `AmpModel` owns a `LoadedModel` (a `nam::DSP` plus the `ModelResampler` configured for it). They are
@@ -37,7 +48,10 @@ otherwise mean rebuilding the resampler — an allocation — on the audio threa
 Thread rules, which the whole design turns on:
 
 - **Loader thread** (`ModelLoader`) parses the file, calls `AmpModel::prepareForLoading()` (which
-  allocates and prewarms) and publishes with `setPendingModel()`.
+  allocates and prewarms) and publishes with `setPendingModel()`. It reads the host's sample rate
+  and block size *when it runs*, which at startup can be before `prepareToPlay` has supplied them —
+  so a `LoadedModel` records what it was sized for, the audio thread refuses one that does not
+  match, and the message thread re-prepares it. Getting this wrong crashes on the first block.
 - **Audio thread** takes it in `process()`, under a 10 ms mute so the change cannot click, and hands
   the old one back. It refuses to start a swap while a retired model is still uncollected — that is
   what keeps the hand-back slot a single pointer instead of a queue, and why the audio thread never

@@ -347,3 +347,57 @@ TEST_CASE ("Gain drives the model into saturation rather than just raising the l
     REQUIRE (ratio > 1.0);                  // the knob does something
     REQUIRE (ratio < linearRatio * 0.5);    // and that something is saturation, not volume
 }
+
+TEST_CASE ("A model prepared before the host settings were known is not swapped in", "[model]")
+{
+    // The loader reads the sample rate and block size when it runs. At startup a session restores
+    // a model path before the audio device is open, so a load can be prepared while those are
+    // still zero and published after prepareToPlay has set them. Its FIFOs are then sized for
+    // nothing, and a real block processed through it writes past the end of them.
+    AmpModel ampModel;
+
+    // Prepared while nothing is known — exactly what the loader thread captures at startup.
+    auto dsp = nam::get_dsp (std::filesystem::path (exampleModel ("wavenet.nam")
+                                                        .getFullPathName().toStdString()));
+    REQUIRE (dsp != nullptr);
+
+    auto staleModel = ampModel.prepareForLoading (std::move (dsp));
+    REQUIRE (staleModel != nullptr);
+
+    // The device opens afterwards.
+    ampModel.prepare (44100.0, test::blockSize);
+
+    // And only now does the load publish itself.
+    REQUIRE (ampModel.setPendingModel (std::move (staleModel)));
+
+    std::vector<float> block ((size_t) test::blockSize);
+
+    for (int b = 0; b < 40; ++b)
+    {
+        for (int i = 0; i < test::blockSize; ++i)
+            block[(size_t) i] = 0.2f * std::sin (juce::MathConstants<float>::twoPi
+                                                 * 110.0f * (float) i / 44100.0f);
+
+        ampModel.process (block.data(), test::blockSize);
+
+        for (int i = 0; i < test::blockSize; ++i)
+            REQUIRE (std::isfinite (block[(size_t) i]));
+    }
+
+    // It must not have been taken up as it was...
+    REQUIRE_FALSE (ampModel.hasModel());
+
+    // ...but the message thread re-sizes it, and then it plays.
+    REQUIRE (ampModel.repreparePendingModelIfNeeded());
+
+    for (int b = 0; b < 40; ++b)
+    {
+        for (int i = 0; i < test::blockSize; ++i)
+            block[(size_t) i] = 0.2f * std::sin (juce::MathConstants<float>::twoPi
+                                                 * 110.0f * (float) i / 44100.0f);
+
+        ampModel.process (block.data(), test::blockSize);
+    }
+
+    REQUIRE (ampModel.hasModel());
+}

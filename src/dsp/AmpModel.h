@@ -29,6 +29,11 @@ struct LoadedModel
     std::unique_ptr<nam::DSP> dsp;
     ModelResampler resampler;
 
+    // What this was sized for. The loader thread reads the host's settings when it runs, which
+    // may be before prepareToPlay has supplied them, so the audio thread checks before swapping.
+    double preparedHostRate = 0.0;
+    int preparedMaxBlockSize = 0;
+
     ~LoadedModel();
 };
 
@@ -71,6 +76,12 @@ public:
     /** Message thread. Deletes the model the audio thread swapped out, if any. */
     void collectRetiredModel();
 
+    /** Message thread. Re-sizes a model the audio thread refused because it was prepared for
+        different host settings — a load that finished before prepareToPlay, most often at
+        startup, when a session restores a model path before the device is open.
+        @returns true if one was re-prepared. */
+    bool repreparePendingModelIfNeeded();
+
     bool hasModel() const noexcept          { return modelIsLoaded.load(); }
     int getLatencySamples() const noexcept  { return latencySamples.load(); }
 
@@ -87,6 +98,7 @@ private:
     juce::SmoothedValue<float> swapFade;
     bool swapInProgress = false;
 
+    std::atomic<bool> pendingNeedsPreparing { false };
     std::atomic<bool> modelIsLoaded { false };
     std::atomic<int> latencySamples { 0 };
     std::atomic<double> loadedModelRate { 0.0 };

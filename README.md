@@ -81,6 +81,10 @@ without them the plugin passes audio through untouched. NAM Core's own example m
 captures; the others are tiny test models that barely distort. The public NAM model libraries work
 too. Cabinet IRs you will have to bring.
 
+**In the standalone, untick "Mute audio input"** in Options the first time. JUCE mutes a
+standalone's input by default, which is right for a synth and wrong for an amp — with it ticked the
+meters move and nothing is heard.
+
 **Amp.** Gain sits before the model, so turning it up drives the network harder and it saturates,
 the way a preamp gain control does — with a real capture, 12 dB more input yields well under a
 decibel more output. Bass, Mid and Treble are independent parametric bands (low shelf 100 Hz, peak

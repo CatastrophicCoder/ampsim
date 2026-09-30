@@ -156,6 +156,9 @@ public:
         than what the drive pedal and the model have made of it. Analysis runs on the message
         thread — see Tuner. */
     Tuner& getTuner() { return tuner; }
+
+    /** For tests, which have to drive the message thread's work by hand. */
+    AmpModel& getAmpModelForTesting() { return ampModel; }
     MidiLearn& getMidiLearn() { return midiLearn; }
 
     //==============================================================================
