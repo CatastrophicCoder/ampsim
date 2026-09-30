@@ -38,6 +38,9 @@ namespace ParamID
     inline constexpr const char* bass       = "bass";
     inline constexpr const char* mid        = "mid";
     inline constexpr const char* treble     = "treble";
+    // Named after the power-amp controls they sit where, not after the mechanism: see ToneStack.
+    inline constexpr const char* presence   = "presence";
+    inline constexpr const char* depth      = "depth";
     inline constexpr const char* bypass     = "bypass";
     inline constexpr const char* cabBypass  = "cabBypass";
     inline constexpr const char* tunerOn    = "tunerOn";
@@ -223,6 +226,8 @@ private:
     juce::AudioParameterBool*  cabBypassParam  = nullptr;
     juce::AudioParameterBool*  tunerParam      = nullptr;
     juce::AudioParameterBool*  powerParam      = nullptr;
+    juce::AudioParameterFloat* presenceParam = nullptr;
+    juce::AudioParameterFloat* depthParam = nullptr;
     juce::AudioParameterFloat* cabLowCutParam = nullptr;
     juce::AudioParameterFloat* cabHighCutParam = nullptr;
     juce::AudioParameterFloat* micAxisParam    = nullptr;

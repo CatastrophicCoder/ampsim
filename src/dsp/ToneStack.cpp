@@ -21,10 +21,10 @@ void ToneStack::prepare (double newSampleRate, int maxBlockSize)
 
     const juce::dsp::ProcessSpec spec { sampleRate, (juce::uint32) maxBlockSize, 1 };
 
-    for (auto* filter : { &bassFilter, &midFilter, &trebleFilter })
+    for (auto* filter : { &bassFilter, &midFilter, &trebleFilter, &presenceFilter, &depthFilter })
         filter->prepare (spec);
 
-    for (auto* smoothed : { &bassDb, &midDb, &trebleDb })
+    for (auto* smoothed : { &bassDb, &midDb, &trebleDb, &presenceDb, &depthDb })
         smoothed->reset (sampleRate, rampSeconds);
 
     // Also warms each Coefficients object's storage, so the updates in process() cannot allocate.
@@ -33,20 +33,22 @@ void ToneStack::prepare (double newSampleRate, int maxBlockSize)
 
 void ToneStack::reset()
 {
-    for (auto* filter : { &bassFilter, &midFilter, &trebleFilter })
+    for (auto* filter : { &bassFilter, &midFilter, &trebleFilter, &presenceFilter, &depthFilter })
         filter->reset();
 }
 
-void ToneStack::setBandGains (float bass, float mid, float treble)
+void ToneStack::setBandGains (float bass, float mid, float treble, float presence, float depth)
 {
-    bassDb  .setTargetValue (bass);
-    midDb   .setTargetValue (mid);
-    trebleDb.setTargetValue (treble);
+    bassDb    .setTargetValue (bass);
+    midDb     .setTargetValue (mid);
+    trebleDb  .setTargetValue (treble);
+    presenceDb.setTargetValue (presence);
+    depthDb   .setTargetValue (depth);
 }
 
 void ToneStack::snapToTargets()
 {
-    for (auto* smoothed : { &bassDb, &midDb, &trebleDb })
+    for (auto* smoothed : { &bassDb, &midDb, &trebleDb, &presenceDb, &depthDb })
         smoothed->setCurrentAndTargetValue (smoothed->getTargetValue());
 
     updateCoefficients();
@@ -69,6 +71,12 @@ void ToneStack::updateCoefficients()
 
     *trebleFilter.coefficients = Array::makeHighShelf (sampleRate, trebleFrequency, shelfQ,
                                                        linear (trebleDb.getCurrentValue()));
+
+    *presenceFilter.coefficients = Array::makeHighShelf (sampleRate, presenceFrequency, shelfQ,
+                                                         linear (presenceDb.getCurrentValue()));
+
+    *depthFilter.coefficients = Array::makePeakFilter (sampleRate, depthFrequency, depthQ,
+                                                       linear (depthDb.getCurrentValue()));
 }
 
 void ToneStack::process (float* samples, int numSamples)
@@ -77,20 +85,25 @@ void ToneStack::process (float* samples, int numSamples)
     {
         const auto count = juce::jmin (updateInterval, numSamples - start);
 
-        if (bassDb.isSmoothing() || midDb.isSmoothing() || trebleDb.isSmoothing())
+        if (bassDb.isSmoothing() || midDb.isSmoothing() || trebleDb.isSmoothing()
+            || presenceDb.isSmoothing() || depthDb.isSmoothing())
         {
-            bassDb  .skip (count);
-            midDb   .skip (count);
-            trebleDb.skip (count);
+            bassDb    .skip (count);
+            midDb     .skip (count);
+            trebleDb  .skip (count);
+            presenceDb.skip (count);
+            depthDb   .skip (count);
 
             updateCoefficients();
         }
 
         for (int i = start; i < start + count; ++i)
         {
-            auto sample = bassFilter.processSample (samples[i]);
+            auto sample = depthFilter.processSample (samples[i]);
+            sample = bassFilter.processSample (sample);
             sample = midFilter.processSample (sample);
-            samples[i] = trebleFilter.processSample (sample);
+            sample = trebleFilter.processSample (sample);
+            samples[i] = presenceFilter.processSample (sample);
         }
     }
 }

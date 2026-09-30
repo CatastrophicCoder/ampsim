@@ -262,11 +262,21 @@
       12 dB more going in yields well under a decibel more coming out; what changes is the
       distortion, not the volume. <b>Master</b> is the level control.</p>
 
-    <h3>Why does everything sound flat with all three tone knobs at noon?</h3>
-    <p>Because it is flat. Bass, Middle and Treble are independent parametric bands — low shelf at
-      100 Hz, peak at 800 Hz, high shelf at 3.2 kHz, ±12 dB each — rather than a modelled passive
-      tone stack. A real tone stack interacts with itself and is mid-scooped with everything at
-      noon; this one is not, and each knob moves only its own band.</p>
+    <h3>Why does everything sound flat with the tone knobs at noon?</h3>
+    <p>Because it is flat. Bass, Middle, Treble, Presence and Depth are independent parametric
+      bands — low shelf at 100 Hz, peak at 800 Hz, high shelf at 3.2 kHz, high shelf at 5.5 kHz and
+      a resonant peak at 85 Hz, ±12 dB each — rather than a modelled passive tone stack. A real
+      tone stack interacts with itself and is mid-scooped with everything at noon; this one is not,
+      and each knob moves only its own band.</p>
+
+    <h3>Are Presence and Depth the same as the ones on my amp?</h3>
+    <p>They act where those controls act, and they do not work the way those controls work. On a
+      real amplifier presence and depth take negative feedback off the power amp at one end of the
+      range: the gain rises there, and the distortion and the damping change with it. A capture
+      already contains the power amp with its feedback loop at whatever position it was captured,
+      so two filters after it can offer the frequency response and nothing else. That is worth
+      having — it is what you reach for those knobs to do most of the time — but it is a tone
+      control wearing the name, not the mechanism.</p>
 
     <h3>I only have one impulse response. Do I need all four corners?</h3>
     <p>No. Fill one corner and the cab is a plain IR loader; the axis and distance knobs only have
@@ -344,9 +354,10 @@
     { id: "amp", label: "Amp", image: "amp.png",
       spots: bar.concat([
         { x: 50.0, y: 45.0, title: "The capture, and how to change it", body: "<p>The nameplate on the grille is the model in use — and clicking it is how you load another. An amp wears its name on the front, and on this amp the name <em>is</em> the file.</p><p>Any <code>.nam</code> file works. If one will not load, the plate turns red and says why.</p>" },
-        { x: 13.8, y: 77.0, title: "Gain", body: "<p>±24 dB <em>before</em> the model, so turning it up drives the network harder and it saturates — exactly what a preamp gain control does.</p><p>It is not a volume control: with a real capture, 12 dB more going in yields well under a decibel more coming out. What changes is how hard the amp is being hit.</p>" },
-        { x: 43.5, y: 77.0, title: "Bass, Middle, Treble", body: "<p>Three independent parametric bands between the model and the cab, ±12 dB each:</p><ul><li><b>Bass</b>: low shelf at 100 Hz</li><li><b>Middle</b>: peak at 800 Hz, Q 0.7</li><li><b>Treble</b>: high shelf at 3.2 kHz</li></ul><p>All three at noon is genuinely flat, and each moves only its own band — unlike a real passive tone stack, which interacts with itself and is mid-scooped at noon.</p>" },
-        { x: 73.1, y: 77.0, title: "Master", body: "<p>±24 dB, the level out of the amp. This is the volume control; <b>Gain</b> is the one that changes the tone.</p><p>It sits before the cabinet. Convolution is linear, so that is the same level as putting it after — it is here because that is where the control belongs on an amp.</p>" },
+        { x: 11.6, y: 77.0, title: "Gain", body: "<p>±24 dB <em>before</em> the model, so turning it up drives the network harder and it saturates — exactly what a preamp gain control does.</p><p>It is not a volume control: with a real capture, 12 dB more going in yields well under a decibel more coming out. What changes is how hard the amp is being hit.</p>" },
+        { x: 32.8, y: 77.0, title: "Bass, Middle, Treble", body: "<p>Three independent parametric bands between the model and the cab, ±12 dB each:</p><ul><li><b>Bass</b>: low shelf at 100 Hz</li><li><b>Middle</b>: peak at 800 Hz, Q 0.7</li><li><b>Treble</b>: high shelf at 3.2 kHz</li></ul><p>All three at noon is genuinely flat, and each moves only its own band — unlike a real passive tone stack, which interacts with itself and is mid-scooped at noon.</p>" },
+        { x: 53.7, y: 77.0, title: "Presence and Depth", body: "<p>A lift at the top of the range and one at the cabinet's own resonance: <b>Presence</b> is a shelf from about 5.5 kHz, above where Treble starts, and <b>Depth</b> is a resonant peak around 85 Hz rather than a second bass control. \u00b112 dB each, flat at noon.</p><p><b>They are named after the controls they sit where, not modelled on them.</b> On a real amplifier presence and depth work by taking negative feedback off the power amp at one end of the range, which raises the gain there and changes the distortion and the damping with it. The capture already contains the power amp, so what these two offer is the frequency response of those controls and none of the rest of their behaviour. Useful, and worth knowing.</p>" },
+        { x: 74.7, y: 77.0, title: "Master", body: "<p>±24 dB, the level out of the amp. This is the volume control; <b>Gain</b> is the one that changes the tone.</p><p>It sits before the cabinet. Convolution is linear, so that is the same level as putting it after — it is here because that is where the control belongs on an amp.</p>" },
         { x: 87.7, y: 71.0, title: "Power", body: "<p>Mutes the amp, on a short ramp so it never clicks. The pilot lamp goes dark and the front of the head goes with it, while the control plate keeps its light so you can still read your settings.</p><p>This is not the same as <b>bypassed</b>: an amp that is switched off makes no sound, where a bypassed plugin passes your guitar through.</p>" }
       ]) },
     { id: "pedals", label: "Pedals", image: "pedals.png",

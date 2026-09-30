@@ -89,8 +89,9 @@ private:
     PowerSwitch powerSwitch;
     juce::AudioProcessorValueTreeState::ButtonAttachment powerAttachment;
 
-    // Gain, the three tone bands, then Master — the order they sit in the chain.
-    AmpKnob gainKnob, bassKnob, midKnob, trebleKnob, masterKnob;
+    // Gain, the tone bands in rising order, then Master — the order they sit in the chain, with
+    // the two power-amp-shaped controls at the top of it.
+    AmpKnob gainKnob, bassKnob, midKnob, trebleKnob, presenceKnob, depthKnob, masterKnob;
 
     std::unique_ptr<juce::FileChooser> fileChooser;
 

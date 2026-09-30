@@ -60,17 +60,18 @@ namespace
         return (float) (10.0 * std::log10 (outputSumSquares / inputSumSquares));
     }
 
-    std::unique_ptr<ToneStack> makeToneStack (float bass, float mid, float treble)
+    std::unique_ptr<ToneStack> makeToneStack (float bass, float mid, float treble,
+                                              float presence = 0.0f, float depth = 0.0f)
     {
         auto tone = std::make_unique<ToneStack>();
         tone->prepare (sr, test::blockSize);
-        tone->setBandGains (bass, mid, treble);
+        tone->setBandGains (bass, mid, treble, presence, depth);
         tone->snapToTargets();
         return tone;
     }
 }
 
-TEST_CASE ("All three bands centred is flat", "[tonestack]")
+TEST_CASE ("Every band centred is flat", "[tonestack]")
 {
     auto tone = makeToneStack (0.0f, 0.0f, 0.0f);
 
@@ -141,41 +142,56 @@ TEST_CASE ("The mid band is a peak, not a shelf", "[tonestack]")
 
 TEST_CASE ("Turning a tone control does not click", "[tonestack]")
 {
-    auto tone = makeToneStack (0.0f, 0.0f, 0.0f);
-
-    std::vector<float> block ((size_t) test::blockSize);
-    double phase = 0.0;
-    const auto step = juce::MathConstants<double>::twoPi * 220.0 / sr;
-
-    float worstJump = 0.0f, previous = 0.0f;
-    bool first = true;
-
-    for (int b = 0; b < 20; ++b)
+    // Measured against the same settings applied from the start rather than against a fixed
+    // number: five bands slammed at once make the signal itself much louder, and a threshold in
+    // absolute samples would then be measuring how fast a loud sine moves rather than whether the
+    // coefficients stepped.
+    const auto worstJumpOverRun = [] (bool changeMidway)
     {
-        if (b == 5)
-            tone->setBandGains (12.0f, -12.0f, 12.0f);   // all three slammed at once
+        auto tone = changeMidway ? makeToneStack (0.0f, 0.0f, 0.0f, 0.0f, 0.0f)
+                                 : makeToneStack (12.0f, -12.0f, 12.0f, 12.0f, 12.0f);
 
-        for (int i = 0; i < test::blockSize; ++i)
+        std::vector<float> block ((size_t) test::blockSize);
+        double phase = 0.0;
+        const auto step = juce::MathConstants<double>::twoPi * 220.0 / sr;
+
+        float worstJump = 0.0f, previous = 0.0f;
+        bool first = true;
+
+        for (int b = 0; b < 20; ++b)
         {
-            block[(size_t) i] = 0.5f * (float) std::sin (phase);
-            phase += step;
+            if (changeMidway && b == 5)
+                tone->setBandGains (12.0f, -12.0f, 12.0f, 12.0f, 12.0f);
+
+            for (int i = 0; i < test::blockSize; ++i)
+            {
+                block[(size_t) i] = 0.5f * (float) std::sin (phase);
+                phase += step;
+            }
+
+            tone->process (block.data(), test::blockSize);
+
+            for (int i = 0; i < test::blockSize; ++i)
+            {
+                if (! first)
+                    worstJump = juce::jmax (worstJump, std::abs (block[(size_t) i] - previous));
+
+                previous = block[(size_t) i];
+                first = false;
+            }
         }
 
-        tone->process (block.data(), test::blockSize);
+        return worstJump;
+    };
 
-        for (int i = 0; i < test::blockSize; ++i)
-        {
-            if (! first)
-                worstJump = juce::jmax (worstJump, std::abs (block[(size_t) i] - previous));
+    const auto settled = worstJumpOverRun (false);
+    const auto changed = worstJumpOverRun (true);
 
-            previous = block[(size_t) i];
-            first = false;
-        }
-    }
+    INFO ("settled " << settled << ", changed mid-run " << changed);
 
-    // A 220 Hz sine at 0.5 moves ~0.014 per sample by itself; recomputing coefficients in one
-    // jump rather than over the 50 ms ramp would show up as far more than that.
-    REQUIRE (worstJump < 0.05f);
+    // Recomputing the coefficients in one jump rather than over the 50 ms ramp would put a step
+    // in the signal larger than anything the settled sine does on its own.
+    REQUIRE (changed <= settled * 1.1f);
 }
 
 TEST_CASE ("The tone stack starts at its settings rather than sweeping in", "[tonestack]")
@@ -186,7 +202,7 @@ TEST_CASE ("The tone stack starts at its settings rather than sweeping in", "[to
 
     ToneStack ramping;
     ramping.prepare (sr, test::blockSize);
-    ramping.setBandGains (12.0f, 0.0f, 0.0f);   // deliberately no snapToTargets()
+    ramping.setBandGains (12.0f, 0.0f, 0.0f, 0.0f, 0.0f);   // deliberately no snapToTargets()
 
     std::vector<float> snapped ((size_t) test::blockSize), swept ((size_t) test::blockSize);
 
@@ -199,4 +215,25 @@ TEST_CASE ("The tone stack starts at its settings rather than sweeping in", "[to
     // The snapped one is already at full boost; the ramping one is not, which is what
     // prepareToPlay must avoid.
     REQUIRE (snapped[0] > swept[0]);
+}
+
+TEST_CASE ("Presence and depth act where they are named for", "[tonestack]")
+{
+    // They are not a model of a presence or a depth control — those work by taking negative
+    // feedback off a power amp, and the capture already contains the power amp. What they are is
+    // two more bands placed where those controls act, so that is what is measured: a lift at the
+    // top and one at the speaker's resonance, each leaving the other's end of the range alone.
+    auto presence = makeToneStack (0.0f, 0.0f, 0.0f, 12.0f, 0.0f);
+
+    REQUIRE (measureGainDb (*presence, 8000.0) > 9.0f);
+    REQUIRE_THAT (measureGainDb (*presence, 200.0), WithinAbs (0.0, 0.5));
+
+    auto depth = makeToneStack (0.0f, 0.0f, 0.0f, 0.0f, 12.0f);
+
+    REQUIRE (measureGainDb (*depth, (double) ToneStack::depthFrequency) > 10.0f);
+    REQUIRE_THAT (measureGainDb (*depth, 8000.0), WithinAbs (0.0, 0.5));
+
+    // And depth is a resonance rather than a second bass shelf: an octave and a half under it the
+    // lift is most of the way gone, where a shelf would still be holding it up.
+    REQUIRE (measureGainDb (*depth, 30.0) < 6.0f);
 }

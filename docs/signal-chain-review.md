@@ -167,6 +167,12 @@ compensating gain, so swapping captures does not change the level.
   acceptable is a product decision; describing it as a presence control would be inaccurate.
 - **Cost.** Two parameters, two filters, two UI controls, no new DSP technique.
 
+**Done, with the caveat above kept rather than quietly dropped.** A high shelf at 5.5 kHz and a
+resonant peak at 85 Hz, placed away from the treble and bass bands so they are not those controls
+under another name. `ToneStack.h`, `CLAUDE.md` and the user guide all say what they are and what
+they are not, because a control named after a mechanism it does not implement is only a problem if
+nobody writes that down.
+
 ## 2.3 A modelled passive tone stack
 
 **What.** Replace or supplement the three parametric bands with a discretised passive network —
@@ -283,7 +289,7 @@ distinct from the drive, pitch effects, and tempo sync on the delay.**
 | | Audible benefit | Fixes something wrong | Cost | Fits stated scope | |
 | --- | --- | --- | --- | --- | --- |
 | 2.1 Model level calibration | High when swapping captures | Yes (1.1) | Small to moderate | Yes — it is the amp block |
-| 2.2 Presence / Depth | Moderate | No | Small | Adds controls beyond the plan's list |
+| 2.2 Presence / Depth | Moderate | No | Small | Adds controls beyond the plan's list | **done** |
 | 2.3 Modelled tone stack | Disputed — see 2.3 | No | Large | Replaces a settled decision |
 | 2.4 Drive pre-filter | Moderate | Arguably (1.4) | Small | Yes — improves an existing pedal | **done** |
 | 2.5 Cab low/high cut | High in practice | No | Small | Adds controls to an existing block | **done** |

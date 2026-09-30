@@ -103,6 +103,14 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
         decibelRange (toneRangeDb), 0.0f, dbAttributes));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { ParamID::presence, 1 }, "Presence",
+        decibelRange (toneRangeDb), 0.0f, dbAttributes));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { ParamID::depth, 1 }, "Depth",
+        decibelRange (toneRangeDb), 0.0f, dbAttributes));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { ParamID::outputGain, 1 }, "Master",
         decibelRange (gainRangeDb), 0.0f, dbAttributes));
 
@@ -210,6 +218,8 @@ AmpSimAudioProcessor::AmpSimAudioProcessor()
     powerParam      = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::power));
     micAxisParam    = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::micAxis));
     micDistanceParam = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::micDistance));
+    presenceParam   = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::presence));
+    depthParam      = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::depth));
     cabLowCutParam  = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::cabLowCut));
     cabHighCutParam = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::cabHighCut));
     bassParam       = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::bass));
@@ -293,7 +303,8 @@ void AmpSimAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     pedals.reset();
 
     toneStack.prepare (sampleRate, samplesPerBlock);
-    toneStack.setBandGains (bassParam->get(), midParam->get(), trebleParam->get());
+    toneStack.setBandGains (bassParam->get(), midParam->get(), trebleParam->get(),
+                            presenceParam->get(), depthParam->get());
     toneStack.snapToTargets();   // as with the gains: do not sweep in from flat on every start
     toneStack.reset();
 
@@ -528,7 +539,8 @@ void AmpSimAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
 
     // Bass / Mid / Treble after the model and before the cab, where an amp's tone stack sits
     // relative to its speaker.
-    toneStack.setBandGains (bassParam->get(), midParam->get(), trebleParam->get());
+    toneStack.setBandGains (bassParam->get(), midParam->get(), trebleParam->get(),
+                            presenceParam->get(), depthParam->get());
     toneStack.process (mono, numSamples);
 
     // Master last in the amp, before the cab. Convolution is linear, so this is the same level

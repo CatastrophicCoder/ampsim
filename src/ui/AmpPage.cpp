@@ -169,7 +169,9 @@ AmpPage::AmpPage (AmpSimAudioProcessor& p)
       bassKnob   (p.getValueTreeState(), ParamID::bass,       "BASS"),
       midKnob    (p.getValueTreeState(), ParamID::mid,        "MIDDLE"),
       trebleKnob (p.getValueTreeState(), ParamID::treble,     "TREBLE"),
-      masterKnob (p.getValueTreeState(), ParamID::outputGain, "MASTER")
+      presenceKnob (p.getValueTreeState(), ParamID::presence,  "PRESENCE"),
+      depthKnob  (p.getValueTreeState(), ParamID::depth,       "DEPTH"),
+      masterKnob (p.getValueTreeState(), ParamID::outputGain,  "MASTER")
 {
     badge.onClick = [this]
     {
@@ -201,7 +203,7 @@ AmpPage::AmpPage (AmpSimAudioProcessor& p)
 
     addAndMakeVisible (powerSwitch);
 
-    for (auto* knob : { &gainKnob, &bassKnob, &midKnob, &trebleKnob, &masterKnob })
+    for (auto* knob : { &gainKnob, &bassKnob, &midKnob, &trebleKnob, &presenceKnob, &depthKnob, &masterKnob })
     {
         // Black knobs on a metal plate, rather than the raised grey they wear on a page.
         knob->setBodyColour (AmpMaterials::knobCap);
@@ -214,7 +216,7 @@ AmpPage::AmpPage (AmpSimAudioProcessor& p)
 
 void AmpPage::setContextMenuHandler (std::function<void (const juce::String&, juce::Component&)> handler)
 {
-    for (auto* knob : { &gainKnob, &bassKnob, &midKnob, &trebleKnob, &masterKnob })
+    for (auto* knob : { &gainKnob, &bassKnob, &midKnob, &trebleKnob, &presenceKnob, &depthKnob, &masterKnob })
         knob->setContextMenuHandler (handler);
 }
 
@@ -288,7 +290,8 @@ void AmpPage::resized()
     powerSwitch.setBounds (face.removeFromRight (powerWidth));
     face.removeFromRight (10);
 
-    AmpKnob* controls[] { &gainKnob, &bassKnob, &midKnob, &trebleKnob, &masterKnob };
+    AmpKnob* controls[] { &gainKnob, &bassKnob, &midKnob, &trebleKnob,
+                          &presenceKnob, &depthKnob, &masterKnob };
     const auto width = face.getWidth() / (int) std::size (controls);
 
     for (auto* knob : controls)

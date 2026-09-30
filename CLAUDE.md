@@ -242,8 +242,18 @@ Four things that were learned the hard way here:
 
 ## The tone stack
 
-`ToneStack` is three `juce::dsp::IIR::Filter<float>` — low shelf, peak, high shelf — with a
-smoothed dB value per band. Two things to keep in mind when touching it:
+`ToneStack` is five `juce::dsp::IIR::Filter<float>` — the three tone bands, plus a presence shelf
+and a depth peak — with a smoothed dB value per band.
+
+**Presence and depth are honestly named but not honestly modelled, and the header says so.** On a
+real amplifier they take negative feedback off the power amp at one end of the range, which raises
+the gain there *and* changes the distortion and damping with it. A capture already contains the
+power amp with its loop at whatever position it was captured, so two filters after the model can
+offer the frequency response and nothing else. They are placed away from the bands they would
+otherwise duplicate: presence is a shelf at 5.5 kHz, above the treble shelf's 3.2 kHz corner, and
+depth is a *resonant peak* at 85 Hz rather than a second low shelf beside the bass control's.
+
+Things to keep in mind when touching it:
 
 - **Coefficients are rewritten every 32 samples, not once per block.** A block can be 20 ms, and
   stepping a 24 dB swing in that few jumps is audible.
@@ -363,7 +373,7 @@ A standard `.nam` capture is a snapshot of one amp setting — the knobs are *no
 | Master | `outputGain` | after the tone stack, before the cab | ±24 dB |
 | Cab Low/High Cut | `cabLowCut` `cabHighCut` | inside the cab, after the convolution | second order, 20 Hz–1 kHz and 1–20 kHz, skipped at their end stops |
 | Power | `power` | the end of the chain | mutes, on the same ramp as the tuner. Not `bypass`: an amp that is off makes no sound, it does not pass your guitar through. A fully bypassed plugin ignores it, because then the amp is out of the chain |
-| Presence *(optional)* | — | after the model | high shelf ≈ 3–5 kHz; not in the minimal control set |
+| Presence / Depth | `presence` `depth` | with the tone bands | ±12 dB: a high shelf at 5.5 kHz and a resonant peak at 85 Hz (Q 1.1). Named after the power-amp controls they sit where, **not** a model of the mechanism — see `ToneStack.h` |
 | Model selector | — | replaces the model | `.nam` files loaded off-thread, atomic pointer swap |
 
 The IDs `inputGain` and `outputGain` predate the Gain/Master names and are kept because a saved
