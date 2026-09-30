@@ -86,9 +86,13 @@ everywhere else will find the top of the range does not do what it says.
 two and the wet by three — so `dryLevel = 1` was +6 dB of dry, and engaging the reverb at any mix
 made everything louder. The mix control was not merely limited; it was a level bug.
 
-**Resolved.** Both scalings are divided out, so mix 0 is an exact null, mix 1 has no dry path, and
-the input stays at unity in between. A test measures the surviving dry gain by projecting the
-output onto a noise input.
+**Resolved.** Both scalings are divided out and the dry is left alone at every setting, with the
+wet added on top of it, reaching the dry's own level at the top of the control. A first attempt
+crossfaded to fully wet instead, which was correct as a mix control and wrong as a pedal: playing
+through it, the note's attack disappeared with the dry and what was left was a tail that started
+late and was quieter than the note — heard, accurately, as the pedal losing level and gaining
+latency. A test measures the surviving dry gain by projecting the output onto a noise input, and
+another asserts the level never falls as the control goes up.
 
 **Also.** `juce::dsp::Reverb` is Freeverb — a Schroeder-Moorer design of parallel combs and series
 allpasses, which models a room. Guitar amps have spring tanks, whose character comes from

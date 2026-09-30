@@ -38,12 +38,20 @@ public:
         parameters.damping = 0.45f;
         parameters.width = 1.0f;
         // juce::Reverb scales what it is given — the dry by two and the wet by three — so these
-        // divisions cancel that out and leave a mix that means what it says: nothing at zero,
-        // no dry signal at one, and the input at unity in between.
+        // divisions cancel that out: with the control down the input passes at unity, and with it
+        // up the wet signal reaches unity.
+        //
+        // The dry stays where it is and the wet is added on top, which is what a reverb in a box
+        // does. Trading one for the other takes the note's attack away with the dry and leaves
+        // only a tail: quieter than the note was, and starting late, so the pedal sounds like it
+        // has lost level and gained latency. Neither would be happening — there would just be
+        // nothing dry left to hear — but that is no comfort while playing through it.
         const auto wet = juce::jlimit (0.0f, 1.0f, mix);
 
+        // At the top of the control the wet reaches the same level as the dry: an even blend,
+        // which is as far as a reverb in a box usually goes.
         parameters.wetLevel = wet / 3.0f;
-        parameters.dryLevel = (1.0f - wet) * 0.5f;
+        parameters.dryLevel = 0.5f;
 
         reverb.setParameters (parameters);
     }

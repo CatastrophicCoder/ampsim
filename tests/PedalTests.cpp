@@ -459,11 +459,11 @@ TEST_CASE ("The gate fades what is under the threshold rather than muting it", "
     REQUIRE (above > -0.5f);
 }
 
-TEST_CASE ("The reverb's mix trades the dry signal for the wet one", "[pedals]")
+TEST_CASE ("The reverb's mix adds to the dry signal rather than replacing it", "[pedals]")
 {
-    // What the control has to mean: nothing at zero, no dry signal at one, and the input at
-    // unity in between. juce::Reverb scales what it is handed — the dry by two, the wet by
-    // three — so a mix written straight into its parameters is neither of those things.
+    // A reverb pedal adds: the dry signal is untouched at every setting and the wet is mixed on
+    // top of it. Crossfading to fully wet instead takes the note's attack away with the dry, which
+    // sounds like lost level and added latency rather than like more reverb.
     //
     // The dry gain is measured rather than read: against noise, the wet path is decorrelated at
     // zero lag, so projecting the output onto the input recovers what is left of the dry.
@@ -491,8 +491,38 @@ TEST_CASE ("The reverb's mix trades the dry signal for the wet one", "[pedals]")
     };
 
     REQUIRE_THAT (dryGainAt (0.0f), WithinAbs (1.0, 0.02));
-    REQUIRE_THAT (dryGainAt (0.5f), WithinAbs (0.5, 0.08));
-    REQUIRE_THAT (dryGainAt (1.0f), WithinAbs (0.0, 0.08));
+    REQUIRE_THAT (dryGainAt (0.5f), WithinAbs (1.0, 0.08));
+    REQUIRE_THAT (dryGainAt (1.0f), WithinAbs (1.0, 0.08));
+}
+
+TEST_CASE ("Turning the reverb up does not turn the signal down", "[pedals]")
+{
+    // The symptom that says the dry has been crossfaded away: more reverb, less sound. Whatever
+    // the mix is set to, the level should hold — a player reaches for this control to change the
+    // space, not the volume.
+    const auto levelAt = [] (float mix)
+    {
+        PedalChain::Settings settings;
+        settings.reverbEngaged = true;
+        settings.reverbMix = mix;
+        settings.reverbSize = 0.5f;
+
+        auto chain = makeChain (settings);
+
+        const auto input = Signal::sine (220.0, test::blockSize * 40);
+        return Signal::rms (runThrough (*chain, input, false), test::blockSize * 8);
+    };
+
+    const auto dry = levelAt (0.0f);
+
+    for (const auto mix : { 0.25f, 0.5f, 0.75f, 1.0f })
+    {
+        const auto level = juce::Decibels::gainToDecibels (levelAt (mix) / dry);
+
+        INFO ("mix " << mix << ": " << level << " dB against the dry signal");
+        REQUIRE (level > -0.5f);
+        REQUIRE (level < 6.0f);
+    }
 }
 
 TEST_CASE ("A reverb at zero mix is inaudible rather than six decibels loud", "[pedals]")
