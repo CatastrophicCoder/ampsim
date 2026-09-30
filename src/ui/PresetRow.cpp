@@ -32,7 +32,9 @@ void PresetRow::updateContents()
 {
     const auto name = presets.getCurrentName();
 
-    displayed = name.isEmpty() ? "no preset" : name;
+    // "Default" rather than "no preset": the state a fresh instance starts in is a usable tone,
+    // not an absence of one.
+    displayed = name.isEmpty() ? "Default" : name;
     repaint();
 }
 

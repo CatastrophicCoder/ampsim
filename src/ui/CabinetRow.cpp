@@ -147,13 +147,39 @@ void CabinetRow::paint (juce::Graphics& g)
                                   AmpLookAndFeel::panelFont (13.0f, true),
                                   AmpPalette::enamel.withAlpha (0.9f));
 
+    // Name the cabinet here, the way the rows above name the preset and the amp. With more than
+    // one corner filled there is no single name to give, so it says how many are in play instead.
     const auto error = processorRef.getImpulseResponseError();
 
-    AmpLookAndFeel::drawRailText (g, error.isNotEmpty() ? error : "mic position",
+    const auto describeLoaded = [this]
+    {
+        juce::String firstName;
+        auto count = 0;
+
+        for (int slot = 0; slot < CabSim::numSlots; ++slot)
+        {
+            const auto file = processorRef.getImpulseResponseFile ((CabSim::Slot) slot);
+
+            if (file == juce::File())
+                continue;
+
+            ++count;
+
+            if (firstName.isEmpty())
+                firstName = file.getFileNameWithoutExtension();
+        }
+
+        if (count == 0)  return juce::String ("no cab loaded");
+        if (count == 1)  return firstName;
+
+        return firstName + " + " + juce::String (count - 1) + " more";
+    };
+
+    AmpLookAndFeel::drawRailText (g, error.isNotEmpty() ? error : describeLoaded(),
                                   nameRow, juce::Justification::centredLeft,
-                                  AmpLookAndFeel::panelFont (11.0f),
+                                  AmpLookAndFeel::panelFont (12.0f),
                                   error.isNotEmpty() ? AmpPalette::attention.brighter (0.35f)
-                                                     : AmpPalette::enamel.withAlpha (0.35f));
+                                                     : AmpPalette::enamel.withAlpha (0.8f));
 }
 
 void CabinetRow::resized()
