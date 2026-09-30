@@ -97,6 +97,11 @@ private:
     // left room for them, rather than both files agreeing by hand.
     juce::Rectangle<int> nameArea;
     juce::Point<float> ledCentre;
+
+    /** What the LED was last drawn as. The switch repaints itself when it is clicked, but the LED
+        is outside its bounds, so the enclosure has to be told. Held rather than read straight off
+        the switch so that hovering it does not repaint the whole pedal. */
+    bool lampLit = false;
     Footswitch footswitch;
     juce::AudioProcessorValueTreeState::ButtonAttachment engageAttachment;
 

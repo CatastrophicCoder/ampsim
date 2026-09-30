@@ -65,11 +65,15 @@ void Footswitch::paintButton (juce::Graphics& g, bool shouldDrawButtonAsHighligh
     g.setColour (juce::Colours::black.withAlpha (0.35f));
     g.fillEllipse (face);
 
-    const auto cap = face.reduced (size * 0.13f).translated (0.0f, shouldDrawButtonAsDown ? 1.0f : 0.0f);
+    // A latching stomp switch stays down while it is on, so the cap does too. It is a second
+    // reading of the same state as the LED, for anyone who is not looking straight at the lamp.
+    const auto pressed = shouldDrawButtonAsDown || getToggleState();
+    const auto cap = face.reduced (size * 0.13f).translated (0.0f, pressed ? 1.5f : 0.0f);
 
-    g.setGradientFill (juce::ColourGradient (juce::Colour (0xffe8ebef), cap.getCentreX(), cap.getY(),
-                                             juce::Colour (0xff6e757e), cap.getCentreX(), cap.getBottom(),
-                                             false));
+    g.setGradientFill (juce::ColourGradient (juce::Colour (pressed ? 0xffb9bfc7 : 0xffe8ebef),
+                                             cap.getCentreX(), cap.getY(),
+                                             juce::Colour (pressed ? 0xff5a616a : 0xff6e757e),
+                                             cap.getCentreX(), cap.getBottom(), false));
     g.fillEllipse (cap);
 
     g.setColour (juce::Colours::white.withAlpha (shouldDrawButtonAsHighlighted ? 0.7f : 0.35f));
@@ -91,6 +95,17 @@ PedalObject::PedalObject (juce::AudioProcessorValueTreeState& state,
     : name (pedalName), body (bodyColour),
       engageAttachment (state, engageParameterID, footswitch)
 {
+    // A click repaints the switch, and the LED is not inside it. This also covers the state
+    // arriving from somewhere else — a preset, the host's automation — rather than from a foot.
+    footswitch.onStateChange = [this]
+    {
+        if (const auto on = footswitch.getToggleState(); on != lampLit)
+        {
+            lampLit = on;
+            repaint();
+        }
+    };
+
     addAndMakeVisible (footswitch);
 
     for (const auto& knob : knobsToAdd)
@@ -139,18 +154,28 @@ void PedalObject::paint (juce::Graphics& g)
 
     // The LED, above the name: lit means this pedal is in your signal.
     const auto on = footswitch.getToggleState();
-    const auto led = juce::Rectangle<float> (7.0f, 7.0f).withCentre (ledCentre);
+    const auto led = juce::Rectangle<float> (9.0f, 9.0f).withCentre (ledCentre);
 
     if (on)
     {
+        // Two rings of spill, so a lit LED reads across the board and not only when looked at.
+        g.setColour (AmpPalette::engaged.withAlpha (0.16f));
+        g.fillEllipse (led.expanded (8.0f));
+
         g.setColour (AmpPalette::engaged.withAlpha (0.35f));
-        g.fillEllipse (led.expanded (4.0f));
+        g.fillEllipse (led.expanded (3.5f));
     }
 
-    g.setColour (on ? AmpPalette::engaged : juce::Colours::black.withAlpha (0.4f));
+    g.setColour (on ? AmpPalette::engaged : juce::Colours::black.withAlpha (0.45f));
     g.fillEllipse (led);
 
-    g.setColour (juce::Colours::black.withAlpha (0.5f));
+    if (on)
+    {
+        g.setColour (juce::Colours::white.withAlpha (0.75f));
+        g.fillEllipse (led.reduced (2.8f).translated (0.0f, -0.8f));
+    }
+
+    g.setColour (juce::Colours::black.withAlpha (0.55f));
     g.drawEllipse (led, 1.0f);
 }
 
