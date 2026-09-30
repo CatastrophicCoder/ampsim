@@ -10,20 +10,44 @@
 
 #include "PresetRow.h"
 
-namespace
+void PresetRow::NameButton::paintButton (juce::Graphics& g, bool shouldDrawButtonAsHighlighted,
+                                         bool shouldDrawButtonAsDown)
 {
-    constexpr int nameColumn = 46;
+    const auto bounds = getLocalBounds().toFloat().reduced (0.5f);
+    const auto corner = 4.0f;
+
+    g.setColour (shouldDrawButtonAsDown ? AmpPalette::background : AmpPalette::recess);
+    g.fillRoundedRectangle (bounds, corner);
+
+    g.setColour (shouldDrawButtonAsHighlighted ? AmpPalette::value.withAlpha (0.5f) : AmpPalette::hairline);
+    g.drawRoundedRectangle (bounds, corner, 1.0f);
+
+    auto text = getLocalBounds().reduced (12, 0);
+    auto chevron = text.removeFromRight (14);
+
+    g.setFont (AmpLookAndFeel::font (13.0f, true));
+    g.setColour (showingError ? AmpPalette::bypassed : AmpPalette::text);
+    g.drawText (displayed, text, juce::Justification::centredLeft, true);
+
+    juce::Path arrow;
+    arrow.addTriangle (chevron.getCentreX() - 4.0f, (float) chevron.getCentreY() - 2.0f,
+                       chevron.getCentreX() + 4.0f, (float) chevron.getCentreY() - 2.0f,
+                       chevron.getCentreX(),        (float) chevron.getCentreY() + 3.0f);
+    g.setColour (AmpPalette::textDim);
+    g.fillPath (arrow);
 }
 
+//==============================================================================
 PresetRow::PresetRow (PresetManager& presetsToUse)
     : presets (presetsToUse)
 {
     previousButton.onClick = [this] { presets.step (-1); };
     nextButton.onClick = [this] { presets.step (1); };
-    menuButton.onClick = [this] { showMenu(); };
+    nameButton.onClick = [this] { showMenu(); };
 
-    for (auto* button : { &previousButton, &nextButton, &menuButton })
-        addAndMakeVisible (*button);
+    addAndMakeVisible (previousButton);
+    addAndMakeVisible (nextButton);
+    addAndMakeVisible (nameButton);
 
     updateContents();
 }
@@ -32,14 +56,19 @@ void PresetRow::updateContents()
 {
     const auto name = presets.getCurrentName();
 
-    displayed = name.isEmpty() ? "no preset" : name;
-    repaint();
+    nameButton.displayed = name.isEmpty() ? "no preset" : name;
+    nameButton.showingError = false;
+    nameButton.repaint();
 }
 
 void PresetRow::report (const juce::String& error)
 {
-    message = error;
-    repaint();
+    if (error.isEmpty())
+        return;
+
+    nameButton.displayed = error;
+    nameButton.showingError = true;
+    nameButton.repaint();
 }
 
 void PresetRow::showMenu()
@@ -67,7 +96,7 @@ void PresetRow::showMenu()
     menu.addItem (4, "Add the built-in presets");
     menu.addItem (5, "Open the presets folder");
 
-    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (menuButton),
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (nameButton),
                         [this, names] (int result)
                         {
                             if (result >= 100)
@@ -119,43 +148,14 @@ void PresetRow::askForNameAndSave()
     }), false);
 }
 
-void PresetRow::paint (juce::Graphics& g)
+void PresetRow::resized()
 {
     auto area = getLocalBounds();
 
-    AmpLookAndFeel::drawRailText (g, "preset", area.removeFromLeft (nameColumn),
-                                  juce::Justification::centredLeft,
-                                  AmpLookAndFeel::panelFont (13.0f, true),
-                                  AmpPalette::enamel.withAlpha (0.5f));
+    previousButton.setBounds (area.removeFromLeft (26));
+    area.removeFromLeft (4);
+    nextButton.setBounds (area.removeFromRight (26));
+    area.removeFromRight (4);
 
-    area.removeFromRight (previousButton.getWidth() + nextButton.getWidth()
-                          + menuButton.getWidth() + 16);
-
-    const auto plate = area.toFloat().reduced (0.0f, 3.0f);
-
-    g.setColour (AmpPalette::railRecess);
-    g.fillRect (plate);
-
-    g.setColour (juce::Colours::black.withAlpha (0.5f));
-    g.drawLine (plate.getX(), plate.getY(), plate.getRight(), plate.getY(), 1.0f);
-
-    g.setColour (AmpPalette::enamel.withAlpha (0.10f));
-    g.drawLine (plate.getX(), plate.getBottom(), plate.getRight(), plate.getBottom(), 1.0f);
-
-    const auto failed = message.isNotEmpty();
-
-    g.setFont (AmpLookAndFeel::panelFont (14.0f));
-    g.setColour (failed ? AmpPalette::attention.brighter (0.35f) : AmpPalette::enamel.withAlpha (0.92f));
-    g.drawText (failed ? message : displayed, area.reduced (12, 0),
-                juce::Justification::centredLeft, true);
-}
-
-void PresetRow::resized()
-{
-    auto area = getLocalBounds().withTrimmedTop (3).withTrimmedBottom (3);
-
-    menuButton.setBounds (area.removeFromRight (86));
-    area.removeFromRight (6);
-    nextButton.setBounds (area.removeFromRight (30));
-    previousButton.setBounds (area.removeFromRight (30));
+    nameButton.setBounds (area);
 }

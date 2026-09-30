@@ -10,14 +10,14 @@
 
 #pragma once
 
-#include "PedalTile.h"
+#include "AmpKnob.h"
 #include "../PluginProcessor.h"
 
 /** One corner of the mic-position grid: what position it is, and what is loaded there. */
 class CabinetSlotButton final : public juce::Button
 {
 public:
-    CabinetSlotButton (const juce::String& positionName);
+    explicit CabinetSlotButton (const juce::String& positionName);
 
     void setContents (const juce::String& text, bool loaded);
 
@@ -30,16 +30,17 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CabinetSlotButton)
 };
 
-/** The cabinet, laid out like the pedals because it is another box in the chain: four corners of
-    mic position, the two controls that move between them, and a bypass lamp.
+/** The cabinet: four corners of a mic position, drawn as the grid they actually are, and the two
+    controls that move between them.
 
-    The four corners are the feature, so they are the thing the row shows. With only one filled it
-    reads as a plain IR loader, which is what it is.
+    Left to right is on axis to off axis, top to bottom is close to far, so the axis and distance
+    knobs move the way the grid is laid out. With one corner filled it reads as a plain IR loader,
+    which is what it then is.
 */
-class CabinetRow final : public juce::Component
+class CabPage final : public juce::Component
 {
 public:
-    CabinetRow (AmpSimAudioProcessor&);
+    explicit CabPage (AmpSimAudioProcessor&);
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -54,16 +55,17 @@ public:
 
 private:
     void showMenuFor (CabSim::Slot);
+    juce::Rectangle<int> content() const;
 
     AmpSimAudioProcessor& processorRef;
 
     juce::OwnedArray<CabinetSlotButton> slots;
-    CompactKnob axisKnob, distanceKnob;
+    AmpKnob axisKnob, distanceKnob;
 
-    juce::ToggleButton bypassButton { "" };
+    juce::ToggleButton bypassButton { "cab bypassed" };
     juce::AudioProcessorValueTreeState::ButtonAttachment bypassAttachment;
 
     std::unique_ptr<juce::FileChooser> fileChooser;
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CabinetRow)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CabPage)
 };

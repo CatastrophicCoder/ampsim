@@ -107,13 +107,19 @@ backed off or off axis, stays quieter; only the grid's overall level is brought 
 comes from the loudest loaded corner, so filling the corners in a different order cannot change the
 result.
 
-**Pedals.** Six, in the two groups the chain diagram shows. A blue lamp means the pedal is in your
-signal; a red lamp on the amp means something is switched *out* of it. Chorus, delay and reverb keep
-running while switched off, so engaging one picks up repeats already in flight instead of starting
-from an empty line.
+**Pedals.** Six, on a board that runs left to right with the amp drawn where it actually sits in
+the chain. Each one is switched by its footswitch, and its LED lights green when it is in your
+signal; red, anywhere on the panel, means something is switched *out* of it. Chorus, delay and
+reverb keep running while switched off, so engaging one picks up repeats already in flight instead
+of starting from an empty line.
 
-**Tuner.** The switch in the header. It reads the guitar before the pedals and the amp, shows the
-note and how far off it is in cents, and mutes the output while it is on.
+![The pedal board](docs/pedals.png)
+
+**Tuner.** The switch in the bar. It reads the guitar before the pedals and the amp, takes over the
+bar to show the note and how far off it is in cents, and mutes the output while it is on.
+
+**Size.** The percentage in the bar scales the whole panel — 75, 100, 125 or 150. It is saved with
+the session and a preset cannot change it.
 
 **Presets** are files in `~/Library/Application Support/AmpSim/Presets`. A preset holds everything —
 controls, MIDI map, and the paths of the model and cabs — but anything it leaves empty keeps what is
@@ -137,7 +143,7 @@ engaged so that the figure never changes under the host.
 ## Testing
 
 ```sh
-ctest --test-dir build                        # 73 tests
+ctest --test-dir build                        # 87 tests
 ctest --test-dir build --output-on-failure
 ctest --test-dir build -R "bypass"            # one test, or a pattern
 ```
@@ -162,8 +168,8 @@ packaging script, with the installer and disk image uploaded as artefacts. See
 
 ## Roadmap
 
-[`docs/roadmap.md`](docs/roadmap.md) holds what is agreed but not built — currently a rework of the
-panel's appearance.
+[`docs/roadmap.md`](docs/roadmap.md) holds what is agreed but not built, and records what the panel
+rework decided so those choices are not re-argued.
 
 ## Reading the code
 

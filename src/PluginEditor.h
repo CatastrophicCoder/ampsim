@@ -12,65 +12,41 @@
 
 #include "PluginProcessor.h"
 #include "ui/AmpLookAndFeel.h"
-#include "ui/CabinetRow.h"
-#include "ui/PedalTile.h"
+#include "ui/AmpPage.h"
+#include "ui/CabPage.h"
+#include "ui/PedalsPage.h"
 #include "ui/PresetRow.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
-/** One control on the plate: engraved name above, the knob, its value below.
+/** One of the three section tabs. Drawn rather than configured: a tab is a word with a lit bar
+    under it, and none of JUCE's button styles is that. */
+class TabButton final : public juce::Button
+{
+public:
+    explicit TabButton (const juce::String& text);
 
-    The binding goes through an attachment, so the editor never writes to the processor directly.
+    void paintButton (juce::Graphics&, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
+
+private:
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (TabButton)
+};
+
+/** The panel: a persistent bar, a tab bar, and one of three pages.
+
+    Everything is laid out in fixed logical points inside one child component, and that child
+    carries the scale as an AffineTransform. The layout code therefore never has to know what size
+    the window is, a vector panel needs no second set of assets to be resizable, and the editor's
+    own setScaleFactor is left alone for the host to use for display DPI.
 */
-class LabelledKnob final : public juce::Component
-{
-public:
-    LabelledKnob (juce::AudioProcessorValueTreeState& state,
-                  const juce::String& parameterID,
-                  const juce::String& labelText);
-
-    void paint (juce::Graphics&) override;
-    void resized() override;
-
-    /** Right-click behaviour, wired up by the editor. */
-    void setContextMenuHandler (std::function<void (const juce::String&, juce::Component&)> handler)
-    {
-        slider.onContextMenu = std::move (handler);
-    }
-
-private:
-    juce::String name;
-    ParameterSlider slider;
-    juce::AudioProcessorValueTreeState::SliderAttachment attachment;
-
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (LabelledKnob)
-};
-
-/** A loaded file, shown the way a chassis carries a stamped nameplate. */
-class NameplateRow final : public juce::Component
-{
-public:
-    NameplateRow (const juce::String& rowName, const juce::String& browseText);
-
-    void paint (juce::Graphics&) override;
-    void resized() override;
-
-    void setContents (const juce::String& text, bool isError);
-
-    juce::TextButton browseButton;
-    std::function<void()> onBrowse;
-
-private:
-    juce::String name, contents { "—" };
-    bool showingError = false;
-
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (NameplateRow)
-};
-
 class AmpSimAudioProcessorEditor final : public juce::AudioProcessorEditor,
                                          private juce::Timer
 {
 public:
+    /** The size everything is laid out at, before the scale factor is applied. */
+    static constexpr int panelWidth = 780;
+    static constexpr int panelHeight = 460;
+
     explicit AmpSimAudioProcessorEditor (AmpSimAudioProcessor&);
     ~AmpSimAudioProcessorEditor() override;
 
@@ -78,38 +54,51 @@ public:
     void resized() override;
 
 private:
+    /** Everything, at its logical size. The editor holds nothing but this and the scale. */
+    struct Panel final : juce::Component
+    {
+        explicit Panel (AmpSimAudioProcessorEditor& o) : owner (o) {}
+
+        void paint (juce::Graphics& g) override  { owner.paintPanel (g); }
+        void resized() override                  { owner.layOutPanel(); }
+
+        AmpSimAudioProcessorEditor& owner;
+    };
+
+    void paintPanel (juce::Graphics&);
+    void layOutPanel();
+
     void timerCallback() override;
     void paintTuner (juce::Graphics&, juce::Rectangle<int>);
     void updateLoadedFileDisplay();
     void showParameterMenu (const juce::String& parameterID, juce::Component& source);
-    void chooseFile (const juce::String& title, const juce::File& startingFile,
-                     const juce::String& pattern, std::function<void (const juce::File&)> onChosen);
+    void showPage (int index);
+    void showScaleMenu();
+    void applyScale (int percent);
 
     AmpSimAudioProcessor& processorRef;
     AmpLookAndFeel lookAndFeel;
 
-    // Gain, the three tone bands, then Master — the order they sit in the chain and on the panel.
-    LabelledKnob gainKnob, bassKnob, midKnob, trebleKnob, masterKnob;
+    Panel panel { *this };
 
-    juce::ToggleButton bypassButton { "bypassed" };
-    juce::AudioProcessorValueTreeState::ButtonAttachment bypassAttachment;
+    PresetRow presetRow;
 
     juce::ToggleButton tunerButton { "tuner" };
     juce::AudioProcessorValueTreeState::ButtonAttachment tunerAttachment;
 
-    // Two rows, so the panel says which side of the amp each pedal is on — which is the whole
-    // design of the pedal section, not a detail of it.
-    PedalTile gatePedal, compressorPedal, drivePedal;
-    PedalTile chorusPedal, delayPedal, reverbPedal;
+    juce::ToggleButton bypassButton { "bypassed" };
+    juce::AudioProcessorValueTreeState::ButtonAttachment bypassAttachment;
 
-    PresetRow presetRow;
+    juce::TextButton scaleButton;
 
-    NameplateRow ampRow { "amp", "Load model" };
+    TabButton ampTab { "AMP" }, pedalsTab { "PEDALS" }, cabTab { "CAB" };
 
-    // The cab has its own row on the deck now that it has four corners and two controls.
-    CabinetRow cabinetRow;
+    AmpPage ampPage;
+    PedalsPage pedalsPage;
+    CabPage cabPage;
 
-    std::unique_ptr<juce::FileChooser> fileChooser;
+    int currentPage = 0;
+    int scalePercent = 100;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AmpSimAudioProcessorEditor)
 };

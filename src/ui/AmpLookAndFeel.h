@@ -12,29 +12,33 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-/** The plugin's visual identity.
+/** The panel's colours.
 
-    The panel is not a pastiche of a guitar amp's tolex-and-gold-lettering front. This amp is a
-    file — a neural capture loaded from disk — so the panel is drawn as a piece of measuring
-    equipment instead: a pale enamelled steel plate, engraved lettering, graphite knobs with a
-    single saturated blue arc reading out the value. Red is reserved for the one thing that means
-    "this is switched out of your signal".
+    A cool near-black frame holding warm objects. The accent is amber rather than the cold blue or
+    green a dark plugin usually reaches for: the amp being modelled has a brass front panel and
+    valves behind it, and a warm value ring carries that without drawing a picture of it.
 
-    Colours live here rather than in the editor so a second panel or window inherits them.
+    Three colours carry meaning and are not interchangeable with the rest:
+      - **amber** is a value — where a control is set;
+      - **green** is a pedal in your signal;
+      - **red** is something switched out of it.
 */
 struct AmpPalette
 {
-    static const juce::Colour enamel;        // the plate itself
-    static const juce::Colour enamelShade;   // grain and vignette
-    static const juce::Colour rail;          // the darker strips top and bottom
-    static const juce::Colour railRecess;    // the inset a nameplate sits in
-    static const juce::Colour engraved;      // lettering
-    static const juce::Colour engravedSoft;  // secondary lettering
-    static const juce::Colour graphite;      // knob body
-    static const juce::Colour graphiteRim;
-    static const juce::Colour reading;       // the value arc
-    static const juce::Colour attention;     // bypassed
+    static const juce::Colour background;   // behind everything
+    static const juce::Colour bar;          // the persistent top bar
+    static const juce::Colour surface;      // a page
+    static const juce::Colour raised;       // a control sitting on a page
+    static const juce::Colour recess;       // a field sunk into one
     static const juce::Colour hairline;
+
+    static const juce::Colour text;
+    static const juce::Colour textDim;
+    static const juce::Colour textFaint;
+
+    static const juce::Colour value;        // amber: where a control is set
+    static const juce::Colour engaged;      // green: in your signal
+    static const juce::Colour bypassed;     // red: switched out of it
 };
 
 class AmpLookAndFeel final : public juce::LookAndFeel_V4
@@ -50,7 +54,7 @@ public:
                            bool shouldDrawButtonAsHighlighted,
                            bool shouldDrawButtonAsDown) override;
 
-    void drawButtonBackground (juce::Graphics&, juce::Button&, const juce::Colour& backgroundColour,
+    void drawButtonBackground (juce::Graphics&, juce::Button&, const juce::Colour&,
                                bool shouldDrawButtonAsHighlighted,
                                bool shouldDrawButtonAsDown) override;
 
@@ -58,16 +62,20 @@ public:
     juce::Font getLabelFont (juce::Label&) override;
     juce::Label* createSliderTextBox (juce::Slider&) override;
 
-    /** Lettering stamped into the pale plate: a light impression below, dark type above. */
-    static void drawEngravedText (juce::Graphics&, const juce::String& text,
-                                  juce::Rectangle<int> bounds, juce::Justification,
-                                  const juce::Font&, juce::Colour colour);
+    /** The interface's voice. Avenir Next: humanist, ships with macOS, and not the system font
+        every other plugin defaults to. */
+    static juce::Font font (float height, bool medium = false);
 
-    /** The same idea on the dark rails, where the light has to come from the other side: a dark
-        impression above, light type below. Engraving dark-on-dark just smears. */
-    static void drawRailText (juce::Graphics&, const juce::String& text,
-                              juce::Rectangle<int> bounds, juce::Justification,
-                              const juce::Font&, juce::Colour colour);
+    /** For names printed on an object — a pedal's, the plugin's. Futura reads as something
+        screen-printed onto metal, which is exactly what it is standing in for. */
+    static juce::Font stencil (float height);
 
-    static juce::Font panelFont (float height, bool medium = false);
+    /** A knob's travel: a gap at the bottom, like a real control's end stops. */
+    static constexpr float rotaryStart = juce::MathConstants<float>::pi * 1.25f;
+    static constexpr float rotaryEnd   = juce::MathConstants<float>::pi * 2.75f;
+
+    /** Draws a control's ring and pointer at an arbitrary size, so a pedal's knobs and the amp's
+        share one drawing and differ only in scale. */
+    static void drawKnob (juce::Graphics&, juce::Rectangle<float> bounds, float proportion,
+                          bool centred, juce::Colour bodyColour, float ringThickness);
 };

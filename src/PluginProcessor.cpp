@@ -549,6 +549,11 @@ void AmpSimAudioProcessor::applyPresetState (const juce::ValueTree& preset)
 
 void AmpSimAudioProcessor::applyState (juce::ValueTree newState, bool keepLoadedFilesWhenEmpty)
 {
+    // How big the window is, is not something a preset gets to change — and a session restore
+    // carries its own, so only an absent one is filled in.
+    if (! newState.hasProperty (StateID::panelScale) && apvts.state.hasProperty (StateID::panelScale))
+        newState.setProperty (StateID::panelScale, apvts.state.getProperty (StateID::panelScale), nullptr);
+
     if (keepLoadedFilesWhenEmpty)
     {
         // A preset saved on another machine cannot know where your models live, and a preset that

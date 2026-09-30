@@ -78,35 +78,45 @@ translation units and every model fails with "No config parser registered for ar
 `AmpLookAndFeel` holds the whole visual identity; `AmpPalette` holds the colours, so a second
 window inherits them rather than redefining them.
 
-The panel is currently drawn as measuring equipment rather than as an amplifier: a pale enamelled
-plate, engraved lettering, graphite knobs, a single blue arc reading the value, and red reserved for
-"switched out of your signal".
+A cool near-black frame holding drawn objects. Three colours carry meaning and are not
+interchangeable with the rest of the palette:
 
-**This is slated for replacement** — see [`docs/roadmap.md`](docs/roadmap.md). The decision is that
-it should look like a current amp plugin instead. Do not spend effort preserving the present
-appearance; do keep the red/blue meaning and the tuner reading dimmed rather than hidden when it is
-only being held.
+- **amber** (`AmpPalette::value`) — where a control is set;
+- **green** (`engaged`) — in your signal;
+- **red** (`bypassed`) — switched out of it.
 
-Two things that are easy to get wrong here:
+The shape is a persistent bar (preset field, scale, tuner, bypass), a tab bar, and one of three
+pages: `AmpPage` (the head, as an object), `PedalsPage` (six `PedalObject`s in one left-to-right
+run with the amp drawn in the middle of it) and `CabPage` (the mic-position grid). Nothing uses an
+image asset; everything is drawn.
 
-- **Text needs the light coming from the right side.** `drawEngravedText` (light impression below,
-  dark type above) is for the pale plate; `drawRailText` (dark impression above, light type below)
-  is for the dark rails. Using the plate version on a rail smears dark text into dark background —
-  it looked fine in code and was unreadable on screen.
+**Scaling is a transform on one child, not a proportional layout.** Every page lays out in fixed
+logical points inside `AmpSimAudioProcessorEditor::Panel`, which carries
+`AffineTransform::scale`; the editor itself is sized in physical points. `AudioProcessorEditor::`
+`setScaleFactor` is deliberately left alone — that is the host's hook for display DPI, and using it
+for the user's own scale means the two fight. The chosen scale lives in `StateID::panelScale`, and
+`applyState` will not let a preset change it.
+
+Things that are easy to get wrong here:
+
 - **A slider's text box takes its colours from the slider, not the LookAndFeel.** Clearing
   `textBoxOutlineColourId` and `textBoxBackgroundColourId` on the LookAndFeel does nothing; set them
   on the `juce::Slider`.
 - **`Slider::setPopupDisplayEnabled` takes the component the bubble lives in.** Passing the knob
-  itself clips the popup to a 60 px control and it disappears. `CompactKnob` sets the editor as the
-  parent in `parentHierarchyChanged()`, since a knob has no parent when it is constructed.
-  `BubbleComponent` also centres itself on the control without pulling itself back inside the
-  parent, so a control near the window edge needs a margin.
+  itself clips the popup to a 40 px control and it disappears. `PedalKnob` sets the top-level
+  component as the parent in `parentHierarchyChanged()`, since a knob has no parent when it is
+  constructed. `BubbleComponent` also centres itself on the control without pulling itself back
+  inside the parent, so a control near the window edge needs a margin.
+- **A `const char*` literal must be ASCII.** `juce::String` asserts on anything else and renders
+  mojibake in a Release build, so an em dash in a caption comes out as `â€`.
 - **Give every parameter a `stringFromValue`.** Without one JUCE prints the raw float, and a mix
   knob reads 0.3499999. A test in `StateTests.cpp` fails on more than one decimal anywhere.
 
 **Look at the panel rather than reasoning about it.** An offline harness that renders the editor
 with `createComponentSnapshot` to a PNG takes a couple of minutes to write and catches things no
-amount of reading the paint code will: see the milestone 5 entry in `NOTES.md`.
+amount of reading the paint code will: see the milestone 5 entry in `NOTES.md`. It caught four more
+in the rework, including a knob that grew to fill a fifth of the window and a caption sitting a
+hundred points away from the row it named.
 
 ## Bundled assets
 
@@ -319,14 +329,14 @@ src/
   ModelLoader.h/.cpp
   dsp/AmpModel.h/.cpp, ModelResampler.h, CabSim.h/.cpp, ToneStack.h/.cpp
   dsp/PedalChain.h/.cpp, BypassCrossfade.h, pedals/*.h
-  ui/AmpLookAndFeel.h/.cpp, PedalTile.h/.cpp
-  ui/                                                        (empty)
-resources/irs/     bundled IR .wav → BinaryData              (empty)
+  ui/AmpLookAndFeel.h/.cpp, AmpKnob.h/.cpp, ParameterSlider.h
+  ui/AmpPage, PedalsPage, PedalObject, CabPage, PresetRow  (.h/.cpp each)
+resources/         the packed amp model and cab IR → BinaryData
 tests/             Catch2 suites + TestHelpers.h
 tests/fixtures/    clean DI guitar recordings                (empty)
 ```
 
-The empty directories are the planned layout, held by `.gitkeep`.
+Any empty directory left in that list is the planned layout, held by `.gitkeep`.
 
 ## Testing approach
 

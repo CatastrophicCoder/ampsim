@@ -12,202 +12,89 @@
 
 namespace
 {
-    constexpr int headerHeight = 46;
-    constexpr int rowHeight    = 34;
-    constexpr int gutter       = 18;
-    constexpr int nameColumn   = 46;
-    constexpr int pedalRowHeight = 86;
-    constexpr int groupLabelHeight = 18;
+    constexpr int barHeight   = 52;
+    constexpr int tabHeight   = 34;
+    constexpr int margin      = 16;
+    constexpr int tabWidth    = 104;
 
-    /** Both pedal rows, plus a margin at the bottom so the enclosures are not flush with the
-        window edge. paint() and resized() both take this from the bottom, in the same order. */
-    constexpr int deckHeight = 3 * (pedalRowHeight + groupLabelHeight) + 10;
+    constexpr int wordmarkWidth = 96;
+    constexpr int presetWidth   = 244;
 
-    /** The faint vertical grain of a brushed enamel plate. Drawn once per repaint; cheap enough
-        at this size, and it keeps the panel from reading as a flat rectangle of colour. */
-    void paintPlate (juce::Graphics& g, juce::Rectangle<int> area)
+    const int scaleOptions[] { 75, 100, 125, 150 };
+}
+
+TabButton::TabButton (const juce::String& text) : juce::Button (text)
+{
+    setClickingTogglesState (true);
+    setRadioGroupId (0x7ab);
+}
+
+void TabButton::paintButton (juce::Graphics& g, bool shouldDrawButtonAsHighlighted, bool)
+{
+    const auto on = getToggleState();
+    auto bounds = getLocalBounds();
+
+    // The selected tab is the one the page below belongs to, so it shares the page's surface and
+    // the bar under it is the join rather than a decoration.
+    if (on)
     {
-        g.setColour (AmpPalette::enamel);
-        g.fillRect (area);
-
-        juce::Random grain (0x5eed);
-
-        for (int x = area.getX(); x < area.getRight(); ++x)
-        {
-            const auto strength = 0.05f + 0.07f * grain.nextFloat();
-
-            if (grain.nextFloat() < 0.35f)
-            {
-                g.setColour (AmpPalette::enamelShade.withAlpha (strength));
-                g.fillRect (x, area.getY(), 1, area.getHeight());
-            }
-        }
-
-        // A soft vignette, so the middle of the plate sits forward of its edges.
-        juce::ColourGradient vignette (juce::Colours::transparentBlack,
-                                       area.getCentreX(), (float) area.getCentreY(),
-                                       juce::Colours::black.withAlpha (0.10f),
-                                       (float) area.getX(), (float) area.getY(), true);
-        g.setGradientFill (vignette);
-        g.fillRect (area);
+        g.setColour (AmpPalette::surface);
+        g.fillRect (bounds);
     }
 
-    void paintRecess (juce::Graphics& g, juce::Rectangle<float> area)
+    auto underline = bounds.removeFromBottom (2);
+
+    if (on)
     {
-        g.setColour (AmpPalette::railRecess);
-        g.fillRect (area);
-
-        g.setColour (juce::Colours::black.withAlpha (0.5f));
-        g.drawLine (area.getX(), area.getY(), area.getRight(), area.getY(), 1.0f);
-
-        g.setColour (AmpPalette::enamel.withAlpha (0.10f));
-        g.drawLine (area.getX(), area.getBottom(), area.getRight(), area.getBottom(), 1.0f);
+        g.setColour (AmpPalette::value);
+        g.fillRect (underline);
     }
-}
 
-//==============================================================================
-LabelledKnob::LabelledKnob (juce::AudioProcessorValueTreeState& state,
-                            const juce::String& parameterID,
-                            const juce::String& labelText)
-    : name (labelText), slider (parameterID), attachment (state, parameterID, slider)
-{
-    slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
-    slider.setTextBoxStyle (juce::Slider::TextBoxBelow, false, 72, 18);
-
-    // The readout is engraving on the plate, not a text field: the frame and fill have to be
-    // cleared on the slider itself, since that is where the text box takes its colours from.
-    slider.setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
-    slider.setColour (juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
-    slider.setColour (juce::Slider::textBoxTextColourId, AmpPalette::engravedSoft);
-    slider.setColour (juce::Slider::textBoxHighlightColourId, AmpPalette::reading.withAlpha (0.25f));
-    slider.setRotaryParameters (juce::MathConstants<float>::pi * 1.25f,
-                                juce::MathConstants<float>::pi * 2.75f, true);
-    addAndMakeVisible (slider);
-}
-
-void LabelledKnob::paint (juce::Graphics& g)
-{
-    AmpLookAndFeel::drawEngravedText (g, name, getLocalBounds().removeFromTop (17),
-                                      juce::Justification::centred,
-                                      AmpLookAndFeel::panelFont (13.0f, true),
-                                      AmpPalette::engraved);
-}
-
-void LabelledKnob::resized()
-{
-    auto area = getLocalBounds();
-    area.removeFromTop (20);   // the engraved name
-
-    // A square control with its readout directly under it, rather than a tall box that leaves
-    // the value floating half a panel away from the knob it belongs to.
-    const auto size = juce::jmin (area.getWidth(), area.getHeight() - 18);
-    slider.setBounds (area.withSizeKeepingCentre (size, size + 18).withY (area.getY()));
-}
-
-//==============================================================================
-NameplateRow::NameplateRow (const juce::String& rowName, const juce::String& browseText)
-    : name (rowName)
-{
-    browseButton.setButtonText (browseText);
-    browseButton.onClick = [this] { if (onBrowse != nullptr) onBrowse(); };
-    addAndMakeVisible (browseButton);
-}
-
-void NameplateRow::setContents (const juce::String& text, bool isError)
-{
-    contents = text;
-    showingError = isError;
-    repaint();
-}
-
-void NameplateRow::paint (juce::Graphics& g)
-{
-    auto area = getLocalBounds();
-
-    AmpLookAndFeel::drawRailText (g, name, area.removeFromLeft (nameColumn),
-                                  juce::Justification::centredLeft,
-                                  AmpLookAndFeel::panelFont (13.0f, true),
-                                  AmpPalette::enamel.withAlpha (0.5f));
-
-    area.removeFromRight (browseButton.getWidth() + 10);
-
-    paintRecess (g, area.toFloat().reduced (0.0f, 3.0f));
-
-    g.setFont (AmpLookAndFeel::panelFont (14.0f));
-    g.setColour (showingError ? AmpPalette::attention.brighter (0.35f)
-                              : AmpPalette::enamel.withAlpha (0.92f));
-    g.drawText (contents, area.reduced (12, 0), juce::Justification::centredLeft, true);
-}
-
-void NameplateRow::resized()
-{
-    browseButton.setBounds (getLocalBounds().removeFromRight (96).reduced (0, 4));
+    g.setFont (AmpLookAndFeel::font (11.5f, true).withExtraKerningFactor (0.12f));
+    g.setColour (on ? AmpPalette::text
+                    : (shouldDrawButtonAsHighlighted ? AmpPalette::textDim : AmpPalette::textFaint));
+    g.drawText (getButtonText(), bounds, juce::Justification::centred, false);
 }
 
 //==============================================================================
 AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
     : AudioProcessorEditor (&p),
       processorRef (p),
-      gainKnob   (p.getValueTreeState(), ParamID::inputGain,  "Gain"),
-      bassKnob   (p.getValueTreeState(), ParamID::bass,       "Bass"),
-      midKnob    (p.getValueTreeState(), ParamID::mid,        "Mid"),
-      trebleKnob (p.getValueTreeState(), ParamID::treble,     "Treble"),
-      masterKnob (p.getValueTreeState(), ParamID::outputGain, "Master"),
-      bypassAttachment (p.getValueTreeState(), ParamID::bypass, bypassButton),
-      tunerAttachment (p.getValueTreeState(), ParamID::tunerOn, tunerButton),
-      gatePedal (p.getValueTreeState(), "gate", ParamID::gateOn,
-                 { { ParamID::gateThreshold, "thresh" } }),
-      compressorPedal (p.getValueTreeState(), "comp", ParamID::compOn,
-                       { { ParamID::compAmount, "amount" }, { ParamID::compLevel, "level" } }),
-      drivePedal (p.getValueTreeState(), "drive", ParamID::driveOn,
-                  { { ParamID::driveAmount, "drive" }, { ParamID::driveTone, "tone" },
-                    { ParamID::driveLevel, "level" } }),
-      chorusPedal (p.getValueTreeState(), "chorus", ParamID::chorusOn,
-                   { { ParamID::chorusRate, "rate" }, { ParamID::chorusDepth, "depth" },
-                     { ParamID::chorusMix, "mix" } }),
-      delayPedal (p.getValueTreeState(), "delay", ParamID::delayOn,
-                  { { ParamID::delayTime, "time" }, { ParamID::delayFeedback, "repeats" },
-                    { ParamID::delayMix, "mix" } }),
-      reverbPedal (p.getValueTreeState(), "reverb", ParamID::reverbOn,
-                   { { ParamID::reverbSize, "size" }, { ParamID::reverbMix, "mix" } }),
       presetRow (p.getPresets()),
-      cabinetRow (p)
+      tunerAttachment (p.getValueTreeState(), ParamID::tunerOn, tunerButton),
+      bypassAttachment (p.getValueTreeState(), ParamID::bypass, bypassButton),
+      ampPage (p),
+      pedalsPage (p.getValueTreeState()),
+      cabPage (p)
 {
     setLookAndFeel (&lookAndFeel);
 
-    for (auto* knob : { &gainKnob, &bassKnob, &midKnob, &trebleKnob, &masterKnob })
-        addAndMakeVisible (*knob);
+    addAndMakeVisible (panel);
+    panel.addAndMakeVisible (presetRow);
 
-    bypassButton.setColour (juce::ToggleButton::textColourId, AmpPalette::enamel);
-    addAndMakeVisible (bypassButton);
+    // Green means "doing something to your signal", red means "switched out of it". The tuner is
+    // the first and the bypass is the second, which is the whole of the panel's colour language.
+    tunerButton.setColour (juce::ToggleButton::tickColourId, AmpPalette::engaged);
+    tunerButton.onClick = [this] { presetRow.setVisible (! processorRef.isTunerEngaged()); panel.repaint(); };
+    panel.addAndMakeVisible (tunerButton);
 
-    // Blue, like a pedal's footswitch: the tuner is doing something, not switching something out.
-    tunerButton.setColour (juce::ToggleButton::tickColourId, AmpPalette::reading);
-    tunerButton.onClick = [this] { repaint(); };
-    addAndMakeVisible (tunerButton);
+    bypassButton.setColour (juce::ToggleButton::tickColourId, AmpPalette::bypassed);
+    panel.addAndMakeVisible (bypassButton);
 
-    // Fast enough for a tuner to feel responsive while a string is still ringing.
-    startTimerHz (25);
+    scaleButton.onClick = [this] { showScaleMenu(); };
+    panel.addAndMakeVisible (scaleButton);
 
-    ampRow.onBrowse = [this]
+    TabButton* tabs[] { &ampTab, &pedalsTab, &cabTab };
+
+    for (int i = 0; i < (int) std::size (tabs); ++i)
     {
-        chooseFile ("Load a NAM model", processorRef.getModelFile(), "*.nam",
-                    [this] (const juce::File& file) { processorRef.loadModel (file); });
-    };
+        tabs[i]->onClick = [this, i] { showPage (i); };
+        panel.addAndMakeVisible (*tabs[i]);
+    }
 
-    for (auto* pedal : { &gatePedal, &compressorPedal, &drivePedal,
-                         &chorusPedal, &delayPedal, &reverbPedal })
-        addAndMakeVisible (*pedal);
-
-    processorRef.getPresets().onChanged = [this]
-    {
-        presetRow.updateContents();
-        updateLoadedFileDisplay();
-    };
-
-    addAndMakeVisible (presetRow);
-    addAndMakeVisible (ampRow);
-    addAndMakeVisible (cabinetRow);
+    panel.addChildComponent (ampPage);
+    panel.addChildComponent (pedalsPage);
+    panel.addChildComponent (cabPage);
 
     // Every control offers the same right-click menu, so a mapping table needs no panel space.
     const auto contextMenu = [this] (const juce::String& parameterID, juce::Component& source)
@@ -215,27 +102,75 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
         showParameterMenu (parameterID, source);
     };
 
-    for (auto* knob : { &gainKnob, &bassKnob, &midKnob, &trebleKnob, &masterKnob })
-        knob->setContextMenuHandler (contextMenu);
+    ampPage.setContextMenuHandler (contextMenu);
+    pedalsPage.setContextMenuHandler (contextMenu);
+    cabPage.setContextMenuHandler (contextMenu);
 
-    for (auto* pedal : { &gatePedal, &compressorPedal, &drivePedal,
-                         &chorusPedal, &delayPedal, &reverbPedal })
-        pedal->setContextMenuHandler (contextMenu);
-
-    cabinetRow.setContextMenuHandler (contextMenu);
+    processorRef.getPresets().onChanged = [this]
+    {
+        presetRow.updateContents();
+        updateLoadedFileDisplay();
+    };
 
     // The load finishes on a background thread, so the editor is told rather than polling.
     processorRef.onLoadStateChanged = [this] { updateLoadedFileDisplay(); };
     updateLoadedFileDisplay();
 
-    setSize (640, 310 + deckHeight);
+    showPage (0);
+    presetRow.setVisible (! processorRef.isTunerEngaged());
+
+    // Fast enough for a tuner to feel responsive while a string is still ringing.
+    startTimerHz (25);
+
+    const auto stored = (int) processorRef.getValueTreeState().state
+                                          .getProperty (StateID::panelScale, 100);
+    applyScale (stored);
 }
 
 AmpSimAudioProcessorEditor::~AmpSimAudioProcessorEditor()
 {
     stopTimer();
     processorRef.onLoadStateChanged = nullptr;
+    processorRef.getPresets().onChanged = nullptr;
     setLookAndFeel (nullptr);
+}
+
+void AmpSimAudioProcessorEditor::showPage (int index)
+{
+    currentPage = index;
+
+    ampTab.setToggleState (index == 0, juce::dontSendNotification);
+    pedalsTab.setToggleState (index == 1, juce::dontSendNotification);
+    cabTab.setToggleState (index == 2, juce::dontSendNotification);
+
+    ampPage.setVisible (index == 0);
+    pedalsPage.setVisible (index == 1);
+    cabPage.setVisible (index == 2);
+}
+
+void AmpSimAudioProcessorEditor::showScaleMenu()
+{
+    juce::PopupMenu menu;
+
+    for (const auto percent : scaleOptions)
+        menu.addItem (percent, juce::String (percent) + " %", true, percent == scalePercent);
+
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (scaleButton),
+                        [this] (int result) { if (result > 0) applyScale (result); });
+}
+
+void AmpSimAudioProcessorEditor::applyScale (int percent)
+{
+    scalePercent = juce::jlimit (scaleOptions[0], scaleOptions[std::size (scaleOptions) - 1], percent);
+    scaleButton.setButtonText (juce::String (scalePercent) + " %");
+
+    processorRef.getValueTreeState().state.setProperty (StateID::panelScale, scalePercent, nullptr);
+
+    // The layout is in logical points and the panel carries the scale, so nothing below this line
+    // ever has to know what the window's actual size is.
+    const auto factor = (float) scalePercent / 100.0f;
+
+    setSize (juce::roundToInt (panelWidth * factor), juce::roundToInt (panelHeight * factor));
 }
 
 void AmpSimAudioProcessorEditor::timerCallback()
@@ -245,42 +180,46 @@ void AmpSimAudioProcessorEditor::timerCallback()
 
     // The analysis itself, on the message thread. See Tuner.
     processorRef.getTuner().analyse();
-    repaint (getLocalBounds().removeFromTop (headerHeight));
+    panel.repaint (panel.getLocalBounds().removeFromTop (barHeight));
 }
 
-/** The reading, drawn where the strapline normally sits: a note name, and a bar that says how
-    far off it is and which way. In tune is the bar sitting on the centre mark. */
+/** The reading, drawn where the preset field normally sits: a note name, a bar that says how far
+    off it is and which way, and the figure. In tune is the bar sitting on the centre mark.
+
+    It takes the field's space rather than having a row of its own, because the tuner is the only
+    thing you are looking at while it is on, and a row for it would be dead panel the rest of the
+    time. */
 void AmpSimAudioProcessorEditor::paintTuner (juce::Graphics& g, juce::Rectangle<int> area)
 {
     const auto reading = processorRef.getTuner().getReading();
 
     if (! reading.valid)
     {
-        g.setFont (AmpLookAndFeel::panelFont (12.0f));
-        g.setColour (AmpPalette::enamel.withAlpha (0.4f));
+        g.setFont (AmpLookAndFeel::font (12.5f));
+        g.setColour (AmpPalette::textFaint);
         g.drawText ("play a string", area, juce::Justification::centredLeft, false);
         return;
     }
 
-    // Held readings stay on screen, dimmed: a tuner that blanks between plucks is unusable, and
-    // a note decays long before you have finished turning the peg.
+    // Held readings stay on screen, dimmed: a tuner that blanks between plucks is unusable, and a
+    // note decays long before you have finished turning the peg.
     const auto alpha = reading.live ? 1.0f : 0.45f;
 
-    auto noteArea = area.removeFromLeft (52);
+    g.setFont (AmpLookAndFeel::font (22.0f, true));
+    g.setColour (AmpPalette::text.withAlpha (alpha));
+    g.drawText (Tuner::noteName (reading.midiNote), area.removeFromLeft (54),
+                juce::Justification::centredLeft, false);
 
-    g.setFont (AmpLookAndFeel::panelFont (20.0f, true));
-    g.setColour (AmpPalette::enamel.withAlpha (alpha));
-    g.drawText (Tuner::noteName (reading.midiNote), noteArea, juce::Justification::centredLeft, false);
+    g.setFont (AmpLookAndFeel::font (12.0f));
+    g.setColour (AmpPalette::textDim.withAlpha (alpha));
+    g.drawText (juce::String (juce::roundToInt (reading.cents)) + " cents",
+                area.removeFromRight (64), juce::Justification::centredRight, false);
 
     // The meter: ±50 cents across the strip, with the centre marked.
-    auto meter = area.removeFromLeft (juce::jmax (80, area.getWidth() - 70))
-                     .reduced (0, 15).toFloat();
+    const auto meter = area.withTrimmedRight (10).reduced (0, 20).toFloat();
 
-    g.setColour (AmpPalette::railRecess);
-    g.fillRect (meter);
-
-    g.setColour (AmpPalette::enamel.withAlpha (0.25f * alpha));
-    g.drawLine (meter.getCentreX(), meter.getY() - 3.0f, meter.getCentreX(), meter.getBottom() + 3.0f, 1.0f);
+    g.setColour (AmpPalette::recess);
+    g.fillRoundedRectangle (meter, 2.0f);
 
     const auto inTune = std::abs (reading.cents) < 3.0f;
     const auto offset = juce::jlimit (-0.5f, 0.5f, reading.cents / 100.0f) * meter.getWidth();
@@ -288,13 +227,11 @@ void AmpSimAudioProcessorEditor::paintTuner (juce::Graphics& g, juce::Rectangle<
     const juce::Rectangle<float> needle { meter.getCentreX() + juce::jmin (offset, 0.0f),
                                           meter.getY(), std::abs (offset), meter.getHeight() };
 
-    g.setColour ((inTune ? AmpPalette::reading : AmpPalette::attention).withAlpha (alpha));
+    g.setColour ((inTune ? AmpPalette::engaged : AmpPalette::value).withAlpha (alpha));
     g.fillRect (inTune ? meter.withSizeKeepingCentre (4.0f, meter.getHeight()) : needle);
 
-    g.setFont (AmpLookAndFeel::panelFont (12.0f));
-    g.setColour (AmpPalette::enamel.withAlpha (0.5f * alpha));
-    g.drawText (juce::String (juce::roundToInt (reading.cents)) + " cents",
-                area.withTrimmedLeft (10), juce::Justification::centredLeft, false);
+    g.setColour (AmpPalette::textFaint.withAlpha (alpha));
+    g.drawLine (meter.getCentreX(), meter.getY() - 4.0f, meter.getCentreX(), meter.getBottom() + 4.0f, 1.0f);
 }
 
 void AmpSimAudioProcessorEditor::showParameterMenu (const juce::String& parameterID,
@@ -326,148 +263,84 @@ void AmpSimAudioProcessorEditor::showParameterMenu (const juce::String& paramete
                         });
 }
 
-void AmpSimAudioProcessorEditor::chooseFile (const juce::String& title, const juce::File& startingFile,
-                                             const juce::String& pattern,
-                                             std::function<void (const juce::File&)> onChosen)
-{
-    // Held as a member: the chooser has to outlive this call, since it runs asynchronously.
-    fileChooser = std::make_unique<juce::FileChooser> (title, startingFile, pattern);
-
-    fileChooser->launchAsync (juce::FileBrowserComponent::openMode
-                                  | juce::FileBrowserComponent::canSelectFiles,
-                              [onChosen] (const juce::FileChooser& chooser)
-                              {
-                                  const auto file = chooser.getResult();
-
-                                  if (file != juce::File())
-                                      onChosen (file);
-                              });
-}
-
 void AmpSimAudioProcessorEditor::updateLoadedFileDisplay()
 {
-    const auto describe = [] (NameplateRow& row, const juce::String& error,
-                              const juce::File& file, const juce::String& emptyText)
-    {
-        if (error.isNotEmpty())
-            row.setContents (error, true);
-        else
-            row.setContents (file == juce::File() ? emptyText : file.getFileNameWithoutExtension(), false);
-    };
+    ampPage.updateContents();
+    cabPage.updateContents();
+}
 
-    describe (ampRow, processorRef.getModelError(), processorRef.getModelFile(),
-              "No model loaded");
-    cabinetRow.updateContents();
-    cabinetRow.repaint();
+void AmpSimAudioProcessorEditor::paintPanel (juce::Graphics& g)
+{
+    auto area = panel.getLocalBounds();
+
+    g.fillAll (AmpPalette::background);
+
+    auto bar = area.removeFromTop (barHeight);
+    auto tabs = area.removeFromTop (tabHeight);
+
+    g.setColour (AmpPalette::bar);
+    g.fillRect (bar);
+
+    g.setColour (AmpPalette::surface);
+    g.fillRect (area);
+
+    // The tab strip sits on the bar's colour, so the selected tab's own fill is what joins it to
+    // the page. A line under the unselected ones would fight that, so there isn't one.
+    g.setColour (AmpPalette::bar);
+    g.fillRect (tabs);
+
+    g.setColour (AmpPalette::hairline);
+    g.drawLine ((float) area.getX(), (float) area.getY(), (float) area.getRight(), (float) area.getY(), 1.0f);
+
+    // The name, set once and left alone — the panel's one piece of display type.
+    g.setFont (AmpLookAndFeel::stencil (19.0f).withExtraKerningFactor (0.14f));
+    g.setColour (AmpPalette::text);
+    g.drawText ("AMPSIM", bar.withTrimmedLeft (margin).withWidth (wordmarkWidth),
+                juce::Justification::centredLeft, false);
+
+    if (processorRef.isTunerEngaged())
+        paintTuner (g, bar.withTrimmedLeft (margin + wordmarkWidth)
+                        .withWidth (presetWidth + 130));
+}
+
+void AmpSimAudioProcessorEditor::layOutPanel()
+{
+    auto area = panel.getLocalBounds();
+
+    auto bar = area.removeFromTop (barHeight);
+
+    bar.removeFromRight (margin);
+    bypassButton.setBounds (bar.removeFromRight (94).reduced (0, 16));
+    bar.removeFromRight (14);
+    tunerButton.setBounds (bar.removeFromRight (66).reduced (0, 16));
+    bar.removeFromRight (14);
+    scaleButton.setBounds (bar.removeFromRight (58).withSizeKeepingCentre (58, 24));
+
+    presetRow.setBounds (bar.withTrimmedLeft (margin + wordmarkWidth)
+                            .withWidth (presetWidth)
+                            .withSizeKeepingCentre (presetWidth, 28));
+
+    auto tabs = area.removeFromTop (tabHeight).withTrimmedLeft (margin);
+    ampTab.setBounds (tabs.removeFromLeft (tabWidth));
+    pedalsTab.setBounds (tabs.removeFromLeft (tabWidth));
+    cabTab.setBounds (tabs.removeFromLeft (tabWidth));
+
+    const auto page = area.reduced (margin);
+
+    juce::Component* pages[] { &ampPage, &pedalsPage, &cabPage };
+
+    for (auto* component : pages)
+        component->setBounds (page);
 }
 
 void AmpSimAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    auto area = getLocalBounds();
-
-    // Same order as resized(), bottom upwards: the pedal deck sits under the amp's nameplates.
-    auto header = area.removeFromTop (headerHeight);
-    auto deck = area.removeFromBottom (deckHeight);
-    auto footer = area.removeFromBottom (2 * rowHeight + gutter);
-
-    paintPlate (g, area);
-
-    g.setColour (AmpPalette::rail);
-    g.fillRect (header);
-    g.fillRect (footer);
-
-    // The pedal deck: a darker surface below the amp, with each group's position spelled out.
-    g.setColour (AmpPalette::rail.darker (0.25f));
-    g.fillRect (deck);
-
-    const auto heading = [&] (juce::Rectangle<int> row, const juce::String& text)
-    {
-        AmpLookAndFeel::drawRailText (g, text, row.reduced (gutter, 0),
-                                      juce::Justification::centredLeft,
-                                      AmpLookAndFeel::panelFont (11.0f),
-                                      AmpPalette::enamel.withAlpha (0.42f));
-    };
-
-    heading (deck.removeFromTop (groupLabelHeight), "into the amp");
-    deck.removeFromTop (pedalRowHeight);
-    heading (deck.removeFromTop (groupLabelHeight), "after the amp, before the cab");
-    deck.removeFromTop (pedalRowHeight);
-    heading (deck.removeFromTop (groupLabelHeight), "and out through the speaker");
-
-    // The name, set once and left alone — the panel's one piece of display type.
-    // Leave the right-hand end to the two switches, so nothing is drawn under them.
-    auto nameArea = header.reduced (gutter, 0).withTrimmedRight (220);
-
-    const auto nameFont = AmpLookAndFeel::panelFont (21.0f, true).withExtraKerningFactor (0.16f);
-    const auto nameWidth = juce::GlyphArrangement::getStringWidthInt (nameFont, "ampsim");
-
-    g.setFont (nameFont);
-    g.setColour (AmpPalette::enamel);
-    g.drawText ("ampsim", nameArea.removeFromLeft (nameWidth + 18),
-                juce::Justification::centredLeft, false);
-
-    // While the tuner is on it takes over the strapline's space: it is the only thing you are
-    // looking at, and a second row for it would be dead panel the rest of the time.
-    if (processorRef.isTunerEngaged())
-    {
-        paintTuner (g, nameArea);
-    }
-    else
-    {
-        g.setFont (AmpLookAndFeel::panelFont (12.0f));
-        g.setColour (AmpPalette::enamel.withAlpha (0.4f));
-        g.drawText ("neural capture, played through a cabinet", nameArea,
-                    juce::Justification::centredLeft, false);
-    }
-
-    // Hairlines where the plate meets the rails, so the plate reads as a separate piece of metal.
-    g.setColour (juce::Colours::black.withAlpha (0.35f));
-    g.drawLine ((float) area.getX(), (float) area.getY(), (float) area.getRight(), (float) area.getY(), 1.0f);
-    g.drawLine ((float) area.getX(), (float) area.getBottom(), (float) area.getRight(), (float) area.getBottom(), 1.0f);
+    // Nothing of the panel reaches here, but a fractional scale can leave a sliver at the edge.
+    g.fillAll (AmpPalette::background);
 }
 
 void AmpSimAudioProcessorEditor::resized()
 {
-    auto area = getLocalBounds();
-
-    auto header = area.removeFromTop (headerHeight);
-    bypassButton.setBounds (header.removeFromRight (130).reduced (gutter, 14));
-    tunerButton.setBounds (header.removeFromRight (80).reduced (0, 14));
-
-    auto deck = area.removeFromBottom (deckHeight);
-
-    const auto layOutRow = [] (juce::Rectangle<int> row, std::initializer_list<PedalTile*> tiles)
-    {
-        const auto width = row.getWidth() / (int) tiles.size();
-
-        for (auto* tile : tiles)
-            tile->setBounds (row.removeFromLeft (width).reduced (4, 0));
-    };
-
-    deck.removeFromTop (groupLabelHeight);
-    layOutRow (deck.removeFromTop (pedalRowHeight).reduced (gutter - 4, 2),
-               { &gatePedal, &compressorPedal, &drivePedal });
-
-    deck.removeFromTop (groupLabelHeight);
-    layOutRow (deck.removeFromTop (pedalRowHeight).reduced (gutter - 4, 2),
-               { &chorusPedal, &delayPedal, &reverbPedal });
-
-    deck.removeFromTop (groupLabelHeight);
-    cabinetRow.setBounds (deck.removeFromTop (pedalRowHeight).reduced (gutter, 2));
-
-    auto footer = area.removeFromBottom (2 * rowHeight + gutter).reduced (gutter, gutter / 2);
-    presetRow.setBounds (footer.removeFromTop (rowHeight));
-    ampRow.setBounds (footer.removeFromTop (rowHeight));
-
-    LabelledKnob* controls[] { &gainKnob, &bassKnob, &midKnob, &trebleKnob, &masterKnob };
-
-    auto knobs = area.reduced (gutter, 0);
-    const auto width = knobs.getWidth() / (int) std::size (controls);
-
-    // One row, centred in the plate rather than pinned to its top edge.
-    const auto rowHeightNeeded = juce::jmin (knobs.getHeight(), width + 24 + 18);
-    knobs = knobs.withSizeKeepingCentre (knobs.getWidth(), rowHeightNeeded);
-
-    for (auto* knob : controls)
-        knob->setBounds (knobs.removeFromLeft (width).reduced (6, 0));
+    panel.setTransform (juce::AffineTransform::scale ((float) scalePercent / 100.0f));
+    panel.setBounds (0, 0, panelWidth, panelHeight);
 }

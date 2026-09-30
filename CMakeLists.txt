@@ -84,8 +84,11 @@ target_sources(AmpSim PRIVATE
     src/dsp/ToneStack.cpp
     src/dsp/Tuner.cpp
     src/ui/AmpLookAndFeel.cpp
-    src/ui/PedalTile.cpp
-    src/ui/CabinetRow.cpp
+    src/ui/AmpKnob.cpp
+    src/ui/AmpPage.cpp
+    src/ui/PedalsPage.cpp
+    src/ui/PedalObject.cpp
+    src/ui/CabPage.cpp
     src/ui/PresetRow.cpp
     src/dsp/PedalChain.cpp
     src/dsp/pedals/DrivePedal.cpp

@@ -85,6 +85,9 @@ namespace StateID
     inline constexpr const char* irPathCentreFar = "irPathCentreFar";
     inline constexpr const char* irPathEdgeFar   = "irPathEdgeFar";
     inline constexpr const char* presetName      = "presetName";
+    // The panel's size, as a percentage. Not a parameter and not part of a preset: it is how big
+    // you like the window, not how the amp sounds.
+    inline constexpr const char* panelScale      = "panelScale";
 }
 
 /** Milestone 2: input gain → NAM amp model → output gain, with a click-free bypass.
