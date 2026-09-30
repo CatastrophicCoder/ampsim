@@ -27,6 +27,11 @@
       - **Distortion** — more gain, a harder knee, and the whole range going into it. It makes its
         own sound instead of leaning on the amp's, which is why it can sit in front of a clean
         capture and still be a distorted guitar.
+      - **Fuzz** — not a distortion turned up. Its operating point sits near cut-off, so a small
+        signal only gets through on one half of the cycle and a very small one does not get
+        through at all. That is where the lopsided waveform, the even harmonics and the splutter
+        as a note dies away all come from, and none of them appear by adding gain to a symmetric
+        clipper.
       - **Clean boost** — no clipping at all, just level and a tilt. What it drives is the amp.
 
     Oversampled 4x whichever is selected, because a waveshaper folds harmonics above Nyquist back
@@ -36,7 +41,11 @@
 class DirtPedal
 {
 public:
-    enum class Type { overdrive, distortion, cleanBoost };
+    /** The order here is the order of the `dirtType` parameter's choices, and of the variants on
+        the pedal that selects them. The processor turns that parameter's index straight into one
+        of these, so the three lists are one list in three places — a test asserts they still line
+        up, because they did not once. */
+    enum class Type { distortion, overdrive, fuzz, cleanBoost };
 
     void prepare (double sampleRate, int maxBlockSize);
     void reset();
@@ -67,6 +76,14 @@ public:
     /** Where the tone control tilts about. */
     static constexpr double tiltCornerHz = 720.0;
 
+    /** The fuzz's operating point, as the two ends of what its clipper will pass and the offset
+        its input sits at. The floor is *above* where the offset puts a silent input, which is what
+        makes it cut off rather than fade: below a certain level nothing crosses into the range at
+        all, and just above it only the positive half does. */
+    static constexpr float fuzzFloor = -0.25f;
+    static constexpr float fuzzCeiling = 1.0f;
+    static constexpr float fuzzBias = -0.3f;
+
 private:
     void updateFilters();
 
@@ -76,7 +93,7 @@ private:
                                                   juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR };
 
     juce::dsp::Gain<float> level;
-    juce::dsp::IIR::Filter<float> boostFilter, toneFilter;
+    juce::dsp::IIR::Filter<float> boostFilter, toneFilter, dcBlocker;
     juce::SmoothedValue<float> toneAmount, driveGain;
 
     std::atomic<Type> pendingType { Type::distortion };

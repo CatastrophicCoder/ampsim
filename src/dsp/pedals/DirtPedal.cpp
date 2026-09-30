@@ -29,6 +29,15 @@ namespace
         return 1.5f * x - 0.5f * x * x * x;
     }
 
+    /** Clipped between two points that are not either side of zero, with the signal offset into
+        them. A silent input sits below the floor, so it produces a constant that the blocker after
+        this removes; a quiet one crosses in on its positive half only, giving the thin pulses a
+        fuzz makes as a note dies; a loud one fills the range and squares off lopsidedly. */
+    inline float shapeFuzz (float x) noexcept
+    {
+        return juce::jlimit (DirtPedal::fuzzFloor, DirtPedal::fuzzCeiling, x + DirtPedal::fuzzBias);
+    }
+
     /** How much gain the drive control puts into the shaper, per type. A distortion pedal is not
         an overdrive turned up: it starts further along and goes further. */
     inline float driveRangeDb (DirtPedal::Type type) noexcept
@@ -38,6 +47,7 @@ namespace
             case DirtPedal::Type::overdrive:  return 36.0f;
             case DirtPedal::Type::distortion: return 48.0f;
             case DirtPedal::Type::cleanBoost: return 20.0f;
+            case DirtPedal::Type::fuzz:       return 60.0f;
         }
 
         return 0.0f;
@@ -57,6 +67,12 @@ void DirtPedal::prepare (double sampleRate, int maxBlockSize)
 
     boostFilter.prepare (overSpec);
     toneFilter.prepare (overSpec);
+    dcBlocker.prepare (overSpec);
+
+    // Asymmetric clipping produces a standing offset, and the fuzz's produces a large one by
+    // design. Below anything a guitar plays, so it takes the offset and nothing else.
+    *dcBlocker.coefficients =
+        juce::dsp::IIR::ArrayCoefficients<float>::makeFirstOrderHighPass (oversampledRate, 15.0f);
 
     level.prepare (spec);
     level.setRampDurationSeconds (0.05);
@@ -81,6 +97,7 @@ void DirtPedal::reset()
     level.reset();
     boostFilter.reset();
     toneFilter.reset();
+    dcBlocker.reset();
 }
 
 int DirtPedal::getLatencySamples() const
@@ -144,6 +161,7 @@ void DirtPedal::process (float* samples, int numSamples, bool bypassed)
         updateFilters();
         boostFilter.reset();
         toneFilter.reset();
+        dcBlocker.reset();
 
         swapping = false;
         typeFade.setTargetValue (1.0f);
@@ -162,7 +180,7 @@ void DirtPedal::process (float* samples, int numSamples, bool bypassed)
     {
         auto* data = upsampled.getChannelPointer (0);
         const auto boostOnly = currentType == Type::cleanBoost;
-        const auto soft = currentType == Type::overdrive;
+        const auto type = currentType;
 
         for (size_t i = 0; i < upsampled.getNumSamples(); ++i)
         {
@@ -175,7 +193,20 @@ void DirtPedal::process (float* samples, int numSamples, bool bypassed)
                                     : input + gain * boostFilter.processSample (input);
 
             if (! boostOnly)
-                shaped = soft ? shapeSoft (shaped) : shapeHard (shaped);
+            {
+                switch (type)
+                {
+                    case Type::overdrive:  shaped = shapeSoft (shaped); break;
+                    case Type::fuzz:       shaped = shapeFuzz (shaped); break;
+                    case Type::distortion:
+                    case Type::cleanBoost:
+                    default:               shaped = shapeHard (shaped); break;
+                }
+
+                // Before the tone control, so the tilt is working on a signal that swings about
+                // zero rather than on one sitting on a shelf of its own making.
+                shaped = dcBlocker.processSample (shaped);
+            }
 
             // The tone control comes after the clipping, as it does in the box: the low pass is
             // its pivot, and what is under it and over it are mixed against each other, so the

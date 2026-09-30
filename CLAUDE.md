@@ -213,8 +213,8 @@ normalises each IR independently, which is the thing to avoid here.
 calls, not one list**, so the amp physically cannot end up on the wrong side of a pedal. The
 placement is the design; do not add a "reorder" feature without revisiting `ampsim_plan.md`.
 
-**Two of the six are slots rather than pedals.** `DirtPedal` holds a distortion, an overdrive or a
-clean boost; `ModulationPedal` holds a chorus, a flanger, a phaser or a tremolo. Substitution is
+**Two of the six are slots rather than pedals.** `DirtPedal` holds a distortion, an overdrive, a
+fuzz or a clean boost; `ModulationPedal` holds a chorus, a flanger, a phaser or a tremolo. Substitution is
 not reordering — what each position does to the signal, and which side of the amp it is on, is
 unchanged — so it does not touch the rule above.
 
@@ -226,6 +226,16 @@ unchanged — so it does not touch the rule above.
 - **The IDs keep the names they had.** `driveOn`, `driveAmount` and the chorus's are what the
   slots were called when each held one pedal, and a saved session looks parameters up by ID. The
   first choice in each slot is therefore the pedal that used to be there.
+- **The `Type` enum, the parameter's choice list and the drawn pedal's variants are one list in
+  three places.** The processor turns the parameter's index straight into a `Type`, so an order
+  that differs anywhere makes every name select its neighbour's circuit — which sounds like a
+  different pedal rather than like a bug, and shipped that way once. `tests/PedalTests.cpp` asserts
+  the names and the enum line up.
+- **The dirt slot blocks DC on its way out.** The fuzz's clipper is offset on purpose and the
+  overdrive's shaper is asymmetric, so both produce a standing offset; a one-pole high pass at
+  15 Hz in the oversampled path takes it before the tone control sees it. Without that the tilt
+  would be working on a signal sitting on a shelf of its own making, and the amp model would be
+  given a biased input.
 - **A type change fades.** Two pedals in a slot sound nothing alike, so `DirtPedal` and
   `ModulationPedal` each dip to silence and back around the swap. The fade is about one block
   long, which is why the test measures a 64-sample window rather than a block peak — a whole block

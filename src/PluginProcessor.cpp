@@ -178,7 +178,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
     // saved before the slot existed lands on it and keeps its knob positions.
     layout.add (std::make_unique<juce::AudioParameterChoice> (
         juce::ParameterID { ParamID::dirtType, 1 }, "Dirt Pedal",
-        juce::StringArray { "Distortion", "Overdrive", "Clean Boost" }, 0));
+        juce::StringArray { "Distortion", "Overdrive", "Fuzz", "Clean Boost" }, 0));
     addKnob (ParamID::driveAmount, "Drive", 0.0f, 1.0f, 0.5f);
     addKnob (ParamID::driveTone, "Drive Tone", 0.0f, 1.0f, 0.5f);
     addKnob (ParamID::driveLevel, "Drive Level", -12.0f, 12.0f, 0.0f, "dB");
@@ -186,6 +186,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
     addKnob (ParamID::odAmount, "Overdrive", 0.0f, 1.0f, 0.4f);
     addKnob (ParamID::odTone, "Overdrive Tone", 0.0f, 1.0f, 0.5f);
     addKnob (ParamID::odLevel, "Overdrive Level", -12.0f, 12.0f, 0.0f, "dB");
+
+    addKnob (ParamID::fuzzAmount, "Fuzz", 0.0f, 1.0f, 0.6f);
+    addKnob (ParamID::fuzzTone, "Fuzz Tone", 0.0f, 1.0f, 0.5f);
+    addKnob (ParamID::fuzzLevel, "Fuzz Level", -12.0f, 12.0f, -6.0f, "dB");
 
     addKnob (ParamID::boostLevel, "Boost", 0.0f, 1.0f, 0.5f);
     addKnob (ParamID::boostTone, "Boost Tone", 0.0f, 1.0f, 0.5f);
@@ -395,6 +399,12 @@ PedalChain::Settings AmpSimAudioProcessor::currentPedalSettings() const
             s.driveAmount = value (ParamID::odAmount);
             s.driveTone = value (ParamID::odTone);
             s.driveLevelDb = value (ParamID::odLevel);
+            break;
+
+        case DirtPedal::Type::fuzz:
+            s.driveAmount = value (ParamID::fuzzAmount);
+            s.driveTone = value (ParamID::fuzzTone);
+            s.driveLevelDb = value (ParamID::fuzzLevel);
             break;
 
         case DirtPedal::Type::cleanBoost:

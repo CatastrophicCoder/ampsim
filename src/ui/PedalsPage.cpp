@@ -28,6 +28,7 @@ namespace
     const juce::Colour distortionBody { 0xff8c3f2e };
     const juce::Colour overdriveBody  { 0xff8a7327 };
     const juce::Colour boostBody      { 0xff7b7f88 };
+    const juce::Colour fuzzBody       { 0xff5c6b33 };
 
     const juce::Colour chorusBody  { 0xff3a4f86 };
     const juce::Colour flangerBody { 0xff2f6e7a };
@@ -47,6 +48,9 @@ PedalsPage::PedalsPage (juce::AudioProcessorValueTreeState& state)
                { "overdrive",  overdriveBody,  { { ParamID::odAmount, "drive" },
                                                  { ParamID::odTone, "tone" },
                                                  { ParamID::odLevel, "level" } } },
+               { "fuzz",       fuzzBody,       { { ParamID::fuzzAmount, "fuzz" },
+                                                 { ParamID::fuzzTone, "tone" },
+                                                 { ParamID::fuzzLevel, "level" } } },
                { "boost",      boostBody,      { { ParamID::boostLevel, "boost" },
                                                  { ParamID::boostTone, "tone" } } } }),
       chorus (state, ParamID::chorusOn, ParamID::modulationType,

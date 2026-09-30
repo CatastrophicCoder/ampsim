@@ -12,18 +12,6 @@ agreed, which is why it is not here.
 Asked for and not yet started. The notes under each are what is known now, not decisions — but a
 couple of them are things whoever picks the item up would otherwise find out the hard way.
 
-### A fuzz in the dirt slot
-
-A fourth choice alongside the distortion, the overdrive and the clean boost. The slot mechanism is
-already there, so this is a `DirtPedal::Type`, a `StringArray` entry, a shaper and a colour.
-
-Worth knowing before writing the shaper: **a fuzz is not a distortion turned up.** What makes one
-recognisable is the behaviour at the edges rather than the amount — a hard, heavily asymmetric
-clip with the bias well off centre, so the waveform is lopsided; a thin, splutter-prone response
-to a signal that is fading or picked softly, which is the "dying battery" character people buy one
-for; and far more gain before it gets there. Turning the existing `shapeHard` up will not produce
-any of that.
-
 ### Transpose, on the top bar
 
 A switch and a semitone dial, ±12, holding a constant interval — retuning the instrument rather
@@ -111,6 +99,14 @@ What was decided along the way, so it is not re-litigated:
   Which side of the amp a pedal is on is the design of that section, and a single run says it as
   signal flow instead of as a caption.
 - **No image assets**, which is what keeps scaling free.
+
+### A fuzz in the dirt slot
+
+Built. A fourth choice, and not a distortion turned up: its clipper is offset so that its operating
+point sits below what it will pass, which is where the lopsided waveform, the second harmonic and
+the cut-off as a note dies all come from. Measured rather than asserted by ear — the second
+harmonic sits more than 20 dB above the distortion's, and a signal below its threshold comes out
+54 dB quieter than the same signal through the distortion.
 
 ### How it was verified
 

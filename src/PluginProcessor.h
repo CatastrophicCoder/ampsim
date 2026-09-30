@@ -74,6 +74,10 @@ namespace ParamID
     inline constexpr const char* odTone           = "odTone";
     inline constexpr const char* odLevel          = "odLevel";
 
+    inline constexpr const char* fuzzAmount       = "fuzzAmount";
+    inline constexpr const char* fuzzTone         = "fuzzTone";
+    inline constexpr const char* fuzzLevel        = "fuzzLevel";
+
     inline constexpr const char* boostLevel       = "boostLevel";
     inline constexpr const char* boostTone        = "boostTone";
 

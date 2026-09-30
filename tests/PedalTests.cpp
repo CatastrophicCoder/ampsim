@@ -870,3 +870,121 @@ TEST_CASE ("Changing what is in a slot fades rather than cutting", "[pedals]")
     // block during the change is far quieter than the slot ever gets when nothing changes.
     REQUIRE (switchedQuietest < 0.3f * baselineQuietest);
 }
+
+TEST_CASE ("Choosing a pedal by name gets the pedal with that name", "[pedals]")
+{
+    // The parameter's choice list, the Type enum and the variants on the drawn pedal are one list
+    // written in three places, and nothing but this test holds them together. They came apart
+    // once: every name selected its neighbour's circuit, which sounds like a different pedal
+    // rather than like a bug, so nothing else noticed.
+    auto processor = test::makePreparedProcessor();
+    auto& state = processor->getValueTreeState();
+
+    auto* choice = dynamic_cast<juce::AudioParameterChoice*> (state.getParameter (ParamID::dirtType));
+    REQUIRE (choice != nullptr);
+
+    const auto indexOf = [&choice] (const juce::String& name)
+    {
+        const auto index = choice->choices.indexOf (name);
+        REQUIRE (index >= 0);
+        return index;
+    };
+
+    // The names, in the order the enum gives them.
+    REQUIRE (indexOf ("Distortion")  == (int) DirtPedal::Type::distortion);
+    REQUIRE (indexOf ("Overdrive")   == (int) DirtPedal::Type::overdrive);
+    REQUIRE (indexOf ("Fuzz")        == (int) DirtPedal::Type::fuzz);
+    REQUIRE (indexOf ("Clean Boost") == (int) DirtPedal::Type::cleanBoost);
+
+    // And the same for the modulation slot.
+    auto* modulation = dynamic_cast<juce::AudioParameterChoice*> (state.getParameter (ParamID::modulationType));
+    REQUIRE (modulation != nullptr);
+
+    REQUIRE (modulation->choices.indexOf ("Chorus")  == (int) ModulationPedal::Type::chorus);
+    REQUIRE (modulation->choices.indexOf ("Flanger") == (int) ModulationPedal::Type::flanger);
+    REQUIRE (modulation->choices.indexOf ("Phaser")  == (int) ModulationPedal::Type::phaser);
+    REQUIRE (modulation->choices.indexOf ("Tremolo") == (int) ModulationPedal::Type::tremolo);
+}
+
+TEST_CASE ("The fuzz is lopsided where the distortion is not", "[pedals]")
+{
+    // What separates a fuzz from a distortion at the same setting: its clipper is offset, so the
+    // two halves of the wave are treated differently and the second harmonic comes up. A
+    // symmetric clipper cannot make one however hard it is driven.
+    const auto secondHarmonicDb = [] (DirtPedal::Type type)
+    {
+        constexpr double frequency = 220.0;
+
+        PedalChain::Settings settings;
+        settings.driveEngaged = true;
+        settings.dirtType = type;
+        settings.driveAmount = 0.6f;
+        settings.driveTone = 0.5f;
+
+        auto chain = makeChain (settings);
+
+        const auto input = Signal::sine (frequency, test::blockSize * 60, 0.2f);
+        const auto output = runThrough (*chain, input, true);
+
+        // One bin of a DFT, by hand: correlate against a sine and a cosine at the frequency.
+        const auto magnitudeAt = [&output] (double hz)
+        {
+            double real = 0.0, imaginary = 0.0;
+            const auto from = (size_t) (test::blockSize * 30);
+
+            for (size_t i = from; i < output.size(); ++i)
+            {
+                const auto phase = juce::MathConstants<double>::twoPi * hz * (double) (i - from) / sr;
+                real += output[i] * std::cos (phase);
+                imaginary += output[i] * std::sin (phase);
+            }
+
+            return std::sqrt (real * real + imaginary * imaginary);
+        };
+
+        return juce::Decibels::gainToDecibels ((float) (magnitudeAt (2.0 * frequency)
+                                                            / juce::jmax (1.0e-12, magnitudeAt (frequency))));
+    };
+
+    const auto fuzz = secondHarmonicDb (DirtPedal::Type::fuzz);
+    const auto distortion = secondHarmonicDb (DirtPedal::Type::distortion);
+
+    INFO ("second harmonic: fuzz " << fuzz << " dB, distortion " << distortion << " dB");
+    REQUIRE (fuzz - distortion > 20.0f);
+}
+
+TEST_CASE ("The fuzz cuts off where a note dies rather than fading with it", "[pedals]")
+{
+    // Its operating point sits below what its clipper will pass, so a signal under a certain level
+    // never crosses into the range at all. That is the splutter people buy a fuzz for, and it is
+    // the reason it is not a distortion with more gain.
+    const auto levelThrough = [] (DirtPedal::Type type, float amplitude)
+    {
+        PedalChain::Settings settings;
+        settings.driveEngaged = true;
+        settings.dirtType = type;
+        settings.driveAmount = 0.5f;
+        settings.driveTone = 0.5f;
+
+        auto chain = makeChain (settings);
+
+        const auto input = Signal::sine (220.0, test::blockSize * 40, amplitude);
+        return Signal::rms (runThrough (*chain, input, true), test::blockSize * 20);
+    };
+
+    const auto quietThroughFuzz = levelThrough (DirtPedal::Type::fuzz, 5.0e-4f);
+    const auto quietThroughDistortion = levelThrough (DirtPedal::Type::distortion, 5.0e-4f);
+    const auto loudThroughFuzz = levelThrough (DirtPedal::Type::fuzz, 0.2f);
+
+    INFO ("a small signal: " << quietThroughFuzz << " through the fuzz, "
+          << quietThroughDistortion << " through the distortion");
+    INFO ("a large one through the fuzz: " << loudThroughFuzz);
+
+    // The same small signal, and the fuzz all but swallows it where the distortion merely makes
+    // it quiet — which is what a clipper does and is not what a fuzz does.
+    REQUIRE (juce::Decibels::gainToDecibels (quietThroughFuzz / quietThroughDistortion) < -20.0f);
+
+    // And a signal it will pass comes through in full, so this is a threshold rather than a pedal
+    // that has simply stopped working.
+    REQUIRE (loudThroughFuzz > 0.05f);
+}
