@@ -177,11 +177,19 @@ AmpSimAudioProcessor::AmpSimAudioProcessor()
     // these when its state is restored.
     if (loadBundledAssetsOnCreation && BundledAssets::install().isEmpty())
     {
-        if (const auto model = BundledAssets::ampModel(); model != juce::File())
-            loadModel (model);
+        // Land on the Default preset rather than merely on the files it names, so the panel says
+        // which preset is loaded instead of showing nothing chosen.
+        presets.createFactoryPresetsIfMissing();
 
-        if (const auto cab = BundledAssets::cabinetImpulseResponse(); cab != juce::File())
-            loadImpulseResponse (CabSim::Slot::centreClose, cab);
+        if (presets.load ("Default").isNotEmpty())
+        {
+            // No preset folder to write to: fall back to loading the files directly.
+            if (const auto model = BundledAssets::ampModel(); model != juce::File())
+                loadModel (model);
+
+            if (const auto cab = BundledAssets::cabinetImpulseResponse(); cab != juce::File())
+                loadImpulseResponse (CabSim::Slot::centreClose, cab);
+        }
     }
 
     // Reaps models the audio thread has swapped out, and keeps the reported latency in step

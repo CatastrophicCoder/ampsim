@@ -102,7 +102,6 @@ private:
     PedalTile gatePedal, compressorPedal, drivePedal;
     PedalTile chorusPedal, delayPedal, reverbPedal;
 
-    PresetManager presets;
     PresetRow presetRow;
 
     NameplateRow ampRow { "amp", "Load model" };

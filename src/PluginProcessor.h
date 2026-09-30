@@ -11,6 +11,7 @@
 #pragma once
 
 #include "MidiLearn.h"
+#include "PresetManager.h"
 #include "ModelLoader.h"
 #include "dsp/AmpModel.h"
 #include "dsp/CabSim.h"
@@ -176,6 +177,8 @@ public:
 
     juce::String getCurrentPresetName() const;
     void setCurrentPresetName (const juce::String&);
+
+    PresetManager& getPresets() { return presets; }
     bool isTunerEngaged() const { return tunerParam->get(); }
 
     /** Last IR load error, empty if the last one succeeded or none has been attempted. */
@@ -228,6 +231,7 @@ private:
     juce::SmoothedValue<float> tunerMute;
     PedalChain pedals;
     CabSim cabSim;
+    PresetManager presets { *this };
     juce::String irError;
     int reportedLatency = 0;
 

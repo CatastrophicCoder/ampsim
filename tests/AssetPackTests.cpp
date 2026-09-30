@@ -122,3 +122,49 @@ TEST_CASE ("A new instance comes with the built-in amp and cab loaded", "[assetp
 
     REQUIRE (processor.isModelLoaded());
 }
+
+TEST_CASE ("A fresh instance lands on the Default preset", "[assetpack][preset]")
+{
+    // Not merely on the files the preset names: the panel should say which preset is loaded, and
+    // Default should fill the close on-axis corner and leave the other three for the user.
+    struct EnableBundledAssets
+    {
+        EnableBundledAssets()  { AmpSimAudioProcessor::loadBundledAssetsOnCreation = true; }
+        ~EnableBundledAssets() { AmpSimAudioProcessor::loadBundledAssetsOnCreation = false; }
+    } enabled;
+
+    AmpSimAudioProcessor processor;
+
+    REQUIRE (processor.getCurrentPresetName() == "Default");
+    REQUIRE (processor.getModelFile().getFileNameWithoutExtension() == "MARS2204");
+    REQUIRE (processor.getImpulseResponseFile (CabSim::Slot::centreClose)
+                 .getFileNameWithoutExtension() == "V30 SM57");
+
+    for (const auto slot : { CabSim::Slot::edgeClose, CabSim::Slot::centreFar, CabSim::Slot::edgeFar })
+    {
+        INFO ("slot " << (int) slot);
+        REQUIRE (processor.getImpulseResponseFile (slot) == juce::File());
+    }
+}
+
+TEST_CASE ("The tone presets leave the loaded amp and cab alone", "[preset]")
+{
+    // Only Default names files. The rest set the controls, so they can be tried on top of
+    // whatever the player has loaded.
+    struct EnableBundledAssets
+    {
+        EnableBundledAssets()  { AmpSimAudioProcessor::loadBundledAssetsOnCreation = true; }
+        ~EnableBundledAssets() { AmpSimAudioProcessor::loadBundledAssetsOnCreation = false; }
+    } enabled;
+
+    AmpSimAudioProcessor processor;
+    processor.prepareToPlay (48000.0, test::blockSize);
+
+    const auto ownModel = juce::File (AMPSIM_TEST_MODEL_DIR).getChildFile ("lstm.nam");
+    processor.loadModel (ownModel);
+
+    REQUIRE (processor.getPresets().load ("Lead").isEmpty());
+
+    REQUIRE (processor.getModelFile() == ownModel);
+    REQUIRE (processor.getCurrentPresetName() == "Lead");
+}

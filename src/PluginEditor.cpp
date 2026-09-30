@@ -170,8 +170,7 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
                     { ParamID::delayMix, "mix" } }),
       reverbPedal (p.getValueTreeState(), "reverb", ParamID::reverbOn,
                    { { ParamID::reverbSize, "size" }, { ParamID::reverbMix, "mix" } }),
-      presets (p),
-      presetRow (presets),
+      presetRow (p.getPresets()),
       cabinetRow (p)
 {
     setLookAndFeel (&lookAndFeel);
@@ -200,7 +199,7 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
                          &chorusPedal, &delayPedal, &reverbPedal })
         addAndMakeVisible (*pedal);
 
-    presets.onChanged = [this]
+    processorRef.getPresets().onChanged = [this]
     {
         presetRow.updateContents();
         updateLoadedFileDisplay();

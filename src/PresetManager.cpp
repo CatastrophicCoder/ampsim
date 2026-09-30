@@ -10,6 +10,7 @@
 
 #include "PresetManager.h"
 #include "PluginProcessor.h"
+#include "BundledAssets.h"
 
 namespace
 {
@@ -17,28 +18,40 @@ namespace
     struct FactoryPreset
     {
         const char* name;
+
+        /** Whether the preset names the built-in amp and cab. Only "Default" does: the rest set
+            the controls and leave whatever is loaded alone, which is what makes them useful on
+            top of your own amp. */
+        bool includesBundledFiles;
+
         std::vector<std::pair<const char*, float>> values;
     };
 
     const std::vector<FactoryPreset> factoryPresets
     {
-        { "Clean start",
+        // What a fresh instance starts on: the built-in amp and cabinet, set up to be played.
+        { "Default", true,
+          { { ParamID::inputGain, 0.0f }, { ParamID::bass, 0.0f }, { ParamID::mid, 0.0f },
+            { ParamID::treble, 0.0f }, { ParamID::outputGain, -6.0f },
+            { ParamID::micAxis, 0.0f }, { ParamID::micDistance, 0.0f } } },
+
+        { "Clean start", false,
           { { ParamID::inputGain, -6.0f }, { ParamID::bass, 1.0f }, { ParamID::mid, 0.0f },
             { ParamID::treble, 2.0f }, { ParamID::outputGain, 0.0f } } },
 
-        { "Crunch",
+        { "Crunch", false,
           { { ParamID::inputGain, 6.0f }, { ParamID::bass, 2.0f }, { ParamID::mid, 3.0f },
             { ParamID::treble, 1.0f }, { ParamID::outputGain, -2.0f },
             { ParamID::driveOn, 1.0f }, { ParamID::driveAmount, 0.35f }, { ParamID::driveTone, 0.6f } } },
 
-        { "Lead",
+        { "Lead", false,
           { { ParamID::inputGain, 14.0f }, { ParamID::bass, -1.0f }, { ParamID::mid, 5.0f },
             { ParamID::treble, 2.0f }, { ParamID::outputGain, -4.0f },
             { ParamID::gateOn, 1.0f }, { ParamID::gateThreshold, -52.0f },
             { ParamID::delayOn, 1.0f }, { ParamID::delayTime, 0.42f },
             { ParamID::delayFeedback, 0.3f }, { ParamID::delayMix, 0.22f } } },
 
-        { "Ambient",
+        { "Ambient", false,
           { { ParamID::inputGain, -2.0f }, { ParamID::bass, 3.0f }, { ParamID::mid, -3.0f },
             { ParamID::treble, 3.0f }, { ParamID::outputGain, -2.0f },
             { ParamID::compOn, 1.0f }, { ParamID::compAmount, 0.6f }, { ParamID::compLevel, 4.0f },
@@ -169,9 +182,27 @@ void PresetManager::createFactoryPresetsIfMissing()
         if (file.existsAsFile())
             continue;
 
-        // Built from a default state, so nothing of the current session leaks into them.
+        // Built from a default state, so nothing of the current session leaks into them. The
+        // built-in assets are kept out of the construction on purpose: this runs from a processor's
+        // own constructor, and letting the blank one load them too would recurse.
+        const auto wasLoadingBundled = AmpSimAudioProcessor::loadBundledAssetsOnCreation;
+        AmpSimAudioProcessor::loadBundledAssetsOnCreation = false;
+
         AmpSimAudioProcessor blank;
+
+        AmpSimAudioProcessor::loadBundledAssetsOnCreation = wasLoadingBundled;
+
         auto& state = blank.getValueTreeState();
+
+        if (preset.includesBundledFiles)
+        {
+            if (const auto model = BundledAssets::ampModel(); model != juce::File())
+                blank.loadModel (model);
+
+            // The close, on-axis corner only: the other three are for captures the user adds.
+            if (const auto cab = BundledAssets::cabinetImpulseResponse(); cab != juce::File())
+                blank.loadImpulseResponse (CabSim::Slot::centreClose, cab);
+        }
 
         for (const auto& [id, value] : preset.values)
             if (auto* parameter = state.getParameter (id))
