@@ -12,28 +12,7 @@ agreed, which is why it is not here.
 Asked for and not yet started. The notes under each are what is known now, not decisions — but a
 couple of them are things whoever picks the item up would otherwise find out the hard way.
 
-### Transpose, on the top bar
-
-A switch and a semitone dial, ±12, holding a constant interval — retuning the instrument rather
-than harmonising with it. Most useful on a distorted sound, where a drop tuning is the point.
-
-Three things that decide how big this is:
-
-- **It has to be polyphonic.** A guitar plays chords, so a monophonic shifter is no use. That means
-  a phase vocoder over an FFT, or something bought in — and JUCE has no pitch shifter, so it is
-  code to write rather than a class to configure. This is nearly all of the work.
-- **It belongs at the very front**, ahead of the gate, so the amp distorts the shifted note the way
-  it would a genuinely detuned string. Putting it after the amp would sound like a pitch shifter on
-  a guitar amp, which is a different effect.
-- **The tuner should keep reading the strings, not the shifted signal.** It taps before the pedals
-  today; it would need to tap before the transpose too, or it would tell you to tune to the
-  interval rather than to the guitar.
-
-It will add latency, and the amount depends on the window length the shifter needs, so the figure
-has to be reported and the existing latency test extended. Quality falls off towards ±12; the
-settings people actually use are −1, −2 and −12.
-
-### A metronome, on the top bar
+### A metronome, in the bottom bar
 
 Its own volume, a time signature, and possibly a choice of sound. Tempo comes from the host, which
 `currentDelaySeconds()` already reads for the delay's sync.
@@ -51,9 +30,9 @@ than technical ones:
 A standalone also has no transport to follow, so it needs its own tempo and its own start and stop,
 which the plugin version would not.
 
-### A bottom bar, for the transpose and the metronome
+### A bottom bar, for the metronome
 
-**Decided.** The top bar is full — at 780 logical points it holds the wordmark, a 244-point preset
+**Decided, and built** — the transpose is in it, and it is where the metronome goes too. The top bar is full — at 780 logical points it holds the wordmark, a 244-point preset
 field, the scale button, the tuner and the bypass, and the tuner already takes the middle over
 while it is engaged. A transpose switch with a dial and a metronome with three controls do not fit
 beside them. So the panel grows a second bar along the bottom and they go there.
@@ -131,6 +110,18 @@ point sits below what it will pass, which is where the lopsided waveform, the se
 the cut-off as a note dies all come from. Measured rather than asserted by ear — the second
 harmonic sits more than 20 dB above the distortion's, and a signal below its threshold comes out
 54 dB quieter than the same signal through the distortion.
+
+### Transpose
+
+Built, in the bottom bar. A granular shifter at the very front of the chain, with the tuner tapping
+ahead of it so it goes on reading the strings.
+
+The thing that turned out to matter was not the crossfade but the grain length. Each grain plays
+back at exactly the right rate; the joins between them are phase discontinuities, and at a twenty
+millisecond window an octave down holds barely two cycles of a low note — so the joins dominate and
+the result measures two hundred cents sharp. The window is now scaled from the interval, between 20
+and 100 ms, and every whole step from −12 to +12 lands within a third of a semitone of where it was
+asked for. The cost is that a large interval delays more, and that delay is not reported.
 
 ### How it was verified
 

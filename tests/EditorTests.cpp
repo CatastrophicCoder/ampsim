@@ -59,7 +59,8 @@ TEST_CASE ("Every knob returns to its parameter's default on a double-click", "[
                       WithinAbs (parameter->getDefaultValue(), 1.0e-6));
     });
 
-    // Seven on the amp, fifteen across the six pedals, four on the cab. A page that stopped being
+    // Seven on the amp, fifteen across the six pedals, four on the cab, and the transpose interval
+    // in the bottom bar. A page that stopped being
     // built would otherwise pass this test by having nothing to check.
-    REQUIRE (knobs == 26);
+    REQUIRE (knobs == 27);
 }

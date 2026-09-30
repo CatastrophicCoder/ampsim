@@ -17,6 +17,7 @@
 #include "dsp/CabSim.h"
 #include "dsp/PedalChain.h"
 #include "dsp/ToneStack.h"
+#include "dsp/Transpose.h"
 #include "dsp/Tuner.h"
 
 #include <juce_audio_formats/juce_audio_formats.h>
@@ -44,6 +45,9 @@ namespace ParamID
     inline constexpr const char* bypass     = "bypass";
     inline constexpr const char* cabBypass  = "cabBypass";
     inline constexpr const char* tunerOn    = "tunerOn";
+    // Retuning the instrument, at the very front of the chain. See Transpose.
+    inline constexpr const char* transposeOn        = "transposeOn";
+    inline constexpr const char* transposeSemitones = "transposeSemitones";
     // The amp's own power switch. An amp with no power makes no sound, so this mutes rather than
     // passing the signal through — which is what `bypass` is for.
     inline constexpr const char* power      = "power";
@@ -265,6 +269,8 @@ private:
     juce::AudioParameterBool*  cabBypassParam  = nullptr;
     juce::AudioParameterBool*  tunerParam      = nullptr;
     juce::AudioParameterBool*  powerParam      = nullptr;
+    juce::AudioParameterBool*  transposeParam  = nullptr;
+    juce::AudioParameterInt*   semitonesParam  = nullptr;
     juce::AudioParameterFloat* presenceParam = nullptr;
     juce::AudioParameterFloat* depthParam = nullptr;
     juce::AudioParameterFloat* cabLowCutParam = nullptr;
@@ -285,6 +291,7 @@ private:
     ModelLoader modelLoader { ampModel };
     MidiLearn midiLearn { apvts };
     ToneStack toneStack;
+    Transpose transpose;
     Tuner tuner;
 
     // A tuner pedal mutes while you use it, so you can tune without the room hearing it.

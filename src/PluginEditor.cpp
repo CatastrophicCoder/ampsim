@@ -13,6 +13,7 @@
 namespace
 {
     constexpr int barHeight   = 52;
+    constexpr int shelfHeight = 46;
     constexpr int tabHeight   = 34;
     constexpr int margin      = 16;
     constexpr int tabWidth    = 104;
@@ -63,6 +64,8 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
       presetRow (p.getPresets()),
       tunerAttachment (p.getValueTreeState(), ParamID::tunerOn, tunerButton),
       bypassAttachment (p.getValueTreeState(), ParamID::bypass, bypassButton),
+      transposeAttachment (p.getValueTreeState(), ParamID::transposeOn, transposeButton),
+      semitonesAttachment (p.getValueTreeState(), ParamID::transposeSemitones, semitonesSlider),
       ampPage (p),
       pedalsPage (p.getValueTreeState()),
       cabPage (p)
@@ -83,6 +86,25 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
 
     scaleButton.onClick = [this] { showScaleMenu(); };
     panel.addAndMakeVisible (scaleButton);
+
+    // Green, because a transpose is doing something to your signal rather than switching
+    // something out of it — the same green a pedal's LED uses.
+    transposeButton.setColour (juce::ToggleButton::tickColourId, AmpPalette::engaged);
+    panel.addAndMakeVisible (transposeButton);
+
+    // Two buttons and a reading rather than a knob: an interval is a count, and a count is
+    // easier to step than to aim at.
+    semitonesSlider.setSliderStyle (juce::Slider::IncDecButtons);
+    semitonesSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 46, 22);
+    semitonesSlider.setIncDecButtonsMode (juce::Slider::incDecButtonsDraggable_Vertical);
+    semitonesSlider.setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
+    semitonesSlider.setColour (juce::Slider::textBoxBackgroundColourId, AmpPalette::recess);
+    semitonesSlider.setColour (juce::Slider::textBoxTextColourId, AmpPalette::text);
+    semitonesSlider.onContextMenu = [this] (const juce::String& id, juce::Component& source)
+    {
+        showParameterMenu (id, source);
+    };
+    panel.addAndMakeVisible (semitonesSlider);
 
     TabButton* tabs[] { &ampTab, &pedalsTab, &cabTab };
 
@@ -277,9 +299,24 @@ void AmpSimAudioProcessorEditor::paintPanel (juce::Graphics& g)
 
     auto bar = area.removeFromTop (barHeight);
     auto tabs = area.removeFromTop (tabHeight);
+    auto shelf = area.removeFromBottom (shelfHeight);
 
     g.setColour (AmpPalette::bar);
     g.fillRect (bar);
+
+    // The shelf keeps the background's colour rather than the top bar's, with a hairline over it:
+    // two matching bars would frame the pages and make the window look like a picture.
+    g.setColour (AmpPalette::background);
+    g.fillRect (shelf);
+
+    g.setColour (AmpPalette::hairline);
+    g.drawLine ((float) shelf.getX(), (float) shelf.getY(),
+                (float) shelf.getRight(), (float) shelf.getY(), 1.0f);
+
+    g.setFont (AmpLookAndFeel::font (10.0f, true).withExtraKerningFactor (0.1f));
+    g.setColour (AmpPalette::textFaint);
+    g.drawText ("SEMITONES", shelf.withTrimmedLeft (margin + 214).withWidth (110),
+                juce::Justification::centredLeft, false);
 
     g.setColour (AmpPalette::surface);
     g.fillRect (area);
@@ -313,12 +350,18 @@ void AmpSimAudioProcessorEditor::layOutPanel()
     bypassButton.setBounds (bar.removeFromRight (94).reduced (0, 16));
     bar.removeFromRight (14);
     tunerButton.setBounds (bar.removeFromRight (66).reduced (0, 16));
-    bar.removeFromRight (14);
-    scaleButton.setBounds (bar.removeFromRight (58).withSizeKeepingCentre (58, 24));
+
 
     presetRow.setBounds (bar.withTrimmedLeft (margin + wordmarkWidth)
                             .withWidth (presetWidth)
                             .withSizeKeepingCentre (presetWidth, 28));
+
+    auto shelf = area.removeFromBottom (shelfHeight).reduced (margin, 0);
+
+    transposeButton.setBounds (shelf.removeFromLeft (104).withSizeKeepingCentre (104, 22));
+    shelf.removeFromLeft (6);
+    semitonesSlider.setBounds (shelf.removeFromLeft (92).withSizeKeepingCentre (92, 24));
+    scaleButton.setBounds (shelf.removeFromRight (58).withSizeKeepingCentre (58, 24));
 
     auto tabs = area.removeFromTop (tabHeight).withTrimmedLeft (margin);
     ampTab.setBounds (tabs.removeFromLeft (tabWidth));

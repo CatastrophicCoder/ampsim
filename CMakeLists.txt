@@ -82,6 +82,7 @@ target_sources(AmpSim PRIVATE
     src/dsp/AmpModel.cpp
     src/dsp/CabSim.cpp
     src/dsp/ToneStack.cpp
+    src/dsp/Transpose.cpp
     src/dsp/Tuner.cpp
     src/ui/AmpLookAndFeel.cpp
     src/ui/AmpKnob.cpp

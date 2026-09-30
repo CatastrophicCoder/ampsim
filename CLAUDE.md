@@ -78,6 +78,26 @@ applies it. A file that does not carry a loudness is left alone rather than gues
 same argument `CabSim` normalises its IRs on, and the gain is constant for the life of the model so
 a swap needs no extra smoothing — the swap fade already covers it.
 
+**The transpose runs at the very front, after the tuner's tap.** `Transpose` is a granular
+shifter — two read pointers running through a delay line faster or slower than it is written, each
+faded in and out so one takes over as the other runs out of room. It is polyphonic without being
+told, which a guitar needs, and it does not smear a pick attack the way an FFT-based shifter must.
+
+- **The window is sized from the interval, and that is what makes it in tune.** Each grain plays
+  back at exactly the right rate, but the joins between grains are phase discontinuities — and if
+  the grains are short, the joins are most of what there is. At twenty milliseconds an octave down
+  holds about two cycles of a low note and measures two hundred cents *sharp*; the fix is not a
+  better crossfade but a longer grain. `windowSecondsFor()` scales it with how far the read pointer
+  has to move, held between 20 and 100 ms, so a drop tuning keeps a short window and its small
+  delay while an octave pays for one ten times longer. A large interval costs delay: that is the
+  trade this kind of shifter makes, not a bug to be tuned out.
+- **It is bypassed outright at zero semitones**, rather than run at a ratio of one — the pointers
+  would still sit a window behind and delay the signal for nothing.
+- **Its delay is not reported to the host**, because it varies with the interval and with where in
+  a grain the pointers are. Anything recorded through an engaged transpose will be late.
+- **The tuner taps ahead of it**, so it goes on reading the strings. Tuning to a transposed reading
+  would put the guitar out, and `tests/TransposeTests.cpp` keeps the two in that order.
+
 **NAM registers its architectures with file-scope statics**, so `nam_core` must be linked with
 `$<LINK_LIBRARY:WHOLE_ARCHIVE,...>` (the `NAM_CORE_WHOLE` variable). A normal static link drops those
 translation units and every model fails with "No config parser registered for architecture".
@@ -94,10 +114,22 @@ interchangeable with the rest of the palette:
 - **green** (`engaged`) — in your signal;
 - **red** (`bypassed`) — switched out of it.
 
-The shape is a persistent bar (preset field, scale, tuner, bypass), a tab bar, and one of three
-pages: `AmpPage` (the head), `PedalsPage` (six `PedalObject`s in one left-to-right run with the amp
+The shape is a persistent bar (preset field, tuner, bypass), a tab bar, one of three
+pages, and a shelf along the bottom: `AmpPage` (the head), `PedalsPage` (six `PedalObject`s in one left-to-right run with the amp
 drawn in the middle of it) and `CabPage` (the cab, with the mic-position grid on its grille).
 Nothing uses an image asset; everything is drawn.
+
+**There are two bars, and they are deliberately not alike.** The top one is what you are playing
+*through* — which preset, whether the amp is in circuit, whether you are tuning. The bottom shelf
+is what you are playing *against*: the transpose, and the panel's size, which is housekeeping. It
+is shorter than the top bar and keeps the background's colour with a hairline over it, because two
+matching bars would frame the pages and make the window look like a picture rather than a piece of
+gear. The pages between them are laid out in exactly the space they always were — the panel grew
+downwards, so nothing on a page moved.
+
+**Growing the panel moves every hotspot in the user guide.** Their positions are percentages of
+the panel's height, so a taller panel needs all of them scaled by the old height over the new one.
+`docs/guide/index.html` and `docs/images/` both have to be redone.
 
 `AmpMaterials` holds what the objects are *made of* — tolex, piping, grille cloth, brushed metal,
 brass — and draws a covered box, a grille and a control plate. The amp and the cab both use it, so

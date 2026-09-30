@@ -15,6 +15,7 @@
 #include "ui/AmpPage.h"
 #include "ui/CabPage.h"
 #include "ui/PedalsPage.h"
+#include "ui/ParameterSlider.h"
 #include "ui/PresetRow.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -45,7 +46,7 @@ class AmpSimAudioProcessorEditor final : public juce::AudioProcessorEditor,
 public:
     /** The size everything is laid out at, before the scale factor is applied. */
     static constexpr int panelWidth = 780;
-    static constexpr int panelHeight = 460;
+    static constexpr int panelHeight = 506;
 
     explicit AmpSimAudioProcessorEditor (AmpSimAudioProcessor&);
     ~AmpSimAudioProcessorEditor() override;
@@ -90,6 +91,15 @@ private:
     juce::AudioProcessorValueTreeState::ButtonAttachment bypassAttachment;
 
     juce::TextButton scaleButton;
+
+    // The bottom bar: what you play *against* rather than what you play through. The scale button
+    // lives down here too — it is housekeeping, and it was the one thing in the top bar nobody
+    // touches twice in a session.
+    juce::ToggleButton transposeButton { "transpose" };
+    juce::AudioProcessorValueTreeState::ButtonAttachment transposeAttachment;
+
+    ParameterSlider semitonesSlider { ParamID::transposeSemitones };
+    juce::AudioProcessorValueTreeState::SliderAttachment semitonesAttachment;
 
     TabButton ampTab { "AMP" }, pedalsTab { "PEDALS" }, cabTab { "CAB" };
 

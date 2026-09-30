@@ -128,6 +128,22 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
     layout.add (std::make_unique<juce::AudioParameterBool> (
         juce::ParameterID { ParamID::power, 1 }, "Power", true));
 
+    layout.add (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { ParamID::transposeOn, 1 }, "Transpose", false));
+
+    // Whole semitones, signed, so the reading says which way it has gone.
+    layout.add (std::make_unique<juce::AudioParameterInt> (
+        juce::ParameterID { ParamID::transposeSemitones, 1 }, "Transpose Interval",
+        -Transpose::maxSemitones, Transpose::maxSemitones, 0,
+        juce::AudioParameterIntAttributes().withStringFromValueFunction ([] (int value, int)
+        {
+            if (value == 0)
+                return juce::String ("0");
+
+            return (value > 0 ? juce::String ("+") : juce::String ("-"))
+                 + juce::String (std::abs (value));
+        })));
+
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { ParamID::micAxis, 1 }, "Mic Axis",
         juce::NormalisableRange<float> { 0.0f, 1.0f }, 0.0f, percentage()));
@@ -257,6 +273,8 @@ AmpSimAudioProcessor::AmpSimAudioProcessor()
     cabBypassParam  = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::cabBypass));
     tunerParam      = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::tunerOn));
     powerParam      = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::power));
+    transposeParam  = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::transposeOn));
+    semitonesParam  = dynamic_cast<juce::AudioParameterInt*>   (apvts.getParameter (ParamID::transposeSemitones));
     micAxisParam    = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::micAxis));
     micDistanceParam = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::micDistance));
     presenceParam   = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::presence));
@@ -270,7 +288,8 @@ AmpSimAudioProcessor::AmpSimAudioProcessor()
     jassert (inputGainParam != nullptr && outputGainParam != nullptr
              && bypassParam != nullptr && cabBypassParam != nullptr
              && bassParam != nullptr && midParam != nullptr && trebleParam != nullptr
-             && tunerParam != nullptr && powerParam != nullptr);
+             && tunerParam != nullptr && powerParam != nullptr
+             && transposeParam != nullptr && semitonesParam != nullptr);
 
     modelLoader.onFinished = [this] (ModelLoader::Result)
     {
@@ -348,6 +367,10 @@ void AmpSimAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
                             presenceParam->get(), depthParam->get());
     toneStack.snapToTargets();   // as with the gains: do not sweep in from flat on every start
     toneStack.reset();
+
+    transpose.prepare (sampleRate, samplesPerBlock);
+    transpose.setSemitones (semitonesParam->get());
+    transpose.snapBypass (! transposeParam->get());
 
     cabSim.prepare (sampleRate, samplesPerBlock);
     cabSim.setCutoffs (cabLowCutParam->get(), cabHighCutParam->get());
@@ -657,8 +680,15 @@ void AmpSimAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     inputGain .setGainDecibels (inputGainParam->get());
     outputGain.setGainDecibels (outputGainParam->get());
 
-    // The tuner reads the guitar itself, so it taps in before anything shapes the signal.
+    // The tuner reads the guitar itself, so it taps in before anything shapes the signal — and
+    // before the transpose, so it goes on telling you about the strings rather than about the
+    // interval you have asked for. Tuning to a transposed reading would put the guitar out.
     tuner.pushSamples (mono, numSamples);
+
+    // Retuning happens first, so everything downstream — the gate's key, the amp, the cab — sees
+    // the note you meant to play rather than the one the strings made.
+    transpose.setSemitones (semitonesParam->get());
+    transpose.process (mono, numSamples, ! transposeParam->get());
 
     // Pedals in front of the amp, then the amp's own Gain — the order a real rig is plugged up
     // in, with the board going into the amp's input rather than the other way round.
