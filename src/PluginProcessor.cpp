@@ -187,13 +187,19 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
     // "0.0 s" — a number that is wrong rather than merely coarse.
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { ParamID::delayTime, 1 }, "Delay Time",
-        juce::NormalisableRange<float> { 0.02f, DelayPedal::maxDelaySeconds }, 0.35f,
+        juce::NormalisableRange<float> { 0.02f, DelayPedal::maxKnobSeconds }, 0.35f,
         juce::AudioParameterFloatAttributes()
             .withLabel ("ms")
             .withStringFromValueFunction ([] (float seconds, int)
             {
                 return juce::String (juce::roundToInt (seconds * 1000.0f)) + " ms";
             })));
+    // "Free" first, so a session saved before this existed lands on it and the delay behaves
+    // exactly as it did. The lengths run long to short, the way a delay's time knob does.
+    layout.add (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID { ParamID::delayDivision, 1 }, "Delay Sync",
+        juce::StringArray { "Free", "1/2", "1/4.", "1/4", "1/4T", "1/8.", "1/8", "1/8T", "1/16" }, 0));
+
     addKnob (ParamID::delayFeedback, "Delay Feedback", 0.0f, 0.95f, 0.35f);
     addKnob (ParamID::delayMix, "Delay Mix", 0.0f, 1.0f, 0.3f);
 
@@ -356,7 +362,7 @@ PedalChain::Settings AmpSimAudioProcessor::currentPedalSettings() const
     s.chorusMix = value (ParamID::chorusMix);
 
     s.delayEngaged = flag (ParamID::delayOn);
-    s.delayTimeSeconds = value (ParamID::delayTime);
+    s.delayTimeSeconds = currentDelaySeconds();
     s.delayFeedback = value (ParamID::delayFeedback);
     s.delayMix = value (ParamID::delayMix);
 
@@ -365,6 +371,38 @@ PedalChain::Settings AmpSimAudioProcessor::currentPedalSettings() const
     s.reverbMix = value (ParamID::reverbMix);
 
     return s;
+}
+
+float AmpSimAudioProcessor::currentDelaySeconds() const
+{
+    const auto division = (int) apvts.getRawParameterValue (ParamID::delayDivision)->load();
+
+    if (division <= 0)
+        return apvts.getRawParameterValue (ParamID::delayTime)->load();
+
+    // Each note length as a multiple of a quarter, in the order the choices are listed.
+    static constexpr float ofAQuarter[] { 0.0f, 2.0f, 1.5f, 1.0f, 2.0f / 3.0f,
+                                          0.75f, 0.5f, 1.0f / 3.0f, 0.25f };
+
+    if (division >= (int) std::size (ofAQuarter))
+        return apvts.getRawParameterValue (ParamID::delayTime)->load();
+
+    // A host that reports no tempo — a standalone, or one stopped before it has played anything —
+    // still has to give a delay that sounds like something, so it gets the tempo most people
+    // would have guessed.
+    auto beatsPerMinute = 120.0;
+
+    if (auto* playHead = getPlayHead())
+        if (const auto position = playHead->getPosition())
+            if (const auto hostBpm = position->getBpm())
+                beatsPerMinute = *hostBpm;
+
+    const auto quarterSeconds = 60.0 / juce::jmax (20.0, beatsPerMinute);
+
+    // Long note lengths run past what the line can hold at slow tempos — a half note needs two
+    // seconds at 60 BPM — so the clamp is what the delay actually does rather than a surprise.
+    return juce::jlimit (0.02f, DelayPedal::maxDelaySeconds,
+                         (float) (quarterSeconds * ofAQuarter[division]));
 }
 
 void AmpSimAudioProcessor::timerCallback()

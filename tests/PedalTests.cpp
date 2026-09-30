@@ -584,3 +584,116 @@ TEST_CASE ("The drive pedal boosts into the clipper above a corner, not across t
     INFO ("at zero drive: 80 Hz " << lowAtZero << " dB, 1.5 kHz " << midAtZero << " dB");
     REQUIRE (std::abs (midAtZero - lowAtZero) < 1.0f);
 }
+
+namespace
+{
+    /** A host that reports one tempo and nothing else, which is all the delay asks for. */
+    struct FixedTempo final : juce::AudioPlayHead
+    {
+        explicit FixedTempo (double beatsPerMinute) : bpm (beatsPerMinute) {}
+
+        juce::Optional<PositionInfo> getPosition() const override
+        {
+            PositionInfo info;
+            info.setBpm (bpm);
+            return info;
+        }
+
+        double bpm;
+    };
+
+    /** Where the delay's single repeat lands, in samples, measured through the whole processor. */
+    int measureDelaySamples (AmpSimAudioProcessor& processor, int searchBlocks = 60)
+    {
+        juce::AudioBuffer<float> buffer (processor.getTotalNumOutputChannels(), test::blockSize);
+        juce::MidiBuffer midi;
+
+        // The delay's time is smoothed over a quarter of a second on purpose, so a sweep bends
+        // pitch rather than jumping. Let it arrive before asking where the repeat is.
+        for (int b = 0; b < test::blocksForRamp (0.3); ++b)
+        {
+            buffer.clear();
+            processor.processBlock (buffer, midi);
+        }
+
+        buffer.clear();
+        buffer.setSample (0, 0, 1.0f);
+        processor.processBlock (buffer, midi);
+
+        int position = -1;
+        float loudest = 0.0f;
+
+        for (int b = 0; b < searchBlocks; ++b)
+        {
+            if (b > 0)
+            {
+                buffer.clear();
+                processor.processBlock (buffer, midi);
+            }
+
+            for (int i = 0; i < test::blockSize; ++i)
+            {
+                // Past the dry impulse itself, which the mix at 1 should have removed anyway.
+                if (b == 0 && i < 64)
+                    continue;
+
+                if (const auto level = std::abs (buffer.getSample (0, i)); level > loudest)
+                {
+                    loudest = level;
+                    position = b * test::blockSize + i;
+                }
+            }
+        }
+
+        return position;
+    }
+}
+
+TEST_CASE ("The delay follows the host's tempo when it is synced", "[pedals]")
+{
+    FixedTempo tempo { 120.0 };
+
+    const auto repeatAt = [&tempo] (int division)
+    {
+        auto processor = test::makePreparedProcessor();
+        processor->setPlayHead (&tempo);
+
+        auto& state = processor->getValueTreeState();
+        test::setParam (state, ParamID::delayOn, 1.0f);
+        test::setParam (state, ParamID::delayMix, 1.0f);
+        test::setParam (state, ParamID::delayFeedback, 0.0f);
+
+        // A choice parameter is set by its index, the way the host sees it.
+        state.getParameter (ParamID::delayDivision)
+             ->setValueNotifyingHost ((float) division / 8.0f);
+
+        return measureDelaySamples (*processor);
+    };
+
+    // At 120 BPM a quarter note is half a second, and an eighth is half of that. Within a
+    // millisecond: the search is sample-accurate, the smoother is not quite.
+    const auto quarter = repeatAt (3);
+    const auto eighth = repeatAt (6);
+
+    INFO ("quarter " << quarter << " samples, eighth " << eighth);
+
+    REQUIRE (std::abs (quarter - 24000) < 48);
+    REQUIRE (std::abs (eighth - 12000) < 48);
+}
+
+TEST_CASE ("The delay ignores the tempo while it is set to Free", "[pedals]")
+{
+    FixedTempo tempo { 120.0 };
+
+    auto processor = test::makePreparedProcessor();
+    processor->setPlayHead (&tempo);
+
+    auto& state = processor->getValueTreeState();
+    test::setParam (state, ParamID::delayOn, 1.0f);
+    test::setParam (state, ParamID::delayMix, 1.0f);
+    test::setParam (state, ParamID::delayFeedback, 0.0f);
+    test::setParam (state, ParamID::delayTime, 0.2f);
+
+    // Division 0 is Free, which is where a session saved before any of this existed lands.
+    REQUIRE (std::abs (measureDelaySamples (*processor) - 9600) < 48);
+}

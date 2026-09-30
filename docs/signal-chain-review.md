@@ -259,8 +259,10 @@ sync, several reverb types, and often a wah, a pitch shifter and a doubler.
 Against the list, this plugin is missing: **phaser, flanger, tremolo, wah, an EQ pedal, a boost
 distinct from the drive, pitch effects, and tempo sync on the delay.**
 
+- **Tempo sync is done.** A `delayDivision` choice on the delay, with **Free** first so nothing
+  saved earlier moves. It needed no new DSP, only the host's tempo, and it is a control on an
+  existing pedal rather than a seventh pedal — so it cost none of what the rest of this item costs.
 - **For adding some.** Tremolo and phaser are small, well-understood, and idiomatic for guitar.
-  Tempo sync is the single most-requested delay feature and needs no new DSP, only the host's BPM.
 - **Against adding any.** `CLAUDE.md` states the scope is one amp, one cabinet, six pedals, and
   that proposals beyond the four parts in the plan should be named as scope creep. Every added
   pedal is a permanent maintenance and UI cost, and the pedals page is laid out for exactly six —

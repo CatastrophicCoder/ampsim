@@ -38,8 +38,8 @@ PedalsPage::PedalsPage (juce::AudioProcessorValueTreeState& state)
               { { ParamID::chorusRate, "rate" }, { ParamID::chorusDepth, "depth" },
                 { ParamID::chorusMix, "mix" } }),
       delay (state, "delay", ParamID::delayOn, delayBody,
-             { { ParamID::delayTime, "time" }, { ParamID::delayFeedback, "repeats" },
-               { ParamID::delayMix, "mix" } }),
+             { { ParamID::delayTime, "time" }, { ParamID::delayDivision, "sync" },
+               { ParamID::delayFeedback, "repeats" }, { ParamID::delayMix, "mix" } }),
       reverb (state, "reverb", ParamID::reverbOn, reverbBody,
               { { ParamID::reverbSize, "size" }, { ParamID::reverbMix, "mix" } })
 {

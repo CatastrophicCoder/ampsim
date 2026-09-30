@@ -219,6 +219,16 @@ Four things that were learned the hard way here:
   mix straight into `Parameters` gives +6 dB of dry at mix 0. `ReverbPedal` divides both out so the
   control means what it says, and a test measures the surviving dry gain by projecting the output
   onto a noise input.
+- **The delay's time comes from the processor, not from the pedal.** `currentDelaySeconds()` reads
+  the host's tempo through `getPlayHead()` and cuts it to whatever note length `delayDivision` is
+  set to; `DelayPedal` still just takes seconds and knows nothing about tempo. The division's first
+  choice is **Free**, so a session saved before this existed lands on the knob and behaves exactly
+  as it did. A host that reports no tempo — a standalone — gets 120 BPM.
+
+  `DelayPedal::maxDelaySeconds` (2 s, what the line holds) and `maxKnobSeconds` (1.2 s, what the
+  time control offers) are deliberately different. A synced half note runs to two seconds at
+  60 BPM, and the knob's range cannot be widened to suit it: a stored parameter is a proportion of
+  its range, so every saved session's delay time would move.
 - **Chorus, delay and reverb must keep running while bypassed.** Their delay lines have to stay
   fed — engaging one that has been sitting empty starts its delayed copy from silence, and that
   onset is a click however long the crossfade is. `BypassCrossfade::scratchFor()` gives them a

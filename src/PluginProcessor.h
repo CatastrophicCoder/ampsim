@@ -73,6 +73,9 @@ namespace ParamID
 
     inline constexpr const char* delayOn         = "delayOn";
     inline constexpr const char* delayTime       = "delayTime";
+    // "Free" plus a set of note lengths. A choice rather than a switch and a second control: one
+    // knob that reads Free at one end is the whole of what a tempo sync needs to say.
+    inline constexpr const char* delayDivision   = "delayDivision";
     inline constexpr const char* delayFeedback   = "delayFeedback";
     inline constexpr const char* delayMix        = "delayMix";
 
@@ -212,6 +215,11 @@ private:
 
     /** Reads the pedal parameters into one settings object, once per block. */
     PedalChain::Settings currentPedalSettings() const;
+
+    /** The delay's time in seconds: the knob, or the host's tempo cut into whatever note length
+        the division control is set to. */
+    float currentDelaySeconds() const;
+
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
     juce::AudioProcessorValueTreeState apvts;

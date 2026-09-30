@@ -215,19 +215,30 @@ void PedalObject::resized()
     if (knobs.isEmpty())
         return;
 
-    // Up to three across, as a compact pedal has them; a fourth would go on a second row. The row
-    // sits in the upper half of what is left, which is where a pedal's controls actually are —
-    // the space under them is the blank face the name is printed on.
-    const auto perRow = juce::jmin (knobs.size(), 3);
+    // Up to three across, as a compact pedal has them. A fourth goes on a second row, two and
+    // two, rather than three and a lonely one. The block sits in the upper part of what is left,
+    // which is where a pedal's controls actually are — the space under them is the blank face the
+    // name is printed on.
+    const auto rows = knobs.size() > 3 ? 2 : 1;
+    const auto perRow = (knobs.size() + rows - 1) / rows;
+
     const auto knobWidth = juce::jmin (bounds.getWidth() / perRow, maxKnobWidth);
-    const auto knobHeight = juce::jmin (bounds.getHeight(), knobWidth + knobLabelHeight);
+    const auto knobHeight = juce::jmin (bounds.getHeight() / rows, knobWidth + knobLabelHeight);
 
-    auto row = bounds.removeFromTop (knobHeight + (bounds.getHeight() - knobHeight) / 3)
-                     .removeFromBottom (knobHeight);
+    auto block = bounds.removeFromTop (rows * knobHeight
+                                           + (bounds.getHeight() - rows * knobHeight) / 3)
+                       .removeFromBottom (rows * knobHeight);
 
-    // A single knob is centred rather than pushed to the left-hand third.
-    row = row.withSizeKeepingCentre (knobWidth * perRow, knobHeight);
+    for (int row = 0; row < rows; ++row)
+    {
+        const auto first = row * perRow;
+        const auto count = juce::jmin (perRow, knobs.size() - first);
 
-    for (auto* knob : knobs)
-        knob->setBounds (row.removeFromLeft (knobWidth).reduced (2, 0));
+        // A row with fewer knobs than the others is centred rather than pushed to the left.
+        auto strip = block.removeFromTop (knobHeight)
+                          .withSizeKeepingCentre (knobWidth * count, knobHeight);
+
+        for (int i = 0; i < count; ++i)
+            knobs[first + i]->setBounds (strip.removeFromLeft (knobWidth).reduced (2, 0));
+    }
 }

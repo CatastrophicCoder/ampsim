@@ -20,7 +20,14 @@
 class DelayPedal
 {
 public:
-    static constexpr float maxDelaySeconds = 1.2f;
+    /** What the line can hold. */
+    static constexpr float maxDelaySeconds = 2.0f;
+
+    /** What the time knob offers, which is deliberately less. It cannot be widened without moving
+        every saved session's setting, since a stored parameter is a proportion of its range — so
+        the line was made longer instead, for the one case that needs the room: a synced half note
+        runs to two seconds at 60 BPM. */
+    static constexpr float maxKnobSeconds = 1.2f;
 
     void prepare (double sampleRate, int maxBlockSize);
     void reset();
