@@ -92,9 +92,17 @@ told, which a guitar needs, and it does not smear a pick attack the way an FFT-b
   delay while an octave pays for one ten times longer. A large interval costs delay: that is the
   trade this kind of shifter makes, not a bug to be tuned out.
 - **It is bypassed outright at zero semitones**, rather than run at a ratio of one — the pointers
-  would still sit a window behind and delay the signal for nothing.
+  would still sit a window behind and delay the signal for nothing. That interacts with the fade
+  that covers an interval change: while the shifter is stepped aside the fade still has to be
+  advanced, or an interval set while it is off leaves it waiting on a fade that never finishes and
+  it never shifts again. Only a change between two *non-zero* intervals is faded at all; starting
+  and stopping a shift is a change between dry and shifted, which the bypass crossfade already
+  covers.
 - **Its delay is not reported to the host**, because it varies with the interval and with where in
   a grain the pointers are. Anything recorded through an engaged transpose will be late.
+- **Test it through the processor, not only on its own.** The shifter was correct in isolation and
+  unusable in the plugin, and the only processor-level test looked at the tuner — which the bug did
+  not touch.
 - **The tuner taps ahead of it**, so it goes on reading the strings. Tuning to a transposed reading
   would put the guitar out, and `tests/TransposeTests.cpp` keeps the two in that order.
 

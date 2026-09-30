@@ -187,3 +187,50 @@ TEST_CASE ("The tuner reads the strings, not the interval", "[transpose][tuner]"
     REQUIRE (reading.midiNote == 45);
 }
 
+
+TEST_CASE ("Switching the transpose on shifts what comes out of the plugin", "[transpose]")
+{
+    // Through the whole processor, not the shifter on its own. The shifter was right and the
+    // wiring around it was not: an interval changed while it was stepped aside left it waiting
+    // on a fade that could never finish, so it never shifted again — and the only test that
+    // touched the processor was looking at the tuner, which was unaffected.
+    const auto pitchThroughPlugin = [] (bool engaged, int semitones)
+    {
+        auto processor = test::makePreparedProcessor();
+        auto& state = processor->getValueTreeState();
+
+        test::setParam (state, ParamID::transposeOn, engaged ? 1.0f : 0.0f);
+        test::setParam (state, ParamID::transposeSemitones, (float) semitones);
+
+        juce::AudioBuffer<float> buffer (processor->getTotalNumOutputChannels(), test::blockSize);
+        juce::MidiBuffer midi;
+
+        std::vector<float> captured;
+        int index = 0;
+
+        for (int b = 0; b < 100; ++b)
+        {
+            for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                for (int i = 0; i < test::blockSize; ++i)
+                    buffer.setSample (ch, i, 0.4f * (float) std::sin (juce::MathConstants<double>::twoPi
+                                                                          * 220.0 * (index + i) / sr));
+
+            index += test::blockSize;
+            processor->processBlock (buffer, midi);
+
+            if (b >= 40)
+                for (int i = 0; i < test::blockSize; ++i)
+                    captured.push_back (buffer.getSample (0, i));
+        }
+
+        return detectedFrequency (captured, 0);
+    };
+
+    // Off, it is the note that was played.
+    REQUIRE_THAT (centsBetween (pitchThroughPlugin (false, -12), 220.0), WithinAbs (0.0, 35.0));
+
+    // On, it is the note that was asked for — and the interval was set while it was switched off,
+    // which is the order that used to leave it stuck.
+    REQUIRE_THAT (centsBetween (pitchThroughPlugin (true, -12), 110.0), WithinAbs (0.0, 35.0));
+    REQUIRE_THAT (centsBetween (pitchThroughPlugin (true, 7), 329.628), WithinAbs (0.0, 35.0));
+}

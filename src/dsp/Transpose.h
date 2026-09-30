@@ -73,6 +73,9 @@ public:
     static double windowSecondsFor (int semitones);
 
 private:
+    /** Takes a new interval, with the window and the grain it implies. */
+    void adoptInterval (int semitones);
+
     juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Linear> line { 4096 };
 
     double preparedRate = 48000.0;

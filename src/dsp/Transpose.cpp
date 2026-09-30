@@ -64,8 +64,7 @@ void Transpose::prepare (double sampleRate, int maxBlockSize)
     line.prepare ({ sampleRate, (juce::uint32) maxBlockSize, 1 });
     line.reset();
 
-    phase = 0.0f;
-    currentSemitones = pendingSemitones.load();
+    adoptInterval (pendingSemitones.load());
 
     intervalFade.reset (sampleRate, 0.01);
     intervalFade.setCurrentAndTargetValue (1.0f);
@@ -85,10 +84,30 @@ void Transpose::setSemitones (int semitones)
     pendingSemitones.store (juce::jlimit (-maxSemitones, maxSemitones, semitones));
 }
 
+void Transpose::adoptInterval (int semitones)
+{
+    currentSemitones = semitones;
+    windowSamples = (float) (windowSecondsFor (semitones) * preparedRate);
+    phase = 0.0f;
+}
+
 void Transpose::process (float* samples, int numSamples, bool bypassed)
 {
-    // A change of interval is also a change of window, so the grains restart: fade across it.
-    if (! changing && pendingSemitones.load() != currentSemitones)
+    const auto wanted = pendingSemitones.load();
+
+    // Starting or stopping a shift is a change between dry and shifted, and the bypass crossfade
+    // already covers that — so those are taken at once, and only a change from one interval to
+    // another gets a fade of its own, because both sides of that one are audible.
+    if (currentSemitones == 0 || wanted == 0)
+    {
+        if (wanted != currentSemitones)
+        {
+            adoptInterval (wanted);
+            intervalFade.setCurrentAndTargetValue (1.0f);
+            changing = false;
+        }
+    }
+    else if (! changing && wanted != currentSemitones)
     {
         changing = true;
         intervalFade.setTargetValue (0.0f);
@@ -96,20 +115,23 @@ void Transpose::process (float* samples, int numSamples, bool bypassed)
 
     if (changing && ! intervalFade.isSmoothing() && intervalFade.getCurrentValue() <= 0.0f)
     {
-        currentSemitones = pendingSemitones.load();
-        windowSamples = (float) (windowSecondsFor (currentSemitones) * preparedRate);
-        phase = 0.0f;
+        adoptInterval (wanted);
 
         changing = false;
         intervalFade.setTargetValue (1.0f);
     }
 
     // At unity the shifter would still hold the signal a window behind for no reason, so the
-    // whole thing steps aside. This is also what makes the control's centre position honest.
+    // whole thing steps aside. This is also what makes the middle of the control honest.
     const auto action = bypass.beginBlock (bypassed || currentSemitones == 0, samples, numSamples);
 
     if (action == BypassCrossfade::Action::skip)
     {
+        // The fade has to keep moving even here, or an interval changed while the shifter is
+        // stepped aside would leave it waiting for a fade that never finishes — and it would
+        // never shift again.
+        intervalFade.skip (numSamples);
+
         // Keep the line fed, and its read pointer moving with its write pointer, so that engaging
         // it does not start from a window of silence or from two pointers that have drifted apart.
         for (int i = 0; i < numSamples; ++i)
