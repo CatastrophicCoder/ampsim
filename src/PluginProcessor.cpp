@@ -9,6 +9,7 @@
 */
 
 #include "PluginProcessor.h"
+#include "BundledAssets.h"
 #include "PluginEditor.h"
 
 namespace
@@ -170,6 +171,18 @@ AmpSimAudioProcessor::AmpSimAudioProcessor()
         if (onLoadStateChanged != nullptr)
             onLoadStateChanged();
     };
+
+    // The built-in amp and cab, written out on first run so a fresh instance makes a sound
+    // rather than passing audio through untouched. A session that names its own files replaces
+    // these when its state is restored.
+    if (loadBundledAssetsOnCreation && BundledAssets::install().isEmpty())
+    {
+        if (const auto model = BundledAssets::ampModel(); model != juce::File())
+            loadModel (model);
+
+        if (const auto cab = BundledAssets::cabinetImpulseResponse(); cab != juce::File())
+            loadImpulseResponse (CabSim::Slot::centreClose, cab);
+    }
 
     // Reaps models the audio thread has swapped out, and keeps the reported latency in step
     // with whatever model is now running.

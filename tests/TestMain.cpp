@@ -8,6 +8,8 @@
     <https://www.gnu.org/licenses/>.
 */
 
+#include "PluginProcessor.h"
+
 #include <catch2/catch_session.hpp>
 #include <juce_events/juce_events.h>
 
@@ -17,6 +19,11 @@
 int main (int argc, char* argv[])
 {
     juce::ScopedJuceInitialiser_GUI juceInit;
+
+    // A bare chain by default: most tests measure what one block does to a signal, and an amp
+    // model in the way would mean measuring the model instead. The tests that care about the
+    // built-in assets turn this back on for themselves.
+    AmpSimAudioProcessor::loadBundledAssetsOnCreation = false;
 
     return Catch::Session().run (argc, argv);
 }

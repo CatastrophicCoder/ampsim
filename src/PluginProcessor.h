@@ -127,6 +127,11 @@ public:
 
     juce::AudioProcessorValueTreeState& getValueTreeState() { return apvts; }
 
+    /** Whether a new instance writes out the built-in amp and cab and loads them. On in the
+        plugin, so it makes a sound the first time it is opened; off in the tests, which want a
+        bare chain and set their own inputs. */
+    static inline bool loadBundledAssetsOnCreation = true;
+
     //==============================================================================
     /** Message thread. Starts a background load; the model arrives in the audio thread later. */
     void loadModel (const juce::File& file);

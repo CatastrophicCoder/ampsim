@@ -44,6 +44,8 @@ set_target_properties(nam_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 juce_add_plugin(AmpSim
     PRODUCT_NAME                "AmpSim"
+    ICON_BIG                    "resources/icon-1024.png"
+    ICON_SMALL                  "resources/icon-128.png"
     COMPANY_NAME                "AmpSim"
     BUNDLE_ID                   "com.ampsim.ampsim"
     PLUGIN_MANUFACTURER_CODE    Amps          # four chars, at least one uppercase
@@ -63,11 +65,19 @@ juce_add_plugin(AmpSim
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
     COPY_PLUGIN_AFTER_BUILD     TRUE)         # installs AU/VST3 to ~/Library/Audio/Plug-Ins on build
 
+# The amp model and cabinet impulse response travel inside the binary, packed. See AssetPack.h.
+juce_add_binary_data(AmpSimAssets SOURCES
+    resources/MARS2204.ampsimpack
+    "resources/V30 SM57.ampsimpack")
+
+set_target_properties(AmpSimAssets PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 target_sources(AmpSim PRIVATE
     src/PluginProcessor.cpp
     src/PluginEditor.cpp
     src/ModelLoader.cpp
     src/MidiLearn.cpp
+    src/BundledAssets.cpp
     src/PresetManager.cpp
     src/dsp/AmpModel.cpp
     src/dsp/CabSim.cpp
@@ -91,6 +101,7 @@ target_compile_definitions(AmpSim PUBLIC
 
 target_link_libraries(AmpSim
     PRIVATE
+        AmpSimAssets
         ${NAM_CORE_WHOLE}
         juce::juce_audio_utils
         juce::juce_dsp

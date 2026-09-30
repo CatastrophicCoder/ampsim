@@ -103,6 +103,21 @@ Two things that are easy to get wrong here:
 with `createComponentSnapshot` to a PNG takes a couple of minutes to write and catches things no
 amount of reading the paint code will: see the milestone 5 entry in `NOTES.md`.
 
+## Bundled assets
+
+The amp model and one cabinet IR ship inside the binary, packed by `AssetPack.h` and written out
+to `~/Library/Application Support/AmpSim/Bundled/` by `BundledAssets::install()` on construction.
+
+- **The packing is obfuscation, not encryption, and not a licence.** The unpacking side is in this
+  repository, so the method is public; packing a file grants no right to redistribute it. What it
+  buys is that the repository holds no playable `.nam` or `.wav` to be dragged out of it, and that
+  the files carry neutral names rather than a trademarked amplifier's.
+- The packing tool lives outside the repository, in `../ampsim-packer`, as a thin wrapper around
+  `AssetPack::pack()` — one implementation of the format, not two that can drift.
+- `AmpSimAudioProcessor::loadBundledAssetsOnCreation` is turned off in `tests/TestMain.cpp`, since
+  most tests measure what one block does to a signal and an amp model in the way would mean
+  measuring the model instead.
+
 ## The cab
 
 `CabSim` wraps `juce::dsp::Convolution`, which already loads and resamples the IR on its own thread

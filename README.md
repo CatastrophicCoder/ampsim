@@ -75,11 +75,14 @@ does not do, and what would change with a Developer ID.
 
 ## Using it
 
-**Nothing is bundled.** No amp model and no cabinet impulse response ship with this repository, and
-without them the plugin passes audio through untouched. NAM Core's own example models sit in
-`external/NeuralAmpModelerCore/example_models/` — `wavenet_a1_standard.nam` and `A2.nam` are real
-captures; the others are tiny test models that barely distort. The public NAM model libraries work
-too. Cabinet IRs you will have to bring.
+**An amp and a cab are built in**, so a fresh instance makes a sound rather than passing audio
+through untouched: `MARS2204`, a capture of a well-known British 100-watt head, into `V30 SM57`, a
+4x12 close-miked on axis. They are written out to
+`~/Library/Application Support/AmpSim/Bundled/` on first run and loaded from there.
+
+They travel inside the binary packed rather than as a plain `.nam` and `.wav` — see
+[`src/AssetPack.h`](src/AssetPack.h) for the format and what it is and is not for. Load anything
+else over them at any time; the public NAM model libraries and any cabinet IR work.
 
 **In the standalone, untick "Mute audio input"** in Options the first time. JUCE mutes a
 standalone's input by default, which is right for a synth and wrong for an amp — with it ticked the
