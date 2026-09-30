@@ -51,15 +51,39 @@ than technical ones:
 A standalone also has no transport to follow, so it needs its own tempo and its own start and stop,
 which the plugin version would not.
 
-### Room on the top bar for both
+### A bottom bar, for the transpose and the metronome
 
-The bar is full. At 780 logical points it currently holds the wordmark, a 244-point preset field,
-the scale button, the tuner and the bypass, and the tuner already takes the middle over while it is
-engaged. A transpose switch with a dial and a metronome with three controls do not fit beside them.
+**Decided.** The top bar is full — at 780 logical points it holds the wordmark, a 244-point preset
+field, the scale button, the tuner and the bypass, and the tuner already takes the middle over
+while it is engaged. A transpose switch with a dial and a metronome with three controls do not fit
+beside them. So the panel grows a second bar along the bottom and they go there.
 
-Ways out, none chosen: widen the panel; give the bar a second row; put the metronome behind a
-button that opens a small panel; or let each of them take the bar's middle the way the tuner does,
-which keeps the layout but means only one can be on screen at a time.
+It also reads correctly: the top bar is what you are playing through — which preset, whether the
+amp is in circuit, whether you are tuning. The bottom bar would be what you are playing *against*:
+a click, an interval, things that are about the practice session rather than about the tone. The
+pages between them are unchanged.
+
+What it costs and what to watch:
+
+- **The panel gets taller.** 460 logical points now; a bar of 44 to 52 makes it about 505. At
+  150 % that is 1170 × 758 physical, which still fits a laptop screen with room over. Nothing in
+  the layout has to change to allow it — every page is laid out inside
+  `AmpSimAudioProcessorEditor::Panel` and the scale is a transform on that one component.
+- **It must not turn the panel into a sandwich.** Two bars of the same height and colour top and
+  bottom would frame the pages symmetrically and make the window look like a picture rather than a
+  piece of gear. Make it shorter and quieter than the top one — smaller controls, dimmer labels,
+  a hairline above rather than a slab of its own colour.
+- **The scale button could move down into it.** It is housekeeping rather than playing, it is the
+  one thing in the top bar nobody touches twice a session, and moving it buys back 58 points plus
+  a gap up top — which is where a transpose read-out would sit comfortably if the bottom bar ever
+  fills.
+- **Every screenshot and hotspot in the user guide shifts.** The tour's marker positions are
+  percentages of the panel's height, worked out by hand from the layout numbers, so growing the
+  panel moves all of them. Re-render `docs/images/` and recompute, or the markers drift off their
+  controls. That is a chore, not a risk, but it is the part that gets forgotten.
+
+The bar arrives with its first occupant rather than on its own — an empty strip is not worth
+shipping, and its height depends on what goes in it.
 
 ## Still to settle
 
