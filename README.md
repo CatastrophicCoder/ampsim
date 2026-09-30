@@ -1,15 +1,31 @@
+<div align="center">
+
 # AmpSim
 
+**A guitar amp simulator for macOS, by Catastrophic Audio**
+
+[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
+![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey.svg)
+![Formats: AU | VST3 | Standalone](https://img.shields.io/badge/formats-AU%20%7C%20VST3%20%7C%20Standalone-orange.svg)
+![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C.svg)
+![JUCE 9](https://img.shields.io/badge/JUCE-9.0.2-8DC63F.svg)
 [![build](https://github.com/CatastrophicCoder/ampsim/actions/workflows/build.yml/badge.svg)](https://github.com/CatastrophicCoder/ampsim/actions/workflows/build.yml)
 
-A guitar amp simulator for macOS — AU, VST3 and a standalone app — built with JUCE around a
-[Neural Amp Modeler](https://github.com/sdatkinson/NeuralAmpModelerCore) capture.
+[Download](https://github.com/CatastrophicCoder/ampsim/releases) &middot;
+[User guide](https://catastrophiccoder.github.io/ampsim/) &middot;
+[Signal chain](#the-signal-chain) &middot;
+[Building](#building) &middot;
+[Architecture](CLAUDE.md)
 
-![The AmpSim panel](docs/panel.png)
+![The AmpSim panel](docs/images/amp.png)
 
-The amp itself is a `.nam` file: a neural network trained on a real amplifier. What this project
-adds is everything a capture on its own does not give you — an amp's controls, a cabinet, a
-pedalboard in the order a real rig is plugged up, and a tuner.
+</div>
+
+AmpSim is an open-source guitar amp plugin built with JUCE around a
+[Neural Amp Modeler](https://github.com/sdatkinson/NeuralAmpModelerCore) capture. The amp itself is
+a `.nam` file: a neural network trained on a real amplifier. What this project adds is everything a
+capture on its own does not give you — an amp's controls, a cabinet, a pedalboard in the order a
+real rig is plugged up, and a tuner.
 
 It is deliberately small. There is one amp model at a time, one cabinet, six pedals, and no attempt
 at a channel switcher, a rack, or a library of tones.
@@ -25,6 +41,50 @@ Mono from end to end, because a guitar amp is and a NAM capture is; a stereo inp
 the top. The placement is fixed rather than user-reorderable, because it is the point: a drive
 pedal in front of the amp changes what the amp distorts, while modulation and echoes belong after
 it so the repeats are of the already-distorted tone.
+
+## Download and install
+
+Ready-made packages are on the [releases page](https://github.com/CatastrophicCoder/ampsim/releases).
+The `.pkg` installs the AU and VST3 into `/Library/Audio/Plug-Ins/` and the standalone app into
+`/Applications`; the `.dmg` holds just the app. In Logic the plugin appears as
+**Catastrophic Audio: AmpSim**, under MIDI-controlled effects.
+
+To build your own:
+
+```sh
+./packaging/package.sh          # or: cmake --build build --target package-macos
+```
+
+Builds Release, ad-hoc signs everything and writes an installer and a disk image to
+`build-release/artefacts`. No Apple Developer Program membership is needed to build or package.
+
+The cost lands on whoever installs it: the packages carry no Developer ID, so macOS blocks them on
+first launch until the person goes to **System Settings → Privacy & Security** and clicks **Open
+Anyway**. [`packaging/README.md`](packaging/README.md) covers that, what ad-hoc signing does and
+does not do, and what would change with a Developer ID.
+
+## Using it
+
+The **[user guide](https://catastrophiccoder.github.io/ampsim/)** is the place to start: an
+annotated tour of the amp, the pedalboard and the cabinet, and walkthroughs for getting a first
+sound, dialling in a tone, loading your own capture and impulse responses, using the pedals in the
+order they are in, tuning up, and putting a control on a MIDI pedal.
+
+Two things worth knowing before you open it:
+
+**An amp and a cab are built in**, so a fresh instance makes a sound rather than passing audio
+through untouched: `MARS2204`, a capture of a well-known British 100-watt head, into `V30 SM57`, a
+4x12 close-miked on axis. They are written out to
+`~/Library/Application Support/AmpSim/Bundled/` on first run and loaded from there. They travel
+inside the binary packed rather than as a plain `.nam` and `.wav` — see
+[`src/AssetPack.h`](src/AssetPack.h) for the format and what it is and is not for. Load anything
+else over them at any time; the public NAM model libraries and any cabinet IR work.
+
+**In the standalone, untick "Mute audio input"** in Options the first time. JUCE mutes a
+standalone's input by default, which is right for a synth and wrong for an amp — with it ticked the
+meters move and nothing is heard.
+
+![The pedal board](docs/images/pedals.png)
 
 ## Building
 
@@ -59,94 +119,6 @@ slower and says nothing useful about CPU load.
 JUCE is pinned on purpose: Apple toolchain and JUCE updates are a reliable source of "the build
 broke and nothing changed". Update it deliberately, in its own commit, and re-validate afterwards.
 
-## Installing
-
-```sh
-./packaging/package.sh          # or: cmake --build build --target package-macos
-```
-
-Builds Release, ad-hoc signs everything and writes an installer and a disk image to
-`build-release/artefacts`. No Apple Developer Program membership is needed to build or package.
-
-The cost lands on whoever installs it: the packages carry no Developer ID, so macOS blocks them on
-first launch until the person goes to **System Settings → Privacy & Security** and clicks **Open
-Anyway**. [`packaging/README.md`](packaging/README.md) covers that, what ad-hoc signing does and
-does not do, and what would change with a Developer ID.
-
-## Using it
-
-**An amp and a cab are built in**, so a fresh instance makes a sound rather than passing audio
-through untouched: `MARS2204`, a capture of a well-known British 100-watt head, into `V30 SM57`, a
-4x12 close-miked on axis. They are written out to
-`~/Library/Application Support/AmpSim/Bundled/` on first run and loaded from there.
-
-They travel inside the binary packed rather than as a plain `.nam` and `.wav` — see
-[`src/AssetPack.h`](src/AssetPack.h) for the format and what it is and is not for. Load anything
-else over them at any time; the public NAM model libraries and any cabinet IR work.
-
-**In the standalone, untick "Mute audio input"** in Options the first time. JUCE mutes a
-standalone's input by default, which is right for a synth and wrong for an amp — with it ticked the
-meters move and nothing is heard.
-
-**Amp.** The head's power switch is at the right-hand end of the control plate. It mutes rather
-than bypasses — an amp that is switched off makes no sound, where **bypassed** in the bar passes
-your guitar through untouched. Click the brass nameplate on the grille to load a different capture.
-
-Gain sits before the model, so turning it up drives the network harder and it saturates,
-the way a preamp gain control does — with a real capture, 12 dB more input yields well under a
-decibel more output. Bass, Mid and Treble are independent parametric bands (low shelf 100 Hz, peak
-800 Hz, high shelf 3.2 kHz, ±12 dB) between the model and the cab. Master is the level out of the
-amp. Because the bands are parametric rather than a modelled passive network, all three centred is
-genuinely flat and each moves only its own band — a real tone stack interacts with itself and is
-mid-scooped at noon.
-
-**Cabinet.** Four corners of a mic position — on and off axis, close and far — laid out on the
-cab's grille as the grid they are, with axis and distance knobs beside it blending along those same
-two directions. Click a corner to load or clear an IR. Fill one corner and it is a plain IR loader.
-A stereo IR is folded to mono.
-
-![The cabinet](docs/cab.png)
-
-Captures are not made to a common level — a commercial pack can carry 15 dB of broadband gain — so
-the cab normalises, using the average magnitude across the range a guitar occupies. One factor is
-applied to the whole grid rather than one per corner, so a corner that really is quieter, a mic
-backed off or off axis, stays quieter; only the grid's overall level is brought to unity. The factor
-comes from the loudest loaded corner, so filling the corners in a different order cannot change the
-result.
-
-**Pedals.** Six, on a board that runs left to right with the amp drawn where it actually sits in
-the chain. Each one is switched by its footswitch, and its LED lights green when it is in your
-signal; red, anywhere on the panel, means something is switched *out* of it. Chorus, delay and
-reverb keep running while switched off, so engaging one picks up repeats already in flight instead
-of starting from an empty line.
-
-![The pedal board](docs/pedals.png)
-
-**Tuner.** The switch in the bar. It reads the guitar before the pedals and the amp, takes over the
-bar to show the note and how far off it is in cents, and mutes the output while it is on.
-
-**Size.** The percentage in the bar scales the whole panel — 75, 100, 125 or 150. It is saved with
-the session and a preset cannot change it.
-
-**Presets** are files in `~/Library/Application Support/AmpSim/Presets`. A preset holds everything —
-controls, MIDI map, and the paths of the model and cabs — but anything it leaves empty keeps what is
-already loaded, so a preset that only sets the knobs will not unload your amp.
-
-A new instance lands on **Default**, which names the built-in amp and cabinet and fills only the
-close on-axis corner. It is the only preset that ships; the rest of the list is yours to save.
-
-A preset you save with no model or cab loaded keeps whatever is already there when it is recalled,
-so a preset can carry only the controls if that is what you want from it.
-
-**MIDI.** Right-click any control to learn a CC for it, or to forget the one it has. One controller
-drives one parameter and one parameter answers to one controller. The map is saved with the session
-and travels with a preset.
-
-**Latency.** The model runs at the rate it was trained at — usually 48 kHz — and the plugin converts
-in and out at any other session rate, reporting about 220 samples at 44.1 kHz for the host to
-compensate. The drive pedal's 4x oversampler adds 5 more, and runs whether or not the pedal is
-engaged so that the figure never changes under the host.
-
 ## Testing
 
 ```sh
@@ -161,7 +133,7 @@ a real impulse, whether switching a pedal introduces a discontinuity the pedal d
 make — which is the layer plugin validators never look at. `-DAMPSIM_BUILD_TESTS=OFF` skips them.
 
 ```sh
-auval -v aumf Amp1 Amps
+auval -v aumf Amp1 Ctcd
 /Applications/pluginval.app/Contents/MacOS/pluginval --strictness-level 10 \
     --validate build/AmpSim_artefacts/Debug/VST3/AmpSim.vst3
 ```

@@ -20,7 +20,7 @@ out="$build/artefacts"
 version="$(sed -n 's/^project(AmpSim VERSION \([0-9.]*\).*/\1/p' "$root/CMakeLists.txt")"
 : "${version:?could not read the version out of CMakeLists.txt}"
 
-identifier="com.ampsim.ampsim"
+identifier="com.catastrophicaudio.ampsim"
 
 echo "==> AmpSim $version"
 

@@ -247,7 +247,7 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 cmake --build build                            # all three formats
 cmake --build build --target AmpSim_Standalone # AmpSim_AU, AmpSim_VST3 likewise
 
-auval -v aumf Amp1 Amps                        # AU; plugin code Amp1, manufacturer Amps
+auval -v aumf Amp1 Ctcd                        # AU; plugin code Amp1, manufacturer Ctcd
 /Applications/pluginval.app/Contents/MacOS/pluginval --strictness-level 5 \
     --validate build/AmpSim_artefacts/Debug/VST3/AmpSim.vst3
 ```

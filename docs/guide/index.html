@@ -1,0 +1,538 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AmpSim User Guide</title>
+<meta name="description" content="How to use AmpSim, a guitar amp simulator built around a Neural Amp Modeler capture: an annotated tour of the amp, the pedalboard and the cabinet, and walkthroughs for getting a sound.">
+<style>
+  :root {
+    --bg: #f6f5f2; --surface: #ffffff; --surface-2: #eeece7; --text: #1d1c21; --muted: #5d5b66;
+    --line: #dcd9d2; --accent: #b8791a; --accent-2: #2f7f9e; --hot: #e8a33d; --hot-text: #1d1c21;
+    --code: #efece5; --shadow: 0 1px 3px rgba(0,0,0,.08), 0 8px 24px rgba(0,0,0,.06);
+    --engaged: #2e9d5b; --bypassed: #c24034;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #131519; --surface: #1b1e24; --surface-2: #252931; --text: #e9ecf1; --muted: #939cab;
+      --line: #2f343d; --accent: #e8a33d; --accent-2: #7fc4dd; --hot: #e8a33d; --hot-text: #131519;
+      --code: #252931; --shadow: 0 1px 3px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+      --engaged: #4ad07a; --bypassed: #db4b3f;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #131519; --surface: #1b1e24; --surface-2: #252931; --text: #e9ecf1; --muted: #939cab;
+    --line: #2f343d; --accent: #e8a33d; --accent-2: #7fc4dd; --hot: #e8a33d; --hot-text: #131519;
+    --code: #252931; --shadow: 0 1px 3px rgba(0,0,0,.4), 0 8px 24px rgba(0,0,0,.35);
+    --engaged: #4ad07a; --bypassed: #db4b3f;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  a { color: var(--accent-2); }
+  code { overflow-wrap: anywhere; }
+  code, kbd { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; background: var(--code); border-radius: 4px; padding: .1em .35em; }
+  kbd { border: 1px solid var(--line); border-bottom-width: 2px; }
+  header.site { position: sticky; top: 0; z-index: 10; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  .bar { max-width: 1180px; margin: 0 auto; padding: .6rem 16px; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+  .brand { font-weight: 700; color: var(--accent); text-decoration: none; font-size: 1.05rem; letter-spacing: .04em; }
+  nav.links { display: flex; gap: .9rem; flex-wrap: wrap; font-size: .92rem; }
+  nav.links a { color: var(--muted); text-decoration: none; }
+  nav.links a:hover { color: var(--text); }
+  .theme { margin-left: auto; background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: .25rem .6rem; cursor: pointer; font: inherit; font-size: .85rem; }
+  main { max-width: 1180px; margin: 0 auto; padding: 0 16px 4rem; }
+  section { padding-top: 2.2rem; }
+  h1 { font-size: clamp(1.8rem, 4vw, 2.6rem); line-height: 1.15; margin: 2rem 0 .4rem; }
+  h2 { font-size: 1.55rem; margin: 0 0 .6rem; }
+  h3 { font-size: 1.15rem; margin: 1.4rem 0 .4rem; }
+  .lead { color: var(--muted); font-size: 1.08rem; max-width: 62ch; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
+  /* Tour */
+  .tour { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 1rem; align-items: start; }
+  @media (max-width: 900px) { .tour { grid-template-columns: 1fr; } }
+  .shot { position: relative; line-height: 0; border-radius: 10px; overflow: hidden; }
+  .shot img { width: 100%; height: auto; display: block; }
+  .hot { position: absolute; transform: translate(-50%, -50%); width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--hot-text);
+         background: var(--hot); color: var(--hot-text); font: 700 12px/22px -apple-system, sans-serif; text-align: center; cursor: pointer; padding: 0;
+         box-shadow: 0 0 0 3px rgba(232,163,61,.35); transition: transform .12s; }
+  .hot:hover, .hot:focus-visible, .hot.active { transform: translate(-50%, -50%) scale(1.25); outline: none; box-shadow: 0 0 0 5px rgba(232,163,61,.5); }
+  .hot.active { background: var(--accent-2); }
+  .info { padding: 1rem 1.1rem; position: sticky; top: 4.2rem; }
+  .info h3 { margin-top: 0; }
+  .info .n { display: inline-block; min-width: 1.6em; text-align: center; border-radius: 1em; background: var(--hot); color: var(--hot-text); font-weight: 700; font-size: .85rem; margin-right: .4rem; }
+  .info ul { padding-left: 1.1rem; margin: .4rem 0; }
+  .info .nav { display: flex; gap: .5rem; margin-top: .8rem; }
+  .info .nav button, .tabs button { background: var(--surface-2); color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: .35rem .7rem; cursor: pointer; font: inherit; font-size: .88rem; }
+  .info .nav button:hover, .tabs button:hover { border-color: var(--accent); }
+  .hint { color: var(--muted); font-size: .88rem; margin: .5rem 0 0; }
+  /* Tabs, shared by the tour and the walkthroughs */
+  .tabs { display: flex; flex-wrap: wrap; gap: .4rem; margin: .8rem 0 1rem; }
+  .tabs button[aria-selected="true"] { background: var(--accent); color: var(--hot-text); border-color: var(--accent); font-weight: 600; }
+  .case { display: none; padding: 1.2rem 1.3rem; }
+  .case.shown { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 1.4rem; }
+  @media (max-width: 900px) { .case.shown { grid-template-columns: 1fr; } }
+  .case h3 { margin-top: 0; }
+  .case ol { padding-left: 1.3rem; }
+  .case ol li { margin: .35rem 0; }
+  .case figure { margin: 0; }
+  .case figure img { width: 100%; border-radius: 8px; border: 1px solid var(--line); }
+  .case figcaption { color: var(--muted); font-size: .85rem; margin-top: .3rem; line-height: 1.4; }
+  .tip { border-left: 3px solid var(--accent); background: var(--surface-2); padding: .6rem .8rem; border-radius: 0 6px 6px 0; margin: .8rem 0; font-size: .95rem; }
+  /* Tables */
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+  th, td { text-align: left; padding: .5rem .7rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: .85rem; text-transform: uppercase; letter-spacing: .03em; }
+  .legend { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: .6rem; }
+  .legend div { display: flex; gap: .6rem; align-items: center; padding: .55rem .7rem; }
+  .sw { flex: none; width: 34px; height: 10px; border-radius: 3px; }
+  .chain { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .86rem; line-height: 1.9; padding: 1rem 1.1rem; overflow-x: auto; white-space: pre; }
+  .chain b { color: var(--accent); font-weight: 600; }
+  footer { color: var(--muted); font-size: .88rem; border-top: 1px solid var(--line); margin-top: 3rem; padding-top: 1rem; }
+</style>
+</head>
+<body>
+<header class="site">
+  <div class="bar">
+    <a class="brand" href="#top">AmpSim</a>
+    <nav class="links" aria-label="Sections">
+      <a href="#install">Install</a>
+      <a href="#tour">Interface tour</a>
+      <a href="#cases">Walkthroughs</a>
+      <a href="#chain">Signal chain</a>
+      <a href="#gestures">Mouse and keys</a>
+      <a href="#colours">Reading the panel</a>
+      <a href="#faq">Questions</a>
+      <a href="https://github.com/CatastrophicCoder/ampsim">GitHub</a>
+    </nav>
+    <button class="theme" id="theme" type="button" aria-label="Switch colour theme">Theme</button>
+  </div>
+</header>
+
+<main id="top">
+  <h1>AmpSim user guide</h1>
+  <p class="lead">A guitar amp, a cabinet and a pedalboard, built around a Neural Amp Modeler
+    capture. An amp and a cab are built in, so it makes a sound the moment you open it. Start with
+    the interface tour, then pick a walkthrough for the job at hand.</p>
+
+  <!-- ============================================================ Install -->
+  <section id="install">
+    <h2>Installing</h2>
+    <p>macOS, Apple silicon. The installer puts three things on your machine: an <b>Audio Unit</b>
+      and a <b>VST3</b> in <code>/Library/Audio/Plug-Ins/</code>, and a <b>standalone app</b> in
+      <code>/Applications</code>. Take whichever you need.</p>
+    <ol>
+      <li>Open the <code>.pkg</code> and follow it through. Packages are published on the
+        <a href="https://github.com/CatastrophicCoder/ampsim/releases">releases page</a> when there
+        is a release to publish; otherwise
+        <a href="https://github.com/CatastrophicCoder/ampsim#building">build one from source</a> —
+        <code>./packaging/package.sh</code> writes both a <code>.pkg</code> and a <code>.dmg</code>.</li>
+      <li>The builds are signed ad hoc rather than with an Apple Developer ID, so the first launch
+        is blocked: <b>System Settings → Privacy &amp; Security</b>, scroll down, <b>Open Anyway</b>.
+        You only do this once.</li>
+      <li>In Logic the plugin is under <b>MIDI-controlled effects</b> rather than under amps,
+        because it accepts MIDI for controller mapping.</li>
+    </ol>
+    <div class="tip"><b>In the standalone, untick “Mute audio input”</b> in the Options dialog the
+      first time. A standalone plugin mutes its input by default, which is right for a synth and
+      wrong for an amp — with it ticked the meters move and you hear nothing.</div>
+  </section>
+
+  <!-- ============================================================ Tour -->
+  <section id="tour">
+    <h2>Interface tour</h2>
+    <p>Three pages under a bar that never changes. Pick a page, then click a numbered marker
+      (or use the arrows) to see what each part does.</p>
+    <div class="tabs" role="tablist" id="tourTabs"></div>
+    <div class="tour">
+      <div class="shot card">
+        <img id="tourShot" src="../images/amp.png" alt="The AmpSim window with numbered markers on each control" width="1560" height="920">
+        <div id="hotspots"></div>
+      </div>
+      <aside class="info card" id="info" aria-live="polite"></aside>
+    </div>
+  </section>
+
+  <!-- ============================================================ Walkthroughs -->
+  <section id="cases">
+    <h2>Walkthroughs</h2>
+    <p>Starting points for common jobs. The numbers are places to begin from, not settings to copy —
+      a capture of a real amp responds to your guitar and your pickups, so adjust by ear.</p>
+    <div class="tabs" role="tablist" id="tabs"></div>
+    <div id="casePanels"></div>
+  </section>
+
+  <!-- ============================================================ Signal chain -->
+  <section id="chain">
+    <h2>The signal chain</h2>
+    <div class="card chain">gate → compressor → drive → <b>Gain</b> → <b>amp model</b> → <b>Bass / Middle / Treble</b> → <b>Master</b>
+     → chorus → delay → reverb → <b>cabinet IR</b> → power switch</div>
+    <p>The order is fixed rather than something you rearrange, because the order <em>is</em> the
+      design. A drive pedal in front of the amp works by changing what the amp distorts; modulation
+      and echoes belong after it, so the repeats are of the already-distorted tone. They sit before
+      the cabinet, so tails come out through the speaker the way they would in a real room.</p>
+    <p>Everything is <b>mono</b>, because a guitar amp is and a NAM capture is. A stereo input is
+      summed in at the top and the result goes back out to both channels.</p>
+    <h3>Latency</h3>
+    <p>The capture runs at the rate it was trained at — usually 48 kHz — and the plugin converts in
+      and out at any other session rate, reporting about <b>220 samples at 44.1 kHz</b> for your host
+      to compensate. The drive pedal's oversampler adds <b>5 more</b>, and runs whether or not the
+      pedal is on so that the figure never changes underneath your host.</p>
+  </section>
+
+  <!-- ============================================================ Gestures -->
+  <section id="gestures">
+    <h2>Mouse and keys</h2>
+    <div class="card table-wrap">
+      <table>
+        <thead><tr><th>Where</th><th>Action</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td>Any knob</td><td>Drag up/down or left/right</td><td>Turns it. A pedal knob shows its value in a bubble while you drag; an amp or cab knob has its value printed under it</td></tr>
+          <tr><td>Any knob</td><td>Right-click</td><td>Learn a MIDI controller for it, or forget the one it has</td></tr>
+          <tr><td>Brass nameplate</td><td>Click</td><td>Opens a file chooser for a <code>.nam</code> capture</td></tr>
+          <tr><td>Power rocker</td><td>Click</td><td>Mutes the amp. The front of the head goes dark; the control plate stays lit</td></tr>
+          <tr><td>Pedal footswitch</td><td>Click</td><td>Switches the pedal in or out. Its LED lights green when it is in your signal</td></tr>
+          <tr><td>Cab corner</td><td>Click</td><td>Menu: load an impulse response there, or clear it</td></tr>
+          <tr><td>Preset field</td><td>Click</td><td>Menu: the saved presets, Save as…, Save over, Delete, and the presets folder</td></tr>
+          <tr><td>Preset field</td><td><kbd>‹</kbd> <kbd>›</kbd></td><td>Steps to the previous or next preset</td></tr>
+          <tr><td>Percentage in the bar</td><td>Click</td><td>Panel size: 75, 100, 125 or 150 %. Saved with the session</td></tr>
+          <tr><td>tuner</td><td>Click</td><td>Takes over the bar with the tuner and mutes the output</td></tr>
+          <tr><td>bypassed</td><td>Click</td><td>Passes your guitar straight through, untouched</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">Undo stays with your host: AmpSim writes every move to a parameter, so
+      <kbd>⌘Z</kbd> in your DAW covers it.</p>
+  </section>
+
+  <!-- ============================================================ Colours -->
+  <section id="colours">
+    <h2>Reading the panel</h2>
+    <p>Three colours carry meaning, and nothing else on the panel uses them.</p>
+    <div class="legend">
+      <div class="card"><span class="sw" style="background:#e8a33d"></span><span><b>Amber</b>: where a control is set. The ring round a knob, the border of a loaded cab corner, the underline on the open page.</span></div>
+      <div class="card"><span class="sw" style="background:var(--engaged)"></span><span><b>Green</b>: in your signal. A pedal's LED, the tuner lamp.</span></div>
+      <div class="card"><span class="sw" style="background:var(--bypassed)"></span><span><b>Red</b>: switched <em>out</em> of your signal. The <b>bypassed</b> lamp, <b>cab bypassed</b>, and a model or IR that would not load.</span></div>
+    </div>
+    <p class="hint">The colours of the pedal enclosures, the amp's covering and its pilot lamp are
+      what the objects are made of, not signals — a pedal is not telling you anything by being
+      purple.</p>
+    <h3>A knob's ring</h3>
+    <p>The ring shows the distance a control has travelled, not its absolute position. A control
+      that rests in the middle — Bass, Middle, Treble — draws its ring outward from twelve o'clock,
+      so you can see at a glance which way and how far you have gone. One that runs from the bottom
+      draws from the bottom.</p>
+  </section>
+
+  <!-- ============================================================ FAQ -->
+  <section id="faq">
+    <h2>Questions</h2>
+
+    <h3>What is the difference between the power switch and “bypassed”?</h3>
+    <p>The <b>power switch</b> on the amp mutes: an amp that is switched off makes no sound.
+      <b>bypassed</b> in the bar takes the whole plugin out of your signal, so your guitar passes
+      through untouched — that is the switch your host's own bypass drives. With the plugin
+      bypassed, the power switch has no effect, because the amp is not in the chain at all.</p>
+
+    <h3>Where do the built-in amp and cab come from, and where are they?</h3>
+    <p><b>MARS2204</b> is a capture of a well-known British 100-watt head; <b>V30 SM57</b> is a 4x12
+      close-miked on axis. They are written to
+      <code>~/Library/Application Support/AmpSim/Bundled/</code> the first time you run AmpSim and
+      loaded from there. Load anything else over them at any time — the public NAM model libraries
+      and any cabinet impulse response work.</p>
+
+    <h3>Turning Gain up barely changes the level. Is it broken?</h3>
+    <p>No — that is what an amp does. Gain sits <em>before</em> the model, so turning it up drives
+      the network harder and it saturates, the way a preamp gain control does. With a real capture,
+      12 dB more going in yields well under a decibel more coming out; what changes is the
+      distortion, not the volume. <b>Master</b> is the level control.</p>
+
+    <h3>Why does everything sound flat with all three tone knobs at noon?</h3>
+    <p>Because it is flat. Bass, Middle and Treble are independent parametric bands — low shelf at
+      100 Hz, peak at 800 Hz, high shelf at 3.2 kHz, ±12 dB each — rather than a modelled passive
+      tone stack. A real tone stack interacts with itself and is mid-scooped with everything at
+      noon; this one is not, and each knob moves only its own band.</p>
+
+    <h3>I only have one impulse response. Do I need all four corners?</h3>
+    <p>No. Fill one corner and the cab is a plain IR loader; the axis and distance knobs only have
+      somewhere to go once more than one corner is filled. The grid is there for people who have a
+      set of IRs of <em>one</em> cabinet captured at known mic positions.</p>
+
+    <h3>My IRs are all at different levels.</h3>
+    <p>They are handled. Captures are not made to a common level — a commercial pack can carry 15 dB
+      of broadband gain — so the cab measures the average magnitude across the range a guitar
+      occupies and normalises. One factor is applied to the whole grid rather than one per corner,
+      so a corner that really is quieter (a mic backed off, or off axis) stays quieter; only the
+      grid's overall level is brought to unity.</p>
+
+    <h3>The tuner keeps showing a note after I stop playing.</h3>
+    <p>On purpose. The reading dims but stays on screen, because a note decays long before you have
+      finished turning the peg and a tuner that blanks between plucks is unusable. It reads your
+      guitar before the pedals and the amp, so a fuzzy drive setting does not confuse it, and it
+      mutes the output while it is on.</p>
+
+    <h3>A preset changed my knobs but not my amp model. Why?</h3>
+    <p>A preset holds everything — controls, MIDI map, and the paths of the model and the cabs — but
+      anything it leaves empty keeps what is already loaded. So a preset saved with no model or cab
+      loaded carries only the controls, and recalling it will not unload your amp. This is also what
+      makes a preset survive a move to another machine, where your models live somewhere else.</p>
+
+    <h3>Can I reorder the pedals?</h3>
+    <p>No, and that is deliberate. The placement mirrors how a real rig is plugged up and it is the
+      point of the section rather than a limitation of it.</p>
+
+    <h3>A new build does not show up in Logic.</h3>
+    <p>Logic keeps a plugin's code loaded until it quits: quit Logic (<kbd>⌘Q</kbd>) and reopen the
+      project.</p>
+
+    <h3>Is it stereo?</h3>
+    <p>No. Mono from end to end, with a stereo input summed at the top. A guitar amp is mono and so
+      is a NAM capture; the cabinet is where stereo would begin if anything in the chain were.</p>
+  </section>
+
+  <footer>
+    AmpSim by Catastrophic Audio · open source under the AGPLv3 ·
+    <a href="https://github.com/CatastrophicCoder/ampsim">source code</a> ·
+    <a href="https://github.com/CatastrophicCoder/ampsim/blob/main/CLAUDE.md">architecture notes</a>
+    <br>Amp captures and impulse responses carry their own licences, and some are captures of
+    trademarked amplifiers.
+  </footer>
+</main>
+
+<script>
+(function () {
+  // ---------------------------------------------------------------- theme
+  const root = document.documentElement;
+  const themeButton = document.getElementById("theme");
+  const stored = (() => { try { return localStorage.getItem("as-guide-theme"); } catch (e) { return null; } })();
+  if (stored) root.setAttribute("data-theme", stored);
+  themeButton.addEventListener("click", () => {
+    const dark = root.getAttribute("data-theme")
+      ? root.getAttribute("data-theme") === "dark"
+      : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const next = dark ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try { localStorage.setItem("as-guide-theme", next); } catch (e) {}
+  });
+
+  // ---------------------------------------------------------------- tour
+  // Marker positions are percentages of each screenshot (1560 x 920, the panel at 100 %).
+  const bar = [
+    { x: 30.0, y: 5.7, title: "Preset", body: "<p>Which preset is loaded. Click the field for the menu: your saved presets, <b>Save as…</b>, <b>Save over</b>, <b>Delete</b>, and a shortcut to the presets folder. <b>&lsaquo;</b> and <b>&rsaquo;</b> step through them.</p><p>A new instance lands on <b>Default</b>, which names the built-in amp and cabinet. It is the only preset that ships; the rest of the list is yours.</p>" },
+    { x: 70.1, y: 5.7, title: "Panel size", body: "<p>75, 100, 125 or 150 %. The whole panel scales — nothing is redrawn at a lower quality, because none of it is an image.</p><p>The size is saved with the session and a preset cannot change it: how big you like the window is not part of how the amp sounds.</p>" },
+    { x: 79.9, y: 5.7, title: "Tuner", body: "<p>Takes over the middle of the bar while it is on, and mutes the output.</p><ul><li>It reads your guitar <em>before</em> the pedals and the amp, so a heavy drive setting does not confuse it.</li><li>The note and how far off it is in cents; the bar sits on the centre mark when you are in tune.</li><li>A reading stays on screen after the note decays, dimmed, so you can keep turning the peg.</li></ul>" },
+    { x: 91.9, y: 5.7, title: "Bypassed", body: "<p>Takes the whole plugin out of your signal: your guitar passes through untouched. This is the switch your host's own bypass drives.</p><p>Red on this panel always means <em>switched out of your signal</em>, wherever you see it.</p>" },
+    { x: 8.7, y: 15.0, title: "Pages", body: "<p><b>AMP</b> is the head and its five controls, <b>PEDALS</b> is the board, <b>CAB</b> is the cabinet and the mic position.</p><p>The preset, the size, the tuner and the bypass are global, so they stay in the bar above rather than living on a page.</p>" }
+  ];
+
+  const tours = [
+    { id: "amp", label: "Amp", image: "amp.png",
+      spots: bar.concat([
+        { x: 50.0, y: 45.0, title: "The capture, and how to change it", body: "<p>The nameplate on the grille is the model in use — and clicking it is how you load another. An amp wears its name on the front, and on this amp the name <em>is</em> the file.</p><p>Any <code>.nam</code> file works. If one will not load, the plate turns red and says why.</p>" },
+        { x: 13.8, y: 77.0, title: "Gain", body: "<p>±24 dB <em>before</em> the model, so turning it up drives the network harder and it saturates — exactly what a preamp gain control does.</p><p>It is not a volume control: with a real capture, 12 dB more going in yields well under a decibel more coming out. What changes is how hard the amp is being hit.</p>" },
+        { x: 43.5, y: 77.0, title: "Bass, Middle, Treble", body: "<p>Three independent parametric bands between the model and the cab, ±12 dB each:</p><ul><li><b>Bass</b>: low shelf at 100 Hz</li><li><b>Middle</b>: peak at 800 Hz, Q 0.7</li><li><b>Treble</b>: high shelf at 3.2 kHz</li></ul><p>All three at noon is genuinely flat, and each moves only its own band — unlike a real passive tone stack, which interacts with itself and is mid-scooped at noon.</p>" },
+        { x: 73.1, y: 77.0, title: "Master", body: "<p>±24 dB, the level out of the amp. This is the volume control; <b>Gain</b> is the one that changes the tone.</p><p>It sits before the cabinet. Convolution is linear, so that is the same level as putting it after — it is here because that is where the control belongs on an amp.</p>" },
+        { x: 87.7, y: 71.0, title: "Power", body: "<p>Mutes the amp, on a short ramp so it never clicks. The pilot lamp goes dark and the front of the head goes with it, while the control plate keeps its light so you can still read your settings.</p><p>This is not the same as <b>bypassed</b>: an amp that is switched off makes no sound, where a bypassed plugin passes your guitar through.</p>" }
+      ]) },
+    { id: "pedals", label: "Pedals", image: "pedals.png",
+      spots: [
+        { x: 50.0, y: 62.0, title: "The amp, in the middle of the board", body: "<p>The run goes left to right and the amp is drawn where it actually sits. Which side of it a pedal is on is the design of this section, not a detail: a drive in front changes what the amp distorts, an echo after repeats the already-distorted tone.</p><p>The order is fixed. There is no reorder, on purpose.</p>" },
+        { x: 9.5, y: 81.7, title: "Footswitches and LEDs", body: "<p>A pedal is switched in and out with its footswitch, and its LED lights <b>green</b> when it is in your signal — the same green the tuner lamp uses.</p><p>The switch sits down while it is on, the way a latching stomp switch does.</p>" },
+        { x: 9.5, y: 50.7, title: "Gate", body: "<p>A noise gate at the very front, before anything else touches the signal.</p><ul><li><b>thresh</b>: −80 to −40 dB, opening at −65 dB by default.</li><li>It closes gently — 3:1 rather than a hard cut — so a note that decays past the threshold fades instead of being chopped.</li></ul><p>Set it as low as will still silence your hum. Too high and the tails of held notes go with it.</p>" },
+        { x: 24.4, y: 50.7, title: "Compressor", body: "<p>A single <b>amount</b> knob runs the threshold down and the ratio up together, so it goes from a gentle levelling to a squashed, sustaining sound without three controls to balance.</p><ul><li><b>amount</b>: 0 to 1, 0.4 by default.</li><li><b>level</b>: ±12 dB of make-up, for matching the level with the pedal off.</li></ul>" },
+        { x: 39.2, y: 50.7, title: "Drive", body: "<p>An overdrive in front of the amp, 4x oversampled so it does not alias.</p><ul><li><b>drive</b>: how hard it clips.</li><li><b>tone</b>: brightness going into the amp.</li><li><b>level</b>: ±12 dB — this is the one that pushes the amp.</li></ul><div class=\"tip\">The classic use is <b>drive low, level high</b>: not much distortion of its own, but a hotter and slightly brighter signal into the amp, which makes the amp itself work harder.</div>" },
+        { x: 60.8, y: 50.7, title: "Chorus", body: "<p>After the amp, before the cab.</p><ul><li><b>rate</b>: 0.1 to 8 Hz.</li><li><b>depth</b> and <b>mix</b>.</li></ul><p>It keeps running while it is switched off, so engaging it picks up where it already was rather than starting from silence.</p>" },
+        { x: 75.6, y: 50.7, title: "Delay", body: "<p><ul><li><b>time</b>: 20 ms to 1.2 s, shown in milliseconds.</li><li><b>repeats</b>: up to 0.95 — high, but short of self-oscillation.</li><li><b>mix</b>.</li></ul></p><p>Like the chorus, it keeps running while off, so switching it on does not start the line empty.</p>" },
+        { x: 90.5, y: 50.7, title: "Reverb", body: "<p><b>size</b> and <b>mix</b>. Last in the chain before the cabinet, so the tail comes out through the speaker rather than around it.</p>" }
+      ] },
+    { id: "cab", label: "Cab", image: "cab.png",
+      spots: [
+        { x: 17.9, y: 49.6, title: "On axis, close", body: "<p>Click a corner to load an impulse response there, or to clear it. The corner lights up and takes an amber border when it is filled.</p><p><b>Fill just this one and the cab is a plain IR loader</b> — which is what most people want. The other three only matter if you have a set of IRs of one cabinet captured at known mic positions.</p>" },
+        { x: 46.3, y: 49.6, title: "Off axis, close", body: "<p>The same cabinet with the microphone moved off the centre of the cone, towards the edge. Off axis is darker and less aggressive.</p>" },
+        { x: 17.9, y: 73.9, title: "On axis, far", body: "<p>The microphone backed away from the grille. Further back picks up more of the room and less of the cone's edge.</p>" },
+        { x: 46.3, y: 73.9, title: "Off axis, far", body: "<p>The fourth corner of the grid. With all four filled, the two knobs beside the cab move between them continuously.</p>" },
+        { x: 74.4, y: 60.7, title: "Axis", body: "<p>Blends left to right across the grid: 0 % is fully on axis, 100 % fully off axis. Shown as a percentage because it is a position between two captures, not a measurement.</p>" },
+        { x: 88.7, y: 60.7, title: "Distance", body: "<p>Blends top to bottom: 0 % is the close pair, 100 % the far pair. The knobs are laid out along the same two directions the grid is, so the control matches the picture.</p>" },
+        { x: 71.8, y: 40.4, title: "Cab bypassed", body: "<p>Takes the cabinet out and leaves the amp. Red, because it means the same thing here as anywhere else on the panel.</p><p>Useful if you want to use your own convolution plugin after AmpSim, or an IR loader you already own. A capture without a cab is very bright — that is the speaker's job, not a fault.</p>" }
+      ] }
+  ];
+
+  const tourTabs = document.getElementById("tourTabs");
+  const shot = document.getElementById("tourShot");
+  const hotspots = document.getElementById("hotspots");
+  const info = document.getElementById("info");
+  let tour = tours[0];
+  let current = 0;
+
+  tours.forEach(t => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.role = "tab";
+    b.id = "tourtab-" + t.id;
+    b.textContent = t.label;
+    b.addEventListener("click", () => selectTour(t.id));
+    tourTabs.appendChild(b);
+  });
+
+  function selectTour(id) {
+    tour = tours.find(t => t.id === id) || tours[0];
+    tours.forEach(t => document.getElementById("tourtab-" + t.id)
+                                .setAttribute("aria-selected", String(t.id === tour.id)));
+    shot.src = "../images/" + tour.image;
+    shot.alt = "The AmpSim " + tour.label + " page with numbered markers on each control";
+    hotspots.textContent = "";
+
+    tour.spots.forEach((s, i) => {
+      const b = document.createElement("button");
+      b.className = "hot";
+      b.type = "button";
+      b.textContent = String(i + 1);
+      b.style.left = s.x + "%";
+      b.style.top = s.y + "%";
+      b.setAttribute("aria-label", (i + 1) + ": " + s.title);
+      b.addEventListener("click", () => show(i));
+      b.addEventListener("mouseenter", () => show(i));
+      hotspots.appendChild(b);
+    });
+
+    show(0);
+  }
+
+  function show(i) {
+    current = (i + tour.spots.length) % tour.spots.length;
+    const s = tour.spots[current];
+    info.innerHTML = '<h3><span class="n">' + (current + 1) + "</span>" + s.title + "</h3>" + s.body +
+      '<div class="nav"><button type="button" data-step="-1">&larr; Previous</button><button type="button" data-step="1">Next &rarr;</button></div>' +
+      '<p class="hint">' + (current + 1) + " of " + tour.spots.length + "</p>";
+    info.querySelectorAll("[data-step]").forEach(btn => btn.addEventListener("click", () => show(current + Number(btn.dataset.step))));
+    info.querySelectorAll("[data-case]").forEach(a => a.addEventListener("click", () => selectCase(a.dataset.case)));
+    hotspots.querySelectorAll(".hot").forEach((h, k) => h.classList.toggle("active", k === current));
+  }
+
+  selectTour("amp");
+
+  // ---------------------------------------------------------------- walkthroughs
+  const cases = [
+    { id: "first", label: "Your first sound", image: "amp.png", caption: "A fresh instance: MARS2204 into V30 SM57, Master at −6 dB.",
+      html: `<h3>Your first sound</h3>
+      <ol>
+        <li>Open AmpSim. An amp and a cab are already loaded, so you should hear something straight away.</li>
+        <li><b>In the standalone</b>, open <b>Options</b> and untick <b>Mute audio input</b>, then pick your interface's input. This is the single most common reason for silence.</li>
+        <li>If it is still quiet, check the <b>power rocker</b> on the right of the control plate — its lamp should be lit — and that <b>bypassed</b> and <b>tuner</b> in the bar are both off.</li>
+        <li>Set <b>Gain</b> for the amount of dirt you want and <b>Master</b> for the volume. They are not interchangeable: see the walkthrough on dialling in a tone.</li>
+      </ol>
+      <div class="tip">Hearing nothing but seeing meters move, in a DAW rather than the standalone? Check that the track's input is your guitar and that AmpSim is on that track rather than on a bus.</div>` },
+    { id: "tone", label: "Dial in a tone", image: "amp.png", caption: "Gain drives the model; Master sets the level; the three bands sit between the model and the cab.",
+      html: `<h3>Dial in a tone</h3>
+      <ol>
+        <li>Start with <b>Gain</b> at noon and <b>Master</b> wherever the level is comfortable, and the three tone knobs at noon — which on this amp is genuinely flat.</li>
+        <li>Move <b>Gain</b> and listen to the <em>distortion</em>, not the volume. It sits before the model, so it changes how hard the capture is being hit; the level barely moves.</li>
+        <li>Then set the tone. <b>Bass</b> is a shelf at 100 Hz, <b>Middle</b> a peak at 800 Hz, <b>Treble</b> a shelf at 3.2 kHz, ±12 dB each and independent of one another.</li>
+        <li>Want more dirt than the capture gives you at full Gain? Put the <b>drive</b> pedal in front with its <b>level</b> up and its <b>drive</b> low — that is what a real boost in front of an amp does.</li>
+        <li>Set <b>Master</b> last, to match the level of whatever you are comparing against.</li>
+      </ol>
+      <div class="tip">A <code>.nam</code> capture is a snapshot of one amp setting, so the model's own character is fixed. Gain and the tone stack are plugin-side stages built around it, which is why they behave predictably rather than interacting the way a real amp's controls do.</div>` },
+    { id: "model", label: "Load your own capture", image: "amp.png", caption: "The nameplate is the model in use, and clicking it loads another.",
+      html: `<h3>Load your own capture</h3>
+      <ol>
+        <li>Click the <b>brass nameplate</b> on the grille.</li>
+        <li>Pick any <code>.nam</code> file. The public NAM model libraries all work; so do captures you make yourself.</li>
+        <li>The plate shows the file's name. If the model will not load, it turns red and says why.</li>
+      </ol>
+      <p>The swap happens on a background thread and the audio fades across it, so you can change models while playing without a click or a dropout.</p>
+      <div class="tip">Captures run at the rate they were trained at, usually 48 kHz. At any other session rate AmpSim converts in and out and reports the latency to your host, so nothing drifts out of time. Loading a model at a different rate changes nothing you have to think about.</div>` },
+    { id: "cab", label: "Cabs and mic position", image: "cab.png", caption: "One corner filled is a plain IR loader; four make a mic-position grid.",
+      html: `<h3>Cabs and mic position</h3>
+      <ol>
+        <li>Go to <b>CAB</b> and click the <b>on axis, close</b> corner. Choose <b>Load an impulse response…</b> and pick a <code>.wav</code>, <code>.aiff</code> or <code>.aif</code> file.</li>
+        <li>That is all most people need. The corner lights up and the cab is a plain IR loader.</li>
+        <li>If you have a set of IRs of <em>the same cabinet</em> captured at four known mic positions, fill the other three corners to match the labels.</li>
+        <li>Now <b>Axis</b> moves the microphone from the centre of the cone towards the edge, and <b>Distance</b> moves it away from the grille. The knobs run along the same two directions as the grid.</li>
+      </ol>
+      <div class="tip">Levels are normalised across the whole grid rather than per corner, so a corner that really is quieter — a mic backed off, or off axis — stays quieter. A stereo IR is folded to mono, because the chain is mono. <b>cab bypassed</b> takes the cabinet out if you would rather use your own IR loader after AmpSim.</div>` },
+    { id: "pedals", label: "Use the pedals", image: "pedals.png", caption: "Six pedals in one run, with the amp drawn where it sits in the chain.",
+      html: `<h3>Use the pedals</h3>
+      <ol>
+        <li>Switch a pedal in with its <b>footswitch</b>. The LED lights green when it is in your signal.</li>
+        <li><b>Gate</b> first, if you need it: lower <b>thresh</b> until your hum is silent between notes and no further. It closes gently rather than chopping, so decaying notes still fade out.</li>
+        <li><b>Comp</b> for evenness: one <b>amount</b> knob runs the threshold down and the ratio up together. Use <b>level</b> to match the volume with the pedal off, so you can judge it fairly.</li>
+        <li><b>Drive</b> in front of the amp. For a classic boost, <b>drive</b> low and <b>level</b> high: not much distortion of its own, but the amp works harder.</li>
+        <li><b>Chorus</b>, <b>delay</b> and <b>reverb</b> after the amp. They run before the cabinet, so their tails come out through the speaker rather than around it.</li>
+      </ol>
+      <div class="tip">The time-based three keep running while they are switched off, so engaging one picks up repeats already in flight instead of starting from an empty line. That is why switching them in mid-phrase does not click.</div>` },
+    { id: "tuner", label: "Tune up", image: "tuner.png", caption: "The tuner takes over the middle of the bar and mutes the output.",
+      html: `<h3>Tune up</h3>
+      <ol>
+        <li>Click <b>tuner</b> in the bar. The output mutes and the preset field gives up its space to the reading.</li>
+        <li>Play one string. The note name appears on the left, the meter shows how far off you are, and the figure on the right gives it in cents.</li>
+        <li>In tune is the bar sitting on the centre mark, at which point it turns green.</li>
+        <li>Click <b>tuner</b> again to go back.</li>
+      </ol>
+      <div class="tip">The reading is taken before the pedals and the amp, so it hears your guitar rather than a distorted version of it. It holds the last note on screen, dimmed, after the string decays — you can keep turning the peg without the display blanking on you.</div>` },
+    { id: "midi", label: "MIDI control", image: "pedals.png", caption: "Right-click any knob for its MIDI menu.",
+      html: `<h3>Put a control on a pedal or a fader</h3>
+      <ol>
+        <li><b>Right-click</b> the knob you want to control and choose <b>Learn a MIDI controller</b>.</li>
+        <li>Move the physical control. The mapping is made as soon as AmpSim sees a CC.</li>
+        <li>To remove it, right-click again and choose <b>Forget CC <em>n</em></b>.</li>
+      </ol>
+      <p>One controller drives one parameter and one parameter answers to one controller, so learning a
+        CC that is already in use moves it. The map is saved with your session and travels with a preset.</p>
+      <div class="tip">In Logic the plugin appears under <b>MIDI-controlled effects</b> rather than with the amps, because it declares a MIDI input for exactly this.</div>` },
+    { id: "presets", label: "Presets", image: "amp.png", caption: "The preset field sits in the bar, above all three pages.",
+      html: `<h3>Save and recall a sound</h3>
+      <ol>
+        <li>Click the preset field and choose <b>Save as…</b>. Presets are files in <code>~/Library/Application Support/AmpSim/Presets</code>.</li>
+        <li><b>&lsaquo;</b> and <b>&rsaquo;</b> step through them; the menu lists them all, with the current one ticked.</li>
+        <li><b>Save over</b> replaces the loaded preset; <b>Delete</b> removes it. <b>Open the presets folder</b> shows them in the Finder, so you can back them up or send one to someone.</li>
+      </ol>
+      <p>A preset holds everything: the controls, the MIDI map, and the paths of the model and the cabs.</p>
+      <div class="tip">Anything a preset leaves empty keeps what is already loaded. So a preset saved with no model or cab will not unload your amp when you recall it — which is also what lets a preset survive being sent to someone whose models live somewhere else.</div>` },
+    { id: "power", label: "Power and bypass", image: "amp-off.png", caption: "Switched off: the lamp is dark and the front of the head goes with it, while the plate stays readable.",
+      html: `<h3>Power, bypass and silence</h3>
+      <ol>
+        <li>The <b>power rocker</b> on the amp mutes it, on a short ramp so it never clicks. Use it to stop the amp without touching your host.</li>
+        <li><b>bypassed</b> in the bar takes the whole plugin out and passes your guitar through untouched. This is what your host's own bypass button drives.</li>
+        <li>With the plugin bypassed the power switch does nothing, because the amp is not in the chain at all.</li>
+        <li><b>cab bypassed</b> on the CAB page removes only the cabinet.</li>
+      </ol>
+      <div class="tip">If you get silence and cannot see why, check all four in order: power lamp lit, <b>bypassed</b> off, <b>tuner</b> off, and — in the standalone — <b>Mute audio input</b> unticked in Options.</div>` }
+  ];
+
+  const tabs = document.getElementById("tabs");
+  const panels = document.getElementById("casePanels");
+  cases.forEach((c) => {
+    const t = document.createElement("button");
+    t.type = "button";
+    t.role = "tab";
+    t.id = "tab-" + c.id;
+    t.textContent = c.label;
+    t.setAttribute("aria-controls", "case-" + c.id);
+    t.addEventListener("click", () => selectCase(c.id));
+    tabs.appendChild(t);
+
+    const p = document.createElement("div");
+    p.className = "case card";
+    p.id = "case-" + c.id;
+    p.setAttribute("role", "tabpanel");
+    p.setAttribute("aria-labelledby", "tab-" + c.id);
+    p.innerHTML = "<div>" + c.html + "</div><figure><img loading=\"lazy\" src=\"../images/" + c.image + "\" alt=\"" + c.caption + "\"><figcaption>" + c.caption + "</figcaption></figure>";
+    panels.appendChild(p);
+  });
+
+  function selectCase(id) {
+    cases.forEach(c => {
+      const selected = c.id === id;
+      document.getElementById("tab-" + c.id).setAttribute("aria-selected", String(selected));
+      document.getElementById("case-" + c.id).classList.toggle("shown", selected);
+    });
+    try { history.replaceState(null, "", "#" + id); } catch (e) {}
+  }
+
+  const fromHash = cases.find(c => "#" + c.id === location.hash);
+  selectCase(fromHash ? fromHash.id : cases[0].id);
+  if (fromHash) document.getElementById("cases").scrollIntoView();
+})();
+</script>
+</body>
+</html>

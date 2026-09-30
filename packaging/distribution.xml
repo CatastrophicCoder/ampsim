@@ -11,16 +11,16 @@
     </choices-outline>
 
     <choice id="au" title="Audio Unit" description="For Logic, GarageBand and other AU hosts. Installs to /Library/Audio/Plug-Ins/Components.">
-        <pkg-ref id="com.ampsim.ampsim.au"/>
+        <pkg-ref id="com.catastrophicaudio.ampsim.au"/>
     </choice>
     <choice id="vst3" title="VST3" description="For Reaper, Cubase, Live and other VST3 hosts. Installs to /Library/Audio/Plug-Ins/VST3.">
-        <pkg-ref id="com.ampsim.ampsim.vst3"/>
+        <pkg-ref id="com.catastrophicaudio.ampsim.vst3"/>
     </choice>
     <choice id="standalone" title="Standalone app" description="AmpSim on its own, without a host. Installs to /Applications.">
-        <pkg-ref id="com.ampsim.ampsim.standalone"/>
+        <pkg-ref id="com.catastrophicaudio.ampsim.standalone"/>
     </choice>
 
-    <pkg-ref id="com.ampsim.ampsim.au" version="@VERSION@">au.pkg</pkg-ref>
-    <pkg-ref id="com.ampsim.ampsim.vst3" version="@VERSION@">vst3.pkg</pkg-ref>
-    <pkg-ref id="com.ampsim.ampsim.standalone" version="@VERSION@">app.pkg</pkg-ref>
+    <pkg-ref id="com.catastrophicaudio.ampsim.au" version="@VERSION@">au.pkg</pkg-ref>
+    <pkg-ref id="com.catastrophicaudio.ampsim.vst3" version="@VERSION@">vst3.pkg</pkg-ref>
+    <pkg-ref id="com.catastrophicaudio.ampsim.standalone" version="@VERSION@">app.pkg</pkg-ref>
 </installer-gui-script>

@@ -46,7 +46,7 @@ jobs:
       - name: Validate the Audio Unit
         run: |
           killall -9 AudioComponentRegistrar 2>/dev/null || true
-          auval -v aumf Amp1 Amps
+          auval -v aumf Amp1 Ctcd
 
       - name: Install pluginval
         run: |

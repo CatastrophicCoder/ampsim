@@ -46,9 +46,9 @@ juce_add_plugin(AmpSim
     PRODUCT_NAME                "AmpSim"
     ICON_BIG                    "resources/icon-1024.png"
     ICON_SMALL                  "resources/icon-128.png"
-    COMPANY_NAME                "AmpSim"
-    BUNDLE_ID                   "com.ampsim.ampsim"
-    PLUGIN_MANUFACTURER_CODE    Amps          # four chars, at least one uppercase
+    COMPANY_NAME                "Catastrophic Audio"
+    BUNDLE_ID                   "com.catastrophicaudio.ampsim"
+    PLUGIN_MANUFACTURER_CODE    Ctcd          # four chars, at least one uppercase: Catastrophic Audio
     PLUGIN_CODE                 Amp1          # unique per plugin; change if you ship a second one
     FORMATS                     AU VST3 Standalone
     IS_SYNTH                    FALSE
