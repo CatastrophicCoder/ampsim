@@ -35,24 +35,40 @@ void CabinetSlotButton::setContents (const juce::String& text, bool loaded)
 void CabinetSlotButton::paintButton (juce::Graphics& g, bool shouldDrawButtonAsHighlighted,
                                      bool shouldDrawButtonAsDown)
 {
-    auto bounds = getLocalBounds().toFloat().reduced (1.0f);
+    const auto bounds = getLocalBounds().toFloat().reduced (1.0f);
 
-    g.setColour (shouldDrawButtonAsDown ? AmpPalette::railRecess.darker (0.3f)
-                                        : (shouldDrawButtonAsHighlighted ? AmpPalette::railRecess.brighter (0.25f)
-                                                                         : AmpPalette::railRecess));
+    // A filled corner and an empty one should not be something you have to read to tell apart.
+    // Everything differs: the plate it is drawn on, the marker down its edge, the border, and the
+    // weight of both lines of text.
+    const auto lift = shouldDrawButtonAsDown ? -0.15f : (shouldDrawButtonAsHighlighted ? 0.25f : 0.0f);
+
+    g.setColour (isLoaded ? AmpPalette::railRecess.brighter (0.35f + lift)
+                          : AmpPalette::railRecess.darker (0.35f - lift));
     g.fillRect (bounds);
 
-    g.setColour (AmpPalette::enamel.withAlpha (isLoaded ? 0.28f : 0.12f));
-    g.drawRect (bounds, 1.0f);
+    if (isLoaded)
+    {
+        // The same blue that means "in your signal" everywhere else on the panel.
+        g.setColour (AmpPalette::reading);
+        g.fillRect (bounds.withWidth (3.0f));
 
-    auto text = getLocalBounds().reduced (7, 4);
+        g.setColour (AmpPalette::reading.withAlpha (0.55f));
+        g.drawRect (bounds, 1.0f);
+    }
+    else
+    {
+        g.setColour (AmpPalette::enamel.withAlpha (0.08f));
+        g.drawRect (bounds, 1.0f);
+    }
+
+    auto text = getLocalBounds().reduced (10, 4);
 
     g.setFont (AmpLookAndFeel::panelFont (10.0f));
-    g.setColour (AmpPalette::enamel.withAlpha (0.45f));
+    g.setColour (AmpPalette::enamel.withAlpha (isLoaded ? 0.6f : 0.3f));
     g.drawText (position, text.removeFromTop (13), juce::Justification::centredLeft, false);
 
-    g.setFont (AmpLookAndFeel::panelFont (12.0f));
-    g.setColour (AmpPalette::enamel.withAlpha (isLoaded ? 0.92f : 0.3f));
+    g.setFont (AmpLookAndFeel::panelFont (12.0f, isLoaded));
+    g.setColour (AmpPalette::enamel.withAlpha (isLoaded ? 1.0f : 0.25f));
     g.drawText (contents, text, juce::Justification::centredLeft, true);
 }
 
