@@ -178,9 +178,9 @@ TEST_CASE ("Swapping models fades rather than cutting", "[model]")
         return worstJump;
     };
 
-    float ignored = 0.0f;
-    const auto baseline = juce::jmax (worstJumpOverRun ("wavenet.nam", false, ignored),
-                                      worstJumpOverRun ("lstm.nam", false, ignored));
+    float steadyWavenet = 0.0f, steadyLstm = 0.0f;
+    const auto baseline = juce::jmax (worstJumpOverRun ("wavenet.nam", false, steadyWavenet),
+                                      worstJumpOverRun ("lstm.nam", false, steadyLstm));
 
     float quietestDuringSwap = 0.0f;
     const auto withSwap = worstJumpOverRun ("wavenet.nam", true, quietestDuringSwap);
@@ -190,8 +190,14 @@ TEST_CASE ("Swapping models fades rather than cutting", "[model]")
     // The swap must not introduce a discontinuity larger than the models make on their own.
     REQUIRE (withSwap <= baseline * 1.1f);
 
-    // And the fade must actually happen: some block during the swap is near silent.
-    REQUIRE (quietestDuringSwap < 0.02f);
+    // And the fade must actually happen: some block during the swap is far quieter than either
+    // model is on its own. Measured against the models rather than against a fixed number,
+    // because the two are normalised to a common loudness and so arrive at their own levels —
+    // an absolute threshold here would be testing how loud the captures are.
+    const auto steady = juce::jmax (steadyWavenet, steadyLstm);
+
+    INFO ("steady " << steady << ", quietest during the swap " << quietestDuringSwap);
+    REQUIRE (quietestDuringSwap < 0.35f * steady);
 }
 
 TEST_CASE ("A second model is refused until the first has been collected", "[model]")
@@ -400,4 +406,43 @@ TEST_CASE ("A model prepared before the host settings were known is not swapped 
     }
 
     REQUIRE (ampModel.hasModel());
+}
+
+TEST_CASE ("A capture is brought to a common loudness", "[model]")
+{
+    // Captures are not made to a common level, and the file says how loud it is precisely so that
+    // a host need not make the player re-set Master by ear on every swap. The two example models
+    // are 17.8 dB apart, which is the whole problem in one directory.
+    const auto normalisationFor = [] (const juce::String& name)
+    {
+        AmpModel ampModel;
+        ampModel.prepare (48000.0, test::blockSize);
+
+        REQUIRE (ampModel.setPendingModel (loadFor (ampModel, exampleModel (name))));
+        runBlocks (ampModel, 8);
+
+        return ampModel.getNormalisationDb();
+    };
+
+    // Loudness -20.02 dB and -37.84 dB respectively, against a reference of -18 dB.
+    REQUIRE_THAT (normalisationFor ("wavenet.nam"),
+                  WithinAbs (AmpModel::referenceLoudnessDb + 20.020729, 0.01));
+    REQUIRE_THAT (normalisationFor ("lstm.nam"),
+                  WithinAbs (AmpModel::referenceLoudnessDb + 37.840687, 0.01));
+
+    // The gap between them, which is what a player would otherwise meet as a step in level.
+    REQUIRE (std::abs (normalisationFor ("wavenet.nam") - normalisationFor ("lstm.nam")) > 17.0f);
+}
+
+TEST_CASE ("A capture that does not say how loud it is, is left alone", "[model]")
+{
+    // Guessing would be worse than doing nothing: a wrong correction is a surprise the player
+    // cannot see, where an uncorrected model is merely the old behaviour.
+    AmpModel ampModel;
+    ampModel.prepare (48000.0, test::blockSize);
+
+    REQUIRE (ampModel.setPendingModel (loadFor (ampModel, exampleModel ("my_model.nam"))));
+    runBlocks (ampModel, 8);
+
+    REQUIRE_THAT (ampModel.getNormalisationDb(), WithinAbs (0.0, 1.0e-6));
 }

@@ -27,6 +27,9 @@ taken on trust:
 
 These are findings about the current code, not proposals. Each is checkable against the source.
 
+**All three were fixed after this review was written.** The findings are kept as they were, with
+what was done recorded under each, because the reasoning is what makes the fix reviewable.
+
 ## 1.1 The amp model ignores NAM's level calibration
 
 `AmpModel` never calls `HasLoudness()`, `GetLoudness()`, `HasInputLevel()`, `GetInputLevel()`,
@@ -47,6 +50,10 @@ apply the difference from a reference as a gain, the way the cab already does. L
 calibration, which needs the player to enter their interface's maximum input level, and a place to
 put that setting.
 
+**Resolved.** The loudness-based version, applied automatically with no switch, matching what the
+cab does. `referenceLoudnessDb` is −18 dB. A file without a loudness is left alone. The dBu
+calibration in 2.1 is still open, and is still the part that would need a setting.
+
 ## 1.2 The gate cannot gate what most players want gated
 
 `PedalChain::processBeforeAmp` runs the gate first, on the raw guitar. The reasoning in the code is
@@ -63,6 +70,11 @@ has flattened it.
 tuner taps it. A second gate stage after the amp, keyed from that tap, is architecturally cheap.
 Whether it belongs is a design question, not a technical one: see 3.1.
 
+**Resolved.** One gate, split in two: `measureKey()` in front of the amp, `apply()` behind it and
+ahead of the time effects. The threshold still means a level of the raw guitar, so presets kept
+their meaning. What is left open is the drawing — the gate is still the first object on the
+pedals page, which is where its key is rather than where it acts.
+
 ## 1.3 The reverb's mix control is not a mix
 
 `ReverbPedal::setParameters` sets `dryLevel = 1.0f - wetLevel * 0.5f`. At mix = 1 the dry signal is
@@ -70,10 +82,18 @@ still at 0.5, so the control never reaches fully wet, and the dry level falls as
 rather than the two trading off to a constant sum. A player who expects "mix" to mean what it means
 everywhere else will find the top of the range does not do what it says.
 
+**Worse than stated above, as it turned out.** `juce::Reverb` scales what it is handed — the dry by
+two and the wet by three — so `dryLevel = 1` was +6 dB of dry, and engaging the reverb at any mix
+made everything louder. The mix control was not merely limited; it was a level bug.
+
+**Resolved.** Both scalings are divided out, so mix 0 is an exact null, mix 1 has no dry path, and
+the input stays at unity in between. A test measures the surviving dry gain by projecting the
+output onto a noise input.
+
 **Also.** `juce::dsp::Reverb` is Freeverb — a Schroeder-Moorer design of parallel combs and series
 allpasses, which models a room. Guitar amps have spring tanks, whose character comes from
 dispersive propagation producing a sequence of chirps. The current reverb is a reasonable general
-reverb; it is not the reverb a guitar amp has.
+reverb; it is not the reverb a guitar amp has. That part stands: see 2.7.
 
 ## 1.4 The drive pedal has no pre-clipping filter
 
@@ -261,9 +281,8 @@ distinct from the drive, pitch effects, and tempo sync on the delay.**
 | 2.8 More pedals | Varies | No | Large in aggregate | Named as scope creep in CLAUDE.md |
 | 2.9 Metering | Low alone, higher with 2.1 | No | Moderate | New UI category |
 
-Three of these — 1.1, 1.2 and 1.3 — are findings about the current code rather than
-enhancements, and would be worth resolving one way or the other regardless of which direction the
-plugin takes. The rest are choices.
+Three of these — 1.1, 1.2 and 1.3 — were findings about the current code rather than
+enhancements, and have been fixed. The rest are choices, and remain open.
 
 ## Sources
 

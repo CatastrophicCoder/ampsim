@@ -70,6 +70,35 @@ namespace
         return output;
     }
 
+    /** Drives both halves in step, which is what the gate needs: it measures the key in front of
+        the amp and applies the result behind it, so the two calls have to line up block by block.
+        @returns what came out of the post-amp half. */
+    std::vector<float> runKeyed (PedalChain& chain, const std::vector<float>& key,
+                                 const std::vector<float>& afterAmp)
+    {
+        auto front = key;
+        auto back = afterAmp;
+
+        for (size_t pos = 0; pos + (size_t) test::blockSize <= back.size(); pos += (size_t) test::blockSize)
+        {
+            chain.processBeforeAmp (front.data() + pos, test::blockSize);
+            chain.processAfterAmp (back.data() + pos, test::blockSize);
+        }
+
+        return back;
+    }
+
+    std::vector<float> noise (int numSamples, float amplitude = 0.25f)
+    {
+        juce::Random random (0x51a7e);
+        std::vector<float> out ((size_t) numSamples);
+
+        for (auto& sample : out)
+            sample = amplitude * (random.nextFloat() * 2.0f - 1.0f);
+
+        return out;
+    }
+
     std::unique_ptr<PedalChain> makeChain (const PedalChain::Settings& settings)
     {
         auto chain = std::make_unique<PedalChain>();
@@ -101,21 +130,47 @@ TEST_CASE ("The gate closes on a signal below its threshold", "[pedals]")
     settings.gateEngaged = true;
     settings.gateThresholdDb = -40.0f;
 
-    auto chain = makeChain (settings);
-
     // A quiet hiss, well under the threshold.
     auto quiet = Signal::sine (440.0, test::blockSize * 20, 0.002f);
-    const auto gated = runThrough (*chain, quiet, true);
+    auto chain = makeChain (settings);
+    const auto gated = runKeyed (*chain, quiet, quiet);
 
     // And a note well over it.
     auto loud = Signal::sine (440.0, test::blockSize * 20, 0.3f);
     auto openChain = makeChain (settings);
-    const auto passed = runThrough (*openChain, loud, true);
+    const auto passed = runKeyed (*openChain, loud, loud);
 
     const auto measureFrom = test::blockSize * 10;
 
     REQUIRE (Signal::rms (gated, measureFrom) < 0.25f * Signal::rms (quiet, measureFrom));
     REQUIRE (Signal::rms (passed, measureFrom) > 0.9f * Signal::rms (loud, measureFrom));
+}
+
+TEST_CASE ("The gate closes on noise the amp made, not only on noise at the input", "[pedals]")
+{
+    // The reason the gate is keyed. Hiss from a high-gain capture is generated past the point a
+    // pedal in front of the amp can reach, so a gate that only looks at its own input cannot
+    // remove it. Here the guitar is silent and the noise appears after the amp.
+    PedalChain::Settings settings;
+    settings.gateEngaged = true;
+    settings.gateThresholdDb = -40.0f;
+
+    const std::vector<float> silentGuitar ((size_t) (test::blockSize * 20), 0.0f);
+    const auto ampHiss = noise (test::blockSize * 20, 0.01f);
+
+    auto chain = makeChain (settings);
+    const auto gated = runKeyed (*chain, silentGuitar, ampHiss);
+
+    const auto measureFrom = test::blockSize * 10;
+    REQUIRE (Signal::rms (gated, measureFrom) < 0.1f * Signal::rms (ampHiss, measureFrom));
+
+    // And it opens for that same hiss the moment the guitar is played, because the key is what
+    // decides — a gate that stayed shut while you played would be worse than none.
+    auto playing = makeChain (settings);
+    const auto note = Signal::sine (110.0, test::blockSize * 20, 0.3f);
+    const auto open = runKeyed (*playing, note, ampHiss);
+
+    REQUIRE (Signal::rms (open, measureFrom) > 0.9f * Signal::rms (ampHiss, measureFrom));
 }
 
 TEST_CASE ("The compressor narrows the range between quiet and loud", "[pedals]")
@@ -378,7 +433,7 @@ TEST_CASE ("The gate fades what is under the threshold rather than muting it", "
         const auto amplitude = juce::Decibels::decibelsToGain (signalDb) * std::sqrt (2.0f);
         auto input = Signal::sine (220.0, test::blockSize * 60, amplitude);
 
-        const auto output = runThrough (*chain, input, true);
+        const auto output = runKeyed (*chain, input, input);
 
         const auto measureFrom = test::blockSize * 40;
         const auto before = Signal::rms (input, measureFrom);
@@ -402,4 +457,56 @@ TEST_CASE ("The gate fades what is under the threshold rather than muting it", "
     const auto above = reductionAt (-50.0f, -30.0f);
     INFO ("20 dB over the threshold: " << above << " dB");
     REQUIRE (above > -0.5f);
+}
+
+TEST_CASE ("The reverb's mix trades the dry signal for the wet one", "[pedals]")
+{
+    // What the control has to mean: nothing at zero, no dry signal at one, and the input at
+    // unity in between. juce::Reverb scales what it is handed — the dry by two, the wet by
+    // three — so a mix written straight into its parameters is neither of those things.
+    //
+    // The dry gain is measured rather than read: against noise, the wet path is decorrelated at
+    // zero lag, so projecting the output onto the input recovers what is left of the dry.
+    const auto dryGainAt = [] (float mix)
+    {
+        PedalChain::Settings settings;
+        settings.reverbEngaged = true;
+        settings.reverbMix = mix;
+        settings.reverbSize = 0.5f;
+
+        auto chain = makeChain (settings);
+
+        const auto input = noise (test::blockSize * 40);
+        const auto output = runThrough (*chain, input, false);
+
+        double dot = 0.0, energy = 0.0;
+
+        for (size_t i = (size_t) (test::blockSize * 8); i < input.size(); ++i)
+        {
+            dot += (double) output[i] * input[i];
+            energy += (double) input[i] * input[i];
+        }
+
+        return (float) (dot / energy);
+    };
+
+    REQUIRE_THAT (dryGainAt (0.0f), WithinAbs (1.0, 0.02));
+    REQUIRE_THAT (dryGainAt (0.5f), WithinAbs (0.5, 0.08));
+    REQUIRE_THAT (dryGainAt (1.0f), WithinAbs (0.0, 0.08));
+}
+
+TEST_CASE ("A reverb at zero mix is inaudible rather than six decibels loud", "[pedals]")
+{
+    PedalChain::Settings settings;
+    settings.reverbEngaged = true;
+    settings.reverbMix = 0.0f;
+
+    auto chain = makeChain (settings);
+
+    const auto input = Signal::sine (440.0, test::blockSize * 8);
+    const auto output = runThrough (*chain, input, false);
+
+    // Exactly, not nearly: with no wet signal in the sum there is nothing left to be approximate
+    // about, and the old dry scaling made this twice the input.
+    REQUIRE_THAT (Signal::rms (output, test::blockSize), WithinAbs (Signal::rms (input, test::blockSize), 1.0e-6));
 }

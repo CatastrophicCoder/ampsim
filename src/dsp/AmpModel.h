@@ -34,6 +34,11 @@ struct LoadedModel
     double preparedHostRate = 0.0;
     int preparedMaxBlockSize = 0;
 
+    /** Linear gain that brings this capture to the reference loudness, or 1 if the file does not
+        say how loud it is. Worked out on the loader thread, because it is a property of the file
+        rather than of the block being processed. */
+    float normalisation = 1.0f;
+
     ~LoadedModel();
 };
 
@@ -76,6 +81,13 @@ public:
     /** Message thread. Deletes the model the audio thread swapped out, if any. */
     void collectRetiredModel();
 
+    /** The level correction applied to the capture in use, in dB, or 0 when there is none —
+        either because no model is loaded or because the file does not carry a loudness. */
+    float getNormalisationDb() const;
+
+    /** Every capture is brought to this loudness, the figure NAM's own plugin normalises to. */
+    static constexpr double referenceLoudnessDb = -18.0;
+
     /** Message thread. Re-sizes a model the audio thread refused because it was prepared for
         different host settings — a load that finished before prepareToPlay, most often at
         startup, when a session restores a model path before the device is open.
@@ -105,6 +117,7 @@ private:
     std::atomic<bool> pendingNeedsPreparing { false };
     std::atomic<bool> modelIsLoaded { false };
     std::atomic<int> latencySamples { 0 };
+    std::atomic<float> publishedNormalisationDb { 0.0f };
     std::atomic<double> loadedModelRate { 0.0 };
 
     // Read by the loader thread while the audio thread runs.

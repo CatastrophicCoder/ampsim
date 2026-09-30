@@ -37,8 +37,13 @@ public:
         parameters.roomSize = juce::jlimit (0.0f, 1.0f, size);
         parameters.damping = 0.45f;
         parameters.width = 1.0f;
-        parameters.wetLevel = juce::jlimit (0.0f, 1.0f, mix);
-        parameters.dryLevel = 1.0f - parameters.wetLevel * 0.5f;
+        // juce::Reverb scales what it is given — the dry by two and the wet by three — so these
+        // divisions cancel that out and leave a mix that means what it says: nothing at zero,
+        // no dry signal at one, and the input at unity in between.
+        const auto wet = juce::jlimit (0.0f, 1.0f, mix);
+
+        parameters.wetLevel = wet / 3.0f;
+        parameters.dryLevel = (1.0f - wet) * 0.5f;
 
         reverb.setParameters (parameters);
     }

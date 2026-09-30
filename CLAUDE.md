@@ -5,8 +5,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Current state
 
 **Milestone 7 is done bar packaging.** On top of the full chain
-(`gate → comp → drive → Gain → NAM model → Bass/Mid/Treble → Master → chorus → delay → reverb → cab`)
-there is a tuner, a preset system, MIDI controller mapping and a four-corner mic-position cabinet.
+(`comp → drive → Gain → NAM model → Bass/Mid/Treble → Master → gate → chorus → delay → reverb → cab`,
+with the gate keyed from the guitar in front of the amp) there is a tuner, a preset system, MIDI
+controller mapping and a four-corner mic-position cabinet.
 
 The plan's milestone 7 is now complete, installer included: `packaging/package.sh` builds Release,
 ad-hoc signs each bundle and produces a `.pkg` and a `.dmg`. No Developer Program membership is
@@ -68,6 +69,14 @@ Thread rules, which the whole design turns on:
 FIFOs on both sides because the two conversions do not line up sample for sample. It is bypassed
 entirely when the host already runs at the model's rate. Its reported latency is exact — the tests
 measure the real delay with an impulse and compare.
+
+**Captures are brought to a common loudness.** A `.nam` file records how loud it is, and two
+captures of the same amp can be 15 dB apart. `prepareForLoading()` reads `HasLoudness()` /
+`GetLoudness()` and stores a gain on the `LoadedModel` that brings it to
+`AmpModel::referenceLoudnessDb` (−18 dB, the figure NAM's own plugin normalises to); `process()`
+applies it. A file that does not carry a loudness is left alone rather than guessed at. This is the
+same argument `CabSim` normalises its IRs on, and the gain is constant for the life of the model so
+a swap needs no extra smoothing — the swap fade already covers it.
 
 **NAM registers its architectures with file-scope statics**, so `nam_core` must be linked with
 `$<LINK_LIBRARY:WHOLE_ARCHIVE,...>` (the `NAM_CORE_WHOLE` variable). A normal static link drops those
@@ -179,8 +188,24 @@ placement is the design; do not add a "reorder" feature without revisiting `amps
 `BypassCrossfade` is the shared switch: every pedal uses it rather than carrying its own ramp. It
 answers `skip`, `processAll` or `crossfade`, and offers `scratchFor()` for the case below.
 
-Three things that were learned the hard way here:
+**The gate is keyed, not in-line.** `measureKey()` runs in `processBeforeAmp` on the raw guitar and
+`apply()` runs at the top of `processAfterAmp`, before the time effects. A gate only in front of the
+amp cannot remove hiss the *amp* makes, which on a high-gain capture is nearly all of it; a gate
+only after the amp has no usable envelope to trigger on, because the distortion has flattened the
+dynamics. Hardware solves this with a key input and so does this. The threshold therefore still
+means a level of the raw guitar, so presets kept their meaning across the change. The detector runs
+even when the pedal is bypassed, for the same reason the time effects do.
 
+The key leads the audio it gates by the amp's latency — the resampler's ~220 samples plus the
+drive's 5. Leading is the safe direction: the gate opens a fraction early rather than clipping an
+attack.
+
+Four things that were learned the hard way here:
+
+- **`juce::Reverb` scales what you hand it**: `dryLevel` by 2 and `wetLevel` by 3. Writing a 0–1
+  mix straight into `Parameters` gives +6 dB of dry at mix 0. `ReverbPedal` divides both out so the
+  control means what it says, and a test measures the surviving dry gain by projecting the output
+  onto a noise input.
 - **Chorus, delay and reverb must keep running while bypassed.** Their delay lines have to stay
   fed — engaging one that has been sitting empty starts its delayed copy from silence, and that
   onset is a click however long the crossfade is. `BypassCrossfade::scratchFor()` gives them a
@@ -284,9 +309,11 @@ three formats. NAM Core, Eigen and nlohmann/json get added as submodules the sam
 Fixed mono signal chain, each block a self-contained `juce::dsp` processor with `prepare` / `process` / `reset`:
 
 ```
-Input gain → Noise gate → Front-of-amp pedals (comp, overdrive, distortion)
-  → Amp model (NAM) → Tone stack + master → Post-amp pedals (chorus, delay, reverb)
-  → Cab sim (IR convolution) → Output gain
+                   ┌──────────────── the gate's key, taken from the raw guitar
+                   │
+Input → Front-of-amp pedals (comp, overdrive) → Input gain
+  → Amp model (NAM) → Tone stack + master → Gate ←┘
+  → Post-amp pedals (chorus, delay, reverb) → Cab sim (IR convolution) → Power
 ```
 
 The whole chain is built. Anything added later goes in at the position the architecture gives it

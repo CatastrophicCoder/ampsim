@@ -20,6 +20,11 @@ namespace
 
 LoadedModel::~LoadedModel() = default;
 
+float AmpModel::getNormalisationDb() const
+{
+    return publishedNormalisationDb.load();
+}
+
 AmpModel::AmpModel() = default;
 
 AmpModel::~AmpModel()
@@ -63,6 +68,8 @@ void AmpModel::refreshPublishedState()
 
     modelIsLoaded.store (haveModel);
     latencySamples.store (haveModel ? currentModel->resampler.getLatencyInHostSamples() : 0);
+    publishedNormalisationDb.store (haveModel ? juce::Decibels::gainToDecibels (currentModel->normalisation)
+                                              : 0.0f);
 
     if (haveModel)
     {
@@ -102,6 +109,14 @@ std::unique_ptr<LoadedModel> AmpModel::prepareForLoading (std::unique_ptr<nam::D
     // Reset() sizes NAM's internal buffers and prewarms the network — the expensive part, and the
     // reason this must not happen on the audio thread.
     dsp->Reset (effectiveRate, loaded->resampler.getMaxModelBlockSize());
+
+    // Captures are not made to a common level: two of the same amp can be 15 dB apart, and
+    // swapping one for another would otherwise mean re-setting Master by ear every time. The file
+    // records how loud it is, so bring it to a reference the way the cab does with its IRs.
+    // A file that does not say is left alone rather than guessed at.
+    if (dsp->HasLoudness())
+        loaded->normalisation = juce::Decibels::decibelsToGain (
+            (float) (referenceLoudnessDb - dsp->GetLoudness()));
 
     loaded->dsp = std::move (dsp);
     return loaded;
@@ -209,6 +224,11 @@ bool AmpModel::process (float* samples, int numSamples)
                                              float* channels[1] { modelSamples };
                                              dsp->process (channels, channels, numModelSamples);
                                          });
+
+        // Constant for the life of the model, and a swap is already faded, so there is nothing
+        // here to smooth.
+        if (! juce::approximatelyEqual (currentModel->normalisation, 1.0f))
+            juce::FloatVectorOperations::multiply (samples, currentModel->normalisation, numSamples);
     }
 
     // The fade runs whether or not a model is loaded, so the very first load fades in rather

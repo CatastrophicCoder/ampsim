@@ -165,12 +165,19 @@
   <!-- ============================================================ Signal chain -->
   <section id="chain">
     <h2>The signal chain</h2>
-    <div class="card chain">gate → compressor → drive → <b>Gain</b> → <b>amp model</b> → <b>Bass / Middle / Treble</b> → <b>Master</b>
-     → chorus → delay → reverb → <b>cabinet IR</b> → power switch</div>
+    <div class="card chain">compressor → drive → <b>Gain</b> → <b>amp model</b> → <b>Bass / Middle / Treble</b> → <b>Master</b>
+           → gate → chorus → delay → reverb → <b>cabinet IR</b> → power switch</div>
     <p>The order is fixed rather than something you rearrange, because the order <em>is</em> the
       design. A drive pedal in front of the amp works by changing what the amp distorts; modulation
       and echoes belong after it, so the repeats are of the already-distorted tone. They sit before
       the cabinet, so tails come out through the speaker the way they would in a real room.</p>
+    <p>The gate is the one thing not where you might expect. It <em>listens</em> at the very front,
+      to your guitar before anything has touched it, and <em>closes</em> on the other side of the
+      amp. A gate only in front of the amp cannot remove hiss the amp itself makes — on a high-gain
+      capture that is nearly all of it — and a gate only behind the amp has no dynamics left to
+      trigger on, because the distortion has flattened them. Hardware gates for high-gain rigs solve
+      this with a key input, and this one works the same way. Its <b>thresh</b> control is still a
+      level of your raw guitar, which is what makes it possible to set.</p>
     <p>Everything is <b>mono</b>, because a guitar amp is and a NAM capture is. A stereo input is
       summed in at the top and the result goes back out to both channels.</p>
     <h3>Latency</h3>
@@ -242,7 +249,13 @@
       loaded from there. Load anything else over them at any time — the public NAM model libraries
       and any cabinet impulse response work.</p>
 
-    <h3>Turning Gain up barely changes the level. Is it broken?</h3>
+    <h3>I loaded a different capture and the level jumped.</h3>
+      <p>It should not, and that is handled: a <code>.nam</code> file records how loud it is, and
+        AmpSim brings every capture to a common reference when it loads one. Captures that do not
+        carry a loudness — some older files, and anything exported without it — are left alone,
+        because guessing would be a surprise you could not see. Those are the ones that jump.</p>
+
+      <h3>Turning Gain up barely changes the level. Is it broken?</h3>
     <p>No — that is what an amp does. Gain sits <em>before</em> the model, so turning it up drives
       the network harder and it saturates, the way a preamp gain control does. With a real capture,
       12 dB more going in yields well under a decibel more coming out; what changes is the
@@ -339,7 +352,7 @@
       spots: [
         { x: 50.0, y: 62.0, title: "The amp, in the middle of the board", body: "<p>The run goes left to right and the amp is drawn where it actually sits. Which side of it a pedal is on is the design of this section, not a detail: a drive in front changes what the amp distorts, an echo after repeats the already-distorted tone.</p><p>The order is fixed. There is no reorder, on purpose.</p>" },
         { x: 9.5, y: 81.7, title: "Footswitches and LEDs", body: "<p>A pedal is switched in and out with its footswitch, and its LED lights <b>green</b> when it is in your signal — the same green the tuner lamp uses.</p><p>The switch sits down while it is on, the way a latching stomp switch does.</p>" },
-        { x: 9.5, y: 50.7, title: "Gate", body: "<p>A noise gate at the very front, before anything else touches the signal.</p><ul><li><b>thresh</b>: −80 to −40 dB, opening at −65 dB by default.</li><li>It closes gently — 3:1 rather than a hard cut — so a note that decays past the threshold fades instead of being chopped.</li></ul><p>Set it as low as will still silence your hum. Too high and the tails of held notes go with it.</p>" },
+        { x: 9.5, y: 50.7, title: "Gate", body: "<p>Listens at the very front, to your guitar before anything has touched it, and closes on the other side of the amp — so it silences the amp's own hiss, not just noise arriving at the input.</p><ul><li><b>thresh</b>: −80 to −40 dB of your raw guitar, opening at −65 dB by default.</li><li>It closes gently — 3:1 rather than a hard cut — so a note that decays past the threshold fades instead of being chopped.</li></ul><p>Set it as low as will still silence your hum. Too high and the tails of held notes go with it.</p>" },
         { x: 24.4, y: 50.7, title: "Compressor", body: "<p>A single <b>amount</b> knob runs the threshold down and the ratio up together, so it goes from a gentle levelling to a squashed, sustaining sound without three controls to balance.</p><ul><li><b>amount</b>: 0 to 1, 0.4 by default.</li><li><b>level</b>: ±12 dB of make-up, for matching the level with the pedal off.</li></ul>" },
         { x: 39.2, y: 50.7, title: "Drive", body: "<p>An overdrive in front of the amp, 4x oversampled so it does not alias.</p><ul><li><b>drive</b>: how hard it clips.</li><li><b>tone</b>: brightness going into the amp.</li><li><b>level</b>: ±12 dB — this is the one that pushes the amp.</li></ul><div class=\"tip\">The classic use is <b>drive low, level high</b>: not much distortion of its own, but a hotter and slightly brighter signal into the amp, which makes the amp itself work harder.</div>" },
         { x: 60.8, y: 50.7, title: "Chorus", body: "<p>After the amp, before the cab.</p><ul><li><b>rate</b>: 0.1 to 8 Hz.</li><li><b>depth</b> and <b>mix</b>.</li></ul><p>It keeps running while it is switched off, so engaging it picks up where it already was rather than starting from silence.</p>" },
@@ -455,7 +468,7 @@
       html: `<h3>Use the pedals</h3>
       <ol>
         <li>Switch a pedal in with its <b>footswitch</b>. The LED lights green when it is in your signal.</li>
-        <li><b>Gate</b> first, if you need it: lower <b>thresh</b> until your hum is silent between notes and no further. It closes gently rather than chopping, so decaying notes still fade out.</li>
+        <li><b>Gate</b> first, if you need it: lower <b>thresh</b> until the hiss is silent between notes and no further. It closes gently rather than chopping, so decaying notes still fade out. The threshold is a level of your guitar, not of the amplified sound — which is why it works on amp hiss at all.</li>
         <li><b>Comp</b> for evenness: one <b>amount</b> knob runs the threshold down and the ratio up together. Use <b>level</b> to match the volume with the pedal off, so you can judge it fairly.</li>
         <li><b>Drive</b> in front of the amp. For a classic boost, <b>drive</b> low and <b>level</b> high: not much distortion of its own, but the amp works harder.</li>
         <li><b>Chorus</b>, <b>delay</b> and <b>reverb</b> after the amp. They run before the cabinet, so their tails come out through the speaker rather than around it.</li>

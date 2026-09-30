@@ -70,14 +70,20 @@ int PedalChain::getLatencySamples() const
 
 void PedalChain::processBeforeAmp (float* samples, int numSamples)
 {
-    // Gate first, on the raw guitar level, before anything lifts the noise floor with it.
-    gate.process (samples, numSamples, ! settings.gateEngaged);
+    // The gate listens here, on the raw guitar, before anything lifts the noise floor with it —
+    // and closes on the other side of the amp. See NoiseGatePedal.
+    gate.measureKey (samples, numSamples);
+
     compressor.process (samples, numSamples, ! settings.compressorEngaged);
     drive.process (samples, numSamples, ! settings.driveEngaged);
 }
 
 void PedalChain::processAfterAmp (float* samples, int numSamples)
 {
+    // Before the time effects, where a rack gate goes: a tail already in the delay line should
+    // ring out rather than being cut off with the note that fed it.
+    gate.apply (samples, numSamples, ! settings.gateEngaged);
+
     chorus.process (samples, numSamples, ! settings.chorusEngaged);
     delay.process (samples, numSamples, ! settings.delayEngaged);
     reverb.process (samples, numSamples, ! settings.reverbEngaged);

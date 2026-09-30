@@ -33,9 +33,14 @@ at a channel switcher, a rack, or a library of tones.
 ## The signal chain
 
 ```
-gate → compressor → drive → Gain → NAM model → Bass/Mid/Treble → Master
-     → chorus → delay → reverb → cabinet IR
+compressor → drive → Gain → NAM model → Bass/Mid/Treble → Master
+           → gate → chorus → delay → reverb → cabinet IR
 ```
+
+The gate is the odd one out: it measures the guitar at the very front and closes on the other side
+of the amp. A gate only in front cannot remove hiss the amp itself makes, and a gate only behind it
+has no dynamics left to trigger on — which is why hardware gates for high-gain rigs have a key
+input, and why this one works the same way.
 
 Mono from end to end, because a guitar amp is and a NAM capture is; a stereo input is summed in at
 the top. The placement is fixed rather than user-reorderable, because it is the point: a drive
@@ -71,6 +76,11 @@ sound, dialling in a tone, loading your own capture and impulse responses, using
 order they are in, tuning up, and putting a control on a MIDI pedal.
 
 Two things worth knowing before you open it:
+
+**Captures are level-matched.** A `.nam` file records how loud it is, and two captures of the same
+amp can be 15 dB apart; AmpSim brings each to a common reference on load, so swapping one for
+another does not mean re-setting Master by ear. A capture that does not carry a loudness is left
+alone.
 
 **An amp and a cab are built in**, so a fresh instance makes a sound rather than passing audio
 through untouched: `MARS2204`, a capture of a well-known British 100-watt head, into `V30 SM57`, a
@@ -122,7 +132,7 @@ broke and nothing changed". Update it deliberately, in its own commit, and re-va
 ## Testing
 
 ```sh
-ctest --test-dir build                        # 91 tests
+ctest --test-dir build                        # 96 tests
 ctest --test-dir build --output-on-failure
 ctest --test-dir build -R "bypass"            # one test, or a pattern
 ```

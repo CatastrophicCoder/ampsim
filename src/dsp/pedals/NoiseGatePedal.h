@@ -10,20 +10,26 @@
 
 #pragma once
 
-#include "../BypassCrossfade.h"
-
 #include <juce_dsp/juce_dsp.h>
 
-/** First in the chain, so it works on the raw guitar level — before a compressor or a drive
-    pedal lifts the noise floor along with everything else.
+#include <vector>
 
-    One control. Ratio, attack and release are fixed at values that suit a guitar: fast enough to
-    stop a high-gain amp hissing between phrases, slow enough not to chop note tails.
+/** A gate that listens at the input and closes at the output.
 
-    The ratio is what decides whether it sounds like a gate or a guillotine. A downward expander
-    takes (ratio - 1) times the amount a signal sits below the threshold, so at 10:1 a note tail
-    10 dB under loses 90 dB — it does not fade, it vanishes. At 3:1 the same tail loses 20 dB and
-    hiss 30 dB under still loses 60, which is the job.
+    It measures the clean guitar, before anything has touched it, and applies the result *after*
+    the amp. That split is the whole point. A gate placed only in front of the amp cannot remove
+    hiss the amp makes — and on a high-gain capture, the amp is where nearly all the hiss comes
+    from. A gate placed only after the amp has no usable envelope to trigger on, because the
+    distortion has flattened the dynamics it would need.
+
+    Hardware solves this with a key input — a Decimator G String sits late in the chain with a
+    cable back to the guitar — and this is the same arrangement. The threshold therefore still
+    means what it always meant: a level of the raw guitar, not of the amplified signal.
+
+    The detection law is JUCE's: an RMS ballistics filter into a peak one, then a downward
+    expander below the threshold. Ratio, attack and release are fixed at values that suit a
+    guitar. At 3:1 a note tail 10 dB under the threshold loses 20 dB and fades; at 10:1 it would
+    lose 90 dB and vanish, which is the difference between a gate and a guillotine.
 */
 class NoiseGatePedal
 {
@@ -32,35 +38,88 @@ public:
     {
         const juce::dsp::ProcessSpec spec { sampleRate, (juce::uint32) maxBlockSize, 1 };
 
-        gate.prepare (spec);
-        gate.setRatio (3.0f);
-        gate.setAttack (1.0f);
-        gate.setRelease (250.0f);
+        rmsFilter.prepare (spec);
+        rmsFilter.setLevelCalculationType (juce::dsp::BallisticsFilterLevelCalculationType::RMS);
+        rmsFilter.setAttackTime (0.0f);
+        rmsFilter.setReleaseTime (50.0f);
 
-        bypass.prepare (sampleRate, maxBlockSize);
+        envelopeFilter.prepare (spec);
+        envelopeFilter.setAttackTime (1.0f);
+        envelopeFilter.setReleaseTime (250.0f);
+
+        gains.assign ((size_t) maxBlockSize, 1.0f);
+
+        engagement.reset (sampleRate, 0.01);
     }
 
-    void reset()                       { gate.reset(); }
-    void snapBypass (bool bypassed)    { bypass.snap (bypassed); }
-
-    void setThresholdDb (float db)     { gate.setThreshold (db); }
-
-    void process (float* samples, int numSamples, bool bypassed)
+    void reset()
     {
-        const auto action = bypass.beginBlock (bypassed, samples, numSamples);
+        rmsFilter.reset();
+        envelopeFilter.reset();
+        std::fill (gains.begin(), gains.end(), 1.0f);
+    }
 
-        if (action == BypassCrossfade::Action::skip)
+    void snapBypass (bool bypassed)
+    {
+        engagement.setCurrentAndTargetValue (bypassed ? 0.0f : 1.0f);
+    }
+
+    void setThresholdDb (float db)
+    {
+        threshold = juce::Decibels::decibelsToGain (db, -200.0f);
+        thresholdInverse = 1.0f / threshold;
+    }
+
+    /** Audio thread, in front of the amp: works out how open the gate should be, from the guitar.
+
+        This runs whether or not the pedal is switched in, so that engaging it mid-phrase picks up
+        an envelope that has already settled rather than one starting from nothing — the same
+        reason the chorus and the delay keep running while they are bypassed.
+    */
+    void measureKey (const float* key, int numSamples)
+    {
+        const auto count = juce::jmin ((size_t) numSamples, gains.size());
+
+        for (size_t i = 0; i < count; ++i)
+        {
+            const auto envelope = envelopeFilter.processSample (0, rmsFilter.processSample (0, key[i]));
+
+            gains[i] = envelope > threshold ? 1.0f
+                                            : std::pow (envelope * thresholdInverse, ratio - 1.0f);
+        }
+    }
+
+    /** Audio thread, after the amp: applies what the key said, ramping in and out of bypass. */
+    void apply (float* samples, int numSamples, bool bypassed)
+    {
+        engagement.setTargetValue (bypassed ? 0.0f : 1.0f);
+
+        // A block longer than prepare() was told about would read past the gains it measured.
+        // Leaving the signal alone is the safe failure, and the processor guards this as well.
+        if ((size_t) numSamples > gains.size())
+        {
+            engagement.skip (numSamples);
+            return;
+        }
+
+        if (! engagement.isSmoothing() && engagement.getCurrentValue() <= 0.0f)
             return;
 
-        juce::dsp::AudioBlock<float> block (&samples, 1, (size_t) numSamples);
-        juce::dsp::ProcessContextReplacing<float> context (block);
-        gate.process (context);
-
-        if (action == BypassCrossfade::Action::crossfade)
-            bypass.finishBlock (samples, numSamples);
+        for (int i = 0; i < numSamples; ++i)
+        {
+            // Between the gate's gain and unity, so switching it in or out is a ramp rather than
+            // a step, and a bypassed gate is exactly unity rather than nearly so.
+            const auto amount = engagement.getNextValue();
+            samples[i] *= 1.0f + amount * (gains[(size_t) i] - 1.0f);
+        }
     }
 
 private:
-    juce::dsp::NoiseGate<float> gate;
-    BypassCrossfade bypass;
+    static constexpr float ratio = 3.0f;
+
+    juce::dsp::BallisticsFilter<float> rmsFilter, envelopeFilter;
+    std::vector<float> gains;
+    juce::SmoothedValue<float> engagement;
+
+    float threshold = 1.0f, thresholdInverse = 1.0f;
 };
