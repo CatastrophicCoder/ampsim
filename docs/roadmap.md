@@ -8,13 +8,30 @@ finished; this replaces it and holds only what is still outstanding.
 **Decided.** The panel works and is legible, but it does not look like what people expect a guitar
 amp plugin to look like, and it should. Three decisions are settled:
 
-- **Flat modern dark** — a dark panel, restrained accent, vector knobs with value rings, generous
-  spacing, crisp small type. No image assets: everything drawn, as now.
+- **A flat modern dark frame** — dark panel, restrained accent, crisp small type — **holding
+  drawn objects**: the pedals, and the amp, as recognisable pieces of gear rather than panel
+  sections.
 - **Tabbed sections** rather than one tall page.
 - **Resizable**, by a scale factor.
+- **No image assets.** Everything drawn in code, as now.
 
 They fit together: vector drawing is what makes scaling free, and tabs give each section room to be
 designed rather than compressed into a strip.
+
+### The reference, and what is taken from it
+
+[Nunchuck](https://www.polychromedsp.com/nunchuck/) — a JCM800-inspired plugin, so the same amp as
+the capture that ships here. Its interface is photoreal: 3D-rendered enclosures in three-quarter
+perspective, brushed anodised metal with specular highlights, knurled knobs with tick rings, chrome
+footswitches, screen-printed names, a tolex-and-grille amp head.
+
+What is taken from it: **the anatomy**. Effects are objects with a footswitch, an LED and a name,
+laid out as a board rather than as rows of controls.
+
+What is not, and why: the perspective and the highlights are what a render buys. Reproducing them
+means producing artwork — a 3D artist, a photo shoot, or bought packs, plus one set per scale
+factor. Drawn straight-on in code it will read as a well-drawn pedal rather than a photographed
+one. That trade was made deliberately: no assets, and scaling stays free.
 
 ### What is there now, and why
 
@@ -44,8 +61,14 @@ A persistent bar, and three pages under it:
 ```
 
 - **AMP** — the model in use, and Gain, Bass, Mid, Treble, Master.
-- **PEDALS** — the six pedals, still in the two groups, still labelled by which side of the amp
-  they are on. That placement is the design and survives the rework.
+- **PEDALS** — the six pedals as pedals, still in the two groups, still labelled by which side of
+  the amp they are on. That placement is the design and survives the rework.
+
+  Each one is an enclosure: a coloured body with a vertical brushed gradient, its controls as
+  knurled knobs with a pointer and a ring of ticks, an LED, its name screen-printed across the
+  bottom, and **a footswitch, which is how it is switched on and off**. The small lamp toggle it
+  has now goes. The LED keeps its present meaning — lit is in your signal — so the colour language
+  the rest of the panel uses survives.
 - **CAB** — the four mic-position corners and the axis and distance controls.
 
 The preset controls, the tuner and the bypass are global, so they stay out of the pages. The tuner
@@ -75,6 +98,11 @@ assets. The chosen scale belongs in the plugin state so it survives reopening.
   accent-on-near-black look that is what a flat dark plugin looks like when nobody designed it.
 - **The typeface.** Currently Helvetica Neue. The system font reads native and modern; something
   with more character would carry more of the identity.
+- **Whether the pedals get names.** The reference gives each effect an identity — Green Mamba,
+  Metal Charlie — rather than calling them what they are. It is the difference between a product
+  and a utility, and it is a branding decision rather than a drawing one.
+- **Whether the amp becomes an object too**, as a head with a control panel, or stays a panel of
+  controls while only the pedals are objects.
 - **Whether the file pickers become lists.** Most amp plugins show a dropdown of the models in a
   folder rather than opening a file chooser every time. That is a product change rather than a
   visual one, but the rework is when it would be cheapest to do.
