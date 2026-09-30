@@ -3,10 +3,18 @@
 Work that is agreed but not done. The original milestone plan was retired once its milestones were
 finished; this replaces it and holds only what is still outstanding.
 
-## Rework the panel to look like a current amp plugin
+## Rework the panel
 
 **Decided.** The panel works and is legible, but it does not look like what people expect a guitar
-amp plugin to look like in 2026, and it should.
+amp plugin to look like, and it should. Three decisions are settled:
+
+- **Flat modern dark** — a dark panel, restrained accent, vector knobs with value rings, generous
+  spacing, crisp small type. No image assets: everything drawn, as now.
+- **Tabbed sections** rather than one tall page.
+- **Resizable**, by a scale factor.
+
+They fit together: vector drawing is what makes scaling free, and tabs give each section room to be
+designed rather than compressed into a strip.
 
 ### What is there now, and why
 
@@ -15,40 +23,64 @@ plate, engraved lettering, graphite knobs, a single blue arc reading each value,
 "switched out of your signal". The reasoning was that this amp is a *file* — a neural capture —
 rather than a box, so the panel was drawn as measuring equipment instead of as an amplifier.
 
-That reasoning is now superseded. Recording it here so that whoever does the rework knows the
-present design was a choice rather than an accident, and does not spend time preserving parts of it
-out of caution. The replacement is free to discard all of it.
+That reasoning is superseded. It is recorded so that whoever does the rework knows the present
+design was a choice rather than an accident, and does not spend time preserving parts of it out of
+caution. The replacement is free to discard all of it.
 
-### What "like everything else" needs to settle
+### Shape
 
-The market has two distinct houses, and they need different work:
+A persistent bar, and three pages under it:
 
-- **Photoreal / skeuomorphic** — a rendered amp face: brushed or anodised metal, a tolex or
-  vinyl-grain surround, chicken-head or knurled knobs with real highlights, a backlit logo, screws
-  and seams. Usually built from bitmap assets, often a knob filmstrip, so it needs artwork as well
-  as code and scales badly to arbitrary window sizes.
-- **Flat modern dark** — a dark near-black panel, restrained accent colour, vector knobs with a
-  value ring, generous spacing, crisp small type. All drawable in code, resolution independent,
-  and much closer to how the panel is built today.
+```
+┌───────────────────────────────────────────────────────────┐
+│ ampsim   [ Default        ‹ › ▾ ]        tuner   bypassed │   always visible
+├──────────┬──────────┬──────────┬──────────────────────────┤
+│   AMP    │  PEDALS  │   CAB    │                          │   tab bar
+├──────────┴──────────┴──────────┴──────────────────────────┤
+│                                                           │
+│   the selected page                                       │
+│                                                           │
+└───────────────────────────────────────────────────────────┘
+```
 
-Both read as "current"; they are not interchangeable, and the choice decides whether this is mostly
-a design-asset job or mostly a drawing-code job.
+- **AMP** — the model in use, and Gain, Bass, Mid, Treble, Master.
+- **PEDALS** — the six pedals, still in the two groups, still labelled by which side of the amp
+  they are on. That placement is the design and survives the rework.
+- **CAB** — the four mic-position corners and the axis and distance controls.
 
-### Scope
+The preset controls, the tuner and the bypass are global, so they stay out of the pages. The tuner
+display continues to take over the bar's middle while it is engaged.
 
-- `AmpLookAndFeel` and `AmpPalette` hold the whole visual identity, so the rework is concentrated
-  there plus the four component files in `src/ui/`. No DSP is involved.
-- The layout — five amp controls, preset and amp rows, three deck rows — is not in question here;
-  only its appearance.
-- Whatever replaces it still has to render correctly at the fixed 640-wide editor size, keep the
-  red/blue meaning distinct (out of signal / in signal), and show a held tuner reading as dimmed
-  rather than hidden.
-- Verify by rendering the editor to a PNG and looking at it, as in milestone 5. Reading the paint
-  code is not enough; it missed four separate problems last time.
+Roughly 760 × 460 logical points, wide rather than tall, against 640 × 632 now.
 
-### Open
+### Scaling
 
-- Which of the two houses above.
-- Whether reference material exists that the result should sit alongside.
-- Whether the window should become resizable as part of it, since photoreal assets and resizing
-  pull in opposite directions.
+Lay out in fixed logical points and apply `AffineTransform::scale` to the whole editor, rather than
+making every layout number proportional. The existing layout code then keeps working unchanged, a
+scale of 75 / 100 / 125 / 150 % is a single number, and a vector panel scales with no second set of
+assets. The chosen scale belongs in the plugin state so it survives reopening.
+
+### What this touches
+
+- `AmpLookAndFeel` and `AmpPalette` — rewritten. This is the bulk of the work.
+- `src/ui/` components — their structure survives; their painting does not.
+- `PluginEditor` — gains a tab bar and a page container; loses the deck layout.
+- No DSP, no processor changes, no parameters added or removed.
+
+### Still to settle
+
+- **The accent colour.** Blue currently means "in your signal" and red means "switched out of it";
+  that pairing is worth keeping, but the blue itself can change. A warm amber for values against a
+  cool dark panel would read as an amp without being skeuomorphic, and would avoid the single-cold-
+  accent-on-near-black look that is what a flat dark plugin looks like when nobody designed it.
+- **The typeface.** Currently Helvetica Neue. The system font reads native and modern; something
+  with more character would carry more of the identity.
+- **Whether the file pickers become lists.** Most amp plugins show a dropdown of the models in a
+  folder rather than opening a file chooser every time. That is a product change rather than a
+  visual one, but the rework is when it would be cheapest to do.
+
+### How to verify
+
+Render the editor to a PNG and look at it, at each scale, as in milestone 5. Reading the paint code
+is not enough — it missed four separate problems last time, including text that was invisible
+against its own background.
