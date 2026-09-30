@@ -19,6 +19,11 @@
 
     One control. Ratio, attack and release are fixed at values that suit a guitar: fast enough to
     stop a high-gain amp hissing between phrases, slow enough not to chop note tails.
+
+    The ratio is what decides whether it sounds like a gate or a guillotine. A downward expander
+    takes (ratio - 1) times the amount a signal sits below the threshold, so at 10:1 a note tail
+    10 dB under loses 90 dB — it does not fade, it vanishes. At 3:1 the same tail loses 20 dB and
+    hiss 30 dB under still loses 60, which is the job.
 */
 class NoiseGatePedal
 {
@@ -28,9 +33,9 @@ public:
         const juce::dsp::ProcessSpec spec { sampleRate, (juce::uint32) maxBlockSize, 1 };
 
         gate.prepare (spec);
-        gate.setRatio (10.0f);
+        gate.setRatio (3.0f);
         gate.setAttack (1.0f);
-        gate.setRelease (120.0f);
+        gate.setRelease (250.0f);
 
         bypass.prepare (sampleRate, maxBlockSize);
     }

@@ -361,3 +361,45 @@ TEST_CASE ("The pedal groups stay on their own side of the amp", "[pedals][proce
     REQUIRE_THAT (Signal::rms (throughRear, test::blockSize * 2),
                   WithinAbs (Signal::rms (input, test::blockSize * 2), 1.0e-6));
 }
+
+TEST_CASE ("The gate fades what is under the threshold rather than muting it", "[pedals]")
+{
+    // A downward expander takes (ratio - 1) times however far a signal sits below the threshold.
+    // At 10:1 a note tail 10 dB under loses 90 dB and simply disappears, which is what makes a
+    // gate feel like a guillotine. The ratio here is chosen so that the same tail fades.
+    const auto reductionAt = [] (float thresholdDb, float signalDb)
+    {
+        PedalChain::Settings settings;
+        settings.gateEngaged = true;
+        settings.gateThresholdDb = thresholdDb;
+
+        auto chain = makeChain (settings);
+
+        const auto amplitude = juce::Decibels::decibelsToGain (signalDb) * std::sqrt (2.0f);
+        auto input = Signal::sine (220.0, test::blockSize * 60, amplitude);
+
+        const auto output = runThrough (*chain, input, true);
+
+        const auto measureFrom = test::blockSize * 40;
+        const auto before = Signal::rms (input, measureFrom);
+        const auto after = Signal::rms (output, measureFrom);
+
+        return juce::Decibels::gainToDecibels (after / juce::jmax (1.0e-9f, before));
+    };
+
+    // Ten decibels under: audibly reduced, still clearly there.
+    const auto justUnder = reductionAt (-50.0f, -60.0f);
+    INFO ("10 dB under the threshold: " << justUnder << " dB");
+    REQUIRE (justUnder < -8.0f);
+    REQUIRE (justUnder > -40.0f);
+
+    // Well under, which is where hiss lives: gone.
+    const auto wellUnder = reductionAt (-50.0f, -85.0f);
+    INFO ("35 dB under the threshold: " << wellUnder << " dB");
+    REQUIRE (wellUnder < -50.0f);
+
+    // Above it, untouched.
+    const auto above = reductionAt (-50.0f, -30.0f);
+    INFO ("20 dB over the threshold: " << above << " dB");
+    REQUIRE (above > -0.5f);
+}

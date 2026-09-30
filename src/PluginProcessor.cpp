@@ -106,7 +106,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
     };
 
     addSwitch (ParamID::gateOn, "Gate");
-    addKnob (ParamID::gateThreshold, "Gate Threshold", -80.0f, -20.0f, -60.0f, "dB");
+    // -20 dB is above anything a guitar produces once it has stopped being struck, so the old
+    // top of the range was unusable and the useful part was squeezed into a third of the knob.
+    addKnob (ParamID::gateThreshold, "Gate Threshold", -80.0f, -40.0f, -65.0f, "dB");
 
     addSwitch (ParamID::compOn, "Compressor");
     addKnob (ParamID::compAmount, "Comp Amount", 0.0f, 1.0f, 0.4f);
