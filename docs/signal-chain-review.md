@@ -256,8 +256,14 @@ Comparable products (Neural DSP's Archetypes, the Fractal cab and effects blocks
 noise gate, a compressor, an overdrive, an EQ, a phaser, a flanger, a chorus, a delay with tempo
 sync, several reverb types, and often a wah, a pitch shifter and a doubler.
 
-Against the list, this plugin is missing: **phaser, flanger, tremolo, wah, an EQ pedal, a boost
+Against the list, this plugin was missing: **phaser, flanger, tremolo, wah, an EQ pedal, a boost
 distinct from the drive, pitch effects, and tempo sync on the delay.**
+
+**Most of that is now in, and without a seventh pedal.** Two of the six positions became slots —
+distortion / overdrive / clean boost in front of the amp, chorus / flanger / phaser / tremolo
+after it — which answers the layout objection below: the board still has six positions, and the
+argument about where a pedal sits relative to the amp is untouched, because nothing moved. Tempo
+sync went on the delay as a control. What is still absent is a wah, an EQ pedal and pitch effects.
 
 - **Tempo sync is done.** A `delayDivision` choice on the delay, with **Free** first so nothing
   saved earlier moves. It needed no new DSP, only the host's tempo, and it is a control on an

@@ -15,6 +15,8 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include <vector>
+
 /** A knob on a pedal: small, with its name underneath and its value on a popup while dragged.
 
     No permanent read-out. Six pedals' worth of numbers would crowd the board, and a pedal is read
@@ -59,9 +61,14 @@ private:
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (Footswitch)
 };
 
-/** One pedal, drawn as a pedal: a coloured enclosure with a brushed face, its controls as knobs,
-    an LED that lights when it is in your signal, its name printed across the bottom, and a
-    footswitch under that.
+/** One slot on the board, drawn as a pedal: a coloured enclosure with a brushed face, its controls
+    as knobs, an LED that lights when it is in your signal, its name printed across the bottom, and
+    a footswitch under that.
+
+    A slot that can hold more than one pedal also carries a selector across the top. Choosing a
+    different one changes the whole object — colour, name and knobs — because that is what has
+    happened: a different pedal is in the slot. The footswitch and the LED stay where they are,
+    since whatever is in the slot is switched the same way.
 
     Straight on rather than in perspective. The photoreal boards this takes its anatomy from are
     3D renders; drawn in code this reads as a well-drawn pedal, which is the trade made in
@@ -76,11 +83,24 @@ public:
         const char* label;
     };
 
-    PedalObject (juce::AudioProcessorValueTreeState&,
-                 const juce::String& pedalName,
-                 const char* engageParameterID,
-                 juce::Colour bodyColour,
+    /** One pedal a slot can hold: what it is called, what colour its box is, and its controls. */
+    struct Variant
+    {
+        juce::String name;
+        juce::Colour colour;
+        std::vector<Knob> knobs;
+    };
+
+    /** A slot with one pedal in it and no selector. */
+    PedalObject (juce::AudioProcessorValueTreeState&, const juce::String& pedalName,
+                 const char* engageParameterID, juce::Colour bodyColour,
                  std::initializer_list<Knob> knobs);
+
+    /** A slot that can hold several, chosen by a parameter. */
+    PedalObject (juce::AudioProcessorValueTreeState&, const char* engageParameterID,
+                 const char* typeParameterID, std::vector<Variant> variants);
+
+    ~PedalObject() override;
 
     void paint (juce::Graphics&) override;
     void resized() override;
@@ -88,20 +108,41 @@ public:
     void setContextMenuHandler (std::function<void (const juce::String&, juce::Component&)>);
 
 private:
-    juce::String name;
-    juce::Colour body;
+    /** Steps the type parameter, and with it everything the slot shows. */
+    class SelectorButton final : public juce::Button
+    {
+    public:
+        explicit SelectorButton (int stepToTake);
+
+        void paintButton (juce::Graphics&, bool shouldDrawButtonAsHighlighted, bool shouldDrawButtonAsDown) override;
+
+        int step;
+    };
+
+    void showVariant (int index);
+    void stepVariant (int by);
+    juce::Rectangle<int> selectorRow() const;
+
+    juce::AudioProcessorValueTreeState& state;
+    std::vector<Variant> variants;
+    int current = 0;
+
+    juce::RangedAudioParameter* typeParameter = nullptr;
+    std::unique_ptr<juce::ParameterAttachment> typeAttachment;
+
+    SelectorButton previousType { -1 }, nextType { 1 };
 
     juce::OwnedArray<PedalKnob> knobs;
+    std::function<void (const juce::String&, juce::Component&)> contextMenu;
 
     // Filled in by resized() so that paint() puts the name and the LED exactly where the layout
     // left room for them, rather than both files agreeing by hand.
     juce::Rectangle<int> nameArea;
     juce::Point<float> ledCentre;
 
-    /** What the LED was last drawn as. The switch repaints itself when it is clicked, but the LED
-        is outside its bounds, so the enclosure has to be told. Held rather than read straight off
-        the switch so that hovering it does not repaint the whole pedal. */
+    /** What the LED was last drawn as, so hovering the switch does not repaint the pedal. */
     bool lampLit = false;
+
     Footswitch footswitch;
     juce::AudioProcessorValueTreeState::ButtonAttachment engageAttachment;
 

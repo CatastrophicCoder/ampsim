@@ -14,9 +14,9 @@ void PedalChain::prepare (double sampleRate, int maxBlockSize)
 {
     gate.prepare (sampleRate, maxBlockSize);
     compressor.prepare (sampleRate, maxBlockSize);
-    drive.prepare (sampleRate, maxBlockSize);
+    dirt.prepare (sampleRate, maxBlockSize);
 
-    chorus.prepare (sampleRate, maxBlockSize);
+    modulation.prepare (sampleRate, maxBlockSize);
     delay.prepare (sampleRate, maxBlockSize);
     reverb.prepare (sampleRate, maxBlockSize);
 }
@@ -25,9 +25,9 @@ void PedalChain::reset()
 {
     gate.reset();
     compressor.reset();
-    drive.reset();
+    dirt.reset();
 
-    chorus.reset();
+    modulation.reset();
     delay.reset();
     reverb.reset();
 }
@@ -38,9 +38,12 @@ void PedalChain::setSettings (const Settings& newSettings)
 
     gate.setThresholdDb (settings.gateThresholdDb);
     compressor.setParameters (settings.compressorAmount, settings.compressorLevelDb);
-    drive.setParameters (settings.driveAmount, settings.driveTone, settings.driveLevelDb);
+    dirt.setType (settings.dirtType);
+    dirt.setParameters (settings.driveAmount, settings.driveTone, settings.driveLevelDb);
 
-    chorus.setParameters (settings.chorusRateHz, settings.chorusDepth, settings.chorusMix);
+    modulation.setType (settings.modulationType);
+    modulation.setParameters (settings.chorusRateHz, settings.chorusDepth,
+                              settings.modulationFeedback, settings.chorusMix);
     delay.setParameters (settings.delayTimeSeconds, settings.delayFeedback, settings.delayMix);
     reverb.setParameters (settings.reverbSize, settings.reverbMix);
 }
@@ -52,10 +55,11 @@ void PedalChain::snapToSettings()
     compressor.snapBypass (! settings.compressorEngaged);
     compressor.snapParameters();
 
-    drive.snapBypass (! settings.driveEngaged);
-    drive.snapParameters();
+    dirt.snapBypass (! settings.driveEngaged);
+    dirt.snapParameters();
 
-    chorus.snapBypass (! settings.chorusEngaged);
+    modulation.snapBypass (! settings.chorusEngaged);
+    modulation.snapParameters();
 
     delay.snapBypass (! settings.delayEngaged);
     delay.snapParameters();
@@ -65,7 +69,7 @@ void PedalChain::snapToSettings()
 
 int PedalChain::getLatencySamples() const
 {
-    return drive.getLatencySamples();
+    return dirt.getLatencySamples();
 }
 
 void PedalChain::processBeforeAmp (float* samples, int numSamples)
@@ -75,7 +79,7 @@ void PedalChain::processBeforeAmp (float* samples, int numSamples)
     gate.measureKey (samples, numSamples);
 
     compressor.process (samples, numSamples, ! settings.compressorEngaged);
-    drive.process (samples, numSamples, ! settings.driveEngaged);
+    dirt.process (samples, numSamples, ! settings.driveEngaged);
 }
 
 void PedalChain::processAfterAmp (float* samples, int numSamples)
@@ -84,7 +88,7 @@ void PedalChain::processAfterAmp (float* samples, int numSamples)
     // ring out rather than being cut off with the note that fed it.
     gate.apply (samples, numSamples, ! settings.gateEngaged);
 
-    chorus.process (samples, numSamples, ! settings.chorusEngaged);
+    modulation.process (samples, numSamples, ! settings.chorusEngaged);
     delay.process (samples, numSamples, ! settings.delayEngaged);
     reverb.process (samples, numSamples, ! settings.reverbEngaged);
 }

@@ -12,6 +12,8 @@
 #include "dsp/PedalChain.h"
 
 #include <catch2/catch_test_macros.hpp>
+
+#include <limits>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
 
 using Catch::Matchers::WithinAbs;
@@ -541,24 +543,25 @@ TEST_CASE ("A reverb at zero mix is inaudible rather than six decibels loud", "[
     REQUIRE_THAT (Signal::rms (output, test::blockSize), WithinAbs (Signal::rms (input, test::blockSize), 1.0e-6));
 }
 
-TEST_CASE ("The drive pedal boosts into the clipper above a corner, not across the band", "[pedals]")
+TEST_CASE ("The overdrive boosts into the clipper above a corner, not across the band", "[pedals]")
 {
-    // What a drive in front of an amp is for. Clipping the whole range equally flattens a
-    // palm-muted low string along with everything else; a screamer boosts only what is above a
-    // few hundred hertz into its clipping stage and lets the rest through at the level it
-    // arrived, which is what keeps the low end defined under distortion.
-    const auto gainAt = [] (double frequency, float drive)
+    // What a screamer in front of an amp is for. Clipping the whole range equally flattens a
+    // palm-muted low string along with everything else; this boosts only what is above a few
+    // hundred hertz into its clipping stage and lets the rest through at the level it arrived,
+    // which is what keeps the low end defined under distortion.
+    const auto gainAt = [] (double frequency, DirtPedal::Type type, float amount,
+                            float amplitude = 0.0005f)
     {
         PedalChain::Settings settings;
         settings.driveEngaged = true;
-        settings.driveAmount = drive;
-        settings.driveTone = 1.0f;      // wide open, so the tone control is not what is measured
+        settings.dirtType = type;
+        settings.driveAmount = amount;
+        settings.driveTone = 0.5f;      // flat, so the tilt is not what is measured
         settings.driveLevelDb = 0.0f;
 
         auto chain = makeChain (settings);
 
-        // Small enough that the shaper is still near enough linear to read a gain off it.
-        const auto input = Signal::sine (frequency, test::blockSize * 40, 0.0005f);
+        const auto input = Signal::sine (frequency, test::blockSize * 40, amplitude);
         const auto output = runThrough (*chain, input, true);
 
         const auto measureFrom = test::blockSize * 20;
@@ -566,24 +569,115 @@ TEST_CASE ("The drive pedal boosts into the clipper above a corner, not across t
                                                    / Signal::rms (input, measureFrom));
     };
 
-    const auto lowAtFull = gainAt (80.0, 1.0f);
-    const auto midAtFull = gainAt (1500.0, 1.0f);
+    const auto lowAtFull = gainAt (80.0, DirtPedal::Type::overdrive, 1.0f);
+    const auto midAtFull = gainAt (1500.0, DirtPedal::Type::overdrive, 1.0f);
 
-    INFO ("at full drive: 80 Hz " << lowAtFull << " dB, 1.5 kHz " << midAtFull << " dB");
+    INFO ("overdrive at full: 80 Hz " << lowAtFull << " dB, 1.5 kHz " << midAtFull << " dB");
 
     // The band above the corner is driven far harder than the band below it. The gap is the
-    // first-order slope's, which is what the pedal this stands in for has: about 18 dB, so the
-    // low end is still driven, just nothing like as hard.
+    // first-order slope's, which is what the pedal this stands in for has.
     REQUIRE (midAtFull - lowAtFull > 15.0f);
 
-    // And with the knob down the pedal is flat, so the corner is something the drive control
-    // brings in rather than a filter sitting in the signal path whatever you do.
-    const auto lowAtZero = gainAt (80.0, 0.0f);
-    const auto midAtZero = gainAt (1500.0, 0.0f);
+    // With the knob down it is flat, so the corner is something the drive control brings in
+    // rather than a filter sitting in the signal path whatever you do.
+    const auto lowAtZero = gainAt (80.0, DirtPedal::Type::overdrive, 0.0f);
+    const auto midAtZero = gainAt (1500.0, DirtPedal::Type::overdrive, 0.0f);
 
-    INFO ("at zero drive: 80 Hz " << lowAtZero << " dB, 1.5 kHz " << midAtZero << " dB");
+    INFO ("overdrive at zero: 80 Hz " << lowAtZero << " dB, 1.5 kHz " << midAtZero << " dB");
     REQUIRE (std::abs (midAtZero - lowAtZero) < 1.0f);
+
+    // And the distortion does the opposite, which is the difference between the two pedals: its
+    // corner is far lower, so the low end goes into the clipper with everything else. That is why
+    // it makes its own sound rather than tightening the amp's.
+    const auto distortionLow = gainAt (80.0, DirtPedal::Type::distortion, 1.0f);
+    const auto distortionMid = gainAt (1500.0, DirtPedal::Type::distortion, 1.0f);
+
+    INFO ("distortion at full: 80 Hz " << distortionLow << " dB, 1.5 kHz " << distortionMid << " dB");
+    REQUIRE (std::abs (distortionMid - distortionLow) < 6.0f);
 }
+
+TEST_CASE ("The clean boost does not clip and the distortion does", "[pedals]")
+{
+    // The boost's whole job is to be louder without being dirtier, so its gain has to be the same
+    // whatever it is given. A shaper's cannot be: that is what shaping means.
+    const auto gainAt = [] (DirtPedal::Type type, float amplitude)
+    {
+        PedalChain::Settings settings;
+        settings.driveEngaged = true;
+        settings.dirtType = type;
+        settings.driveAmount = 1.0f;
+        settings.driveTone = 0.5f;
+        settings.driveLevelDb = 0.0f;
+
+        auto chain = makeChain (settings);
+
+        const auto input = Signal::sine (440.0, test::blockSize * 40, amplitude);
+        const auto output = runThrough (*chain, input, true);
+
+        const auto measureFrom = test::blockSize * 20;
+        return juce::Decibels::gainToDecibels (Signal::rms (output, measureFrom)
+                                                   / Signal::rms (input, measureFrom));
+    };
+
+    const auto boostQuiet = gainAt (DirtPedal::Type::cleanBoost, 0.0005f);
+    const auto boostLoud = gainAt (DirtPedal::Type::cleanBoost, 0.05f);
+
+    INFO ("clean boost: " << boostQuiet << " dB quiet, " << boostLoud << " dB loud");
+    REQUIRE_THAT (boostLoud, WithinAbs (boostQuiet, 0.2));
+
+    const auto dirtQuiet = gainAt (DirtPedal::Type::distortion, 0.0005f);
+    const auto dirtLoud = gainAt (DirtPedal::Type::distortion, 0.05f);
+
+    INFO ("distortion: " << dirtQuiet << " dB quiet, " << dirtLoud << " dB loud");
+    REQUIRE (dirtQuiet - dirtLoud > 20.0f);
+}
+
+TEST_CASE ("The tremolo moves the level and the other modulations do not", "[pedals]")
+{
+    // A tremolo is the one of the four that is not a comb: nothing is delayed, the volume simply
+    // rises and falls. So it is the only one whose output level swings over a cycle.
+    const auto levelSwing = [] (ModulationPedal::Type type)
+    {
+        PedalChain::Settings settings;
+        settings.chorusEngaged = true;
+        settings.modulationType = type;
+        settings.chorusRateHz = 5.0f;
+        settings.chorusDepth = 1.0f;
+        settings.modulationFeedback = 0.0f;
+        settings.chorusMix = 1.0f;
+
+        auto chain = makeChain (settings);
+
+        const auto input = Signal::sine (440.0, test::blockSize * 80);
+        const auto output = runThrough (*chain, input, false);
+
+        // Block by block past the settling, the loudest against the quietest.
+        float loudest = 0.0f, quietest = 1.0f;
+
+        for (size_t start = (size_t) (test::blockSize * 20); start + (size_t) test::blockSize <= output.size();
+             start += (size_t) test::blockSize)
+        {
+            float peak = 0.0f;
+
+            for (size_t i = start; i < start + (size_t) test::blockSize; ++i)
+                peak = juce::jmax (peak, std::abs (output[i]));
+
+            loudest = juce::jmax (loudest, peak);
+            quietest = juce::jmin (quietest, peak);
+        }
+
+        return juce::Decibels::gainToDecibels (quietest / juce::jmax (1.0e-9f, loudest));
+    };
+
+    INFO ("tremolo " << levelSwing (ModulationPedal::Type::tremolo)
+          << " dB, chorus " << levelSwing (ModulationPedal::Type::chorus)
+          << " dB, phaser " << levelSwing (ModulationPedal::Type::phaser));
+
+    REQUIRE (levelSwing (ModulationPedal::Type::tremolo) < -20.0f);
+    REQUIRE (levelSwing (ModulationPedal::Type::chorus) > -6.0f);
+    REQUIRE (levelSwing (ModulationPedal::Type::phaser) > -6.0f);
+}
+
 
 namespace
 {
@@ -696,4 +790,83 @@ TEST_CASE ("The delay ignores the tempo while it is set to Free", "[pedals]")
 
     // Division 0 is Free, which is where a session saved before any of this existed lands.
     REQUIRE (std::abs (measureDelaySamples (*processor) - 9600) < 48);
+}
+
+TEST_CASE ("Changing what is in a slot fades rather than cutting", "[pedals]")
+{
+    // Two pedals in a slot sound nothing alike, so the change has to be covered. Measured the way
+    // the model swap is: against the same run without a change, since the pedals make plenty of
+    // fast transitions on their own and a fixed threshold would be testing those.
+    const auto run = [] (bool switchMidway, float& worstJump, float& quietestAfter)
+    {
+        PedalChain::Settings settings;
+        settings.driveEngaged = true;
+        settings.dirtType = DirtPedal::Type::distortion;
+        settings.driveAmount = 0.7f;
+        settings.driveTone = 0.5f;
+
+        auto chain = makeChain (settings);
+
+        auto work = Signal::sine (220.0, test::blockSize * 40);
+
+        worstJump = 0.0f;
+        quietestAfter = std::numeric_limits<float>::max();
+
+        float previous = 0.0f;
+        bool first = true;
+        int block = 0;
+
+        for (size_t pos = 0; pos + (size_t) test::blockSize <= work.size();
+             pos += (size_t) test::blockSize, ++block)
+        {
+            if (switchMidway && block == 20)
+            {
+                settings.dirtType = DirtPedal::Type::cleanBoost;
+                chain->setSettings (settings);
+            }
+
+            chain->processBeforeAmp (work.data() + pos, test::blockSize);
+
+            for (size_t i = pos; i < pos + (size_t) test::blockSize; ++i)
+            {
+                // Past the start, where a sine beginning at zero through a clipper makes a bigger
+                // step than anything later does — and makes both runs look identical.
+                if (! first && block >= 10)
+                    worstJump = juce::jmax (worstJump, std::abs (work[i] - previous));
+
+                previous = work[i];
+                first = false;
+            }
+        }
+
+        // The fade is about ten milliseconds, which is most of one block — so a whole block's peak
+        // cannot see it, since each block still contains a loud half. A short window can.
+        constexpr size_t window = 64;
+
+        for (size_t start = (size_t) (test::blockSize * 19); start + window <= work.size(); ++start)
+        {
+            float peak = 0.0f;
+
+            for (size_t i = start; i < start + window; ++i)
+                peak = juce::jmax (peak, std::abs (work[i]));
+
+            quietestAfter = juce::jmin (quietestAfter, peak);
+        }
+    };
+
+    float baselineJump = 0.0f, baselineQuietest = 0.0f;
+    float switchedJump = 0.0f, switchedQuietest = 0.0f;
+
+    run (false, baselineJump, baselineQuietest);
+    run (true, switchedJump, switchedQuietest);
+
+    INFO ("jump: baseline " << baselineJump << ", switched " << switchedJump);
+    INFO ("quietest block after: baseline " << baselineQuietest << ", switched " << switchedQuietest);
+
+    // No discontinuity beyond what the pedal makes on its own...
+    REQUIRE (switchedJump <= baselineJump * 1.1f);
+
+    // ...and the fade actually happened, which is the part a jump threshold cannot see: some
+    // block during the change is far quieter than the slot ever gets when nothing changes.
+    REQUIRE (switchedQuietest < 0.3f * baselineQuietest);
 }

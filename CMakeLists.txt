@@ -91,7 +91,8 @@ target_sources(AmpSim PRIVATE
     src/ui/CabPage.cpp
     src/ui/PresetRow.cpp
     src/dsp/PedalChain.cpp
-    src/dsp/pedals/DrivePedal.cpp
+    src/dsp/pedals/DirtPedal.cpp
+    src/dsp/pedals/ModulationPedal.cpp
     src/dsp/pedals/DelayPedal.cpp)
 
 target_include_directories(AmpSim PUBLIC src)

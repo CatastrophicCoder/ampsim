@@ -61,15 +61,42 @@ namespace ParamID
     inline constexpr const char* compAmount      = "compAmount";
     inline constexpr const char* compLevel       = "compLevel";
 
+    // The dirt slot. "drive" in these IDs is what it was called when it held one pedal; the names
+    // stay so that a saved session still finds its settings.
+    inline constexpr const char* dirtType        = "dirtType";
     inline constexpr const char* driveOn         = "driveOn";
     inline constexpr const char* driveAmount     = "driveAmount";
     inline constexpr const char* driveTone       = "driveTone";
     inline constexpr const char* driveLevel      = "driveLevel";
 
+    // The overdrive and the clean boost, which the dirt slot can hold instead.
+    inline constexpr const char* odAmount         = "odAmount";
+    inline constexpr const char* odTone           = "odTone";
+    inline constexpr const char* odLevel          = "odLevel";
+
+    inline constexpr const char* boostLevel       = "boostLevel";
+    inline constexpr const char* boostTone        = "boostTone";
+
+    // The modulation slot, whose IDs likewise keep the chorus's name.
+    inline constexpr const char* modulationType   = "modulationType";
     inline constexpr const char* chorusOn        = "chorusOn";
     inline constexpr const char* chorusRate      = "chorusRate";
     inline constexpr const char* chorusDepth     = "chorusDepth";
     inline constexpr const char* chorusMix       = "chorusMix";
+
+    inline constexpr const char* flangerRate      = "flangerRate";
+    inline constexpr const char* flangerDepth     = "flangerDepth";
+    inline constexpr const char* flangerFeedback  = "flangerFeedback";
+    inline constexpr const char* flangerMix       = "flangerMix";
+
+    inline constexpr const char* phaserRate       = "phaserRate";
+    inline constexpr const char* phaserDepth      = "phaserDepth";
+    inline constexpr const char* phaserFeedback   = "phaserFeedback";
+    inline constexpr const char* phaserMix        = "phaserMix";
+
+    inline constexpr const char* tremoloRate      = "tremoloRate";
+    inline constexpr const char* tremoloDepth     = "tremoloDepth";
+    inline constexpr const char* tremoloShape     = "tremoloShape";
 
     inline constexpr const char* delayOn         = "delayOn";
     inline constexpr const char* delayTime       = "delayTime";

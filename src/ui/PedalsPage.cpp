@@ -20,10 +20,19 @@ namespace
     // anodised box is not trying to tell you anything, and the LED on it is.
     const juce::Colour gateBody   { 0xff424a58 };
     const juce::Colour compBody   { 0xff2d5a63 };
-    const juce::Colour driveBody  { 0xff8c3f2e };
-    const juce::Colour chorusBody { 0xff3a4f86 };
     const juce::Colour delayBody  { 0xff4a3d72 };
     const juce::Colour reverbBody { 0xff2f6147 };
+
+    // A slot's colour changes with what is in it, so the board can be read at a glance rather
+    // than by looking at every selector.
+    const juce::Colour distortionBody { 0xff8c3f2e };
+    const juce::Colour overdriveBody  { 0xff8a7327 };
+    const juce::Colour boostBody      { 0xff7b7f88 };
+
+    const juce::Colour chorusBody  { 0xff3a4f86 };
+    const juce::Colour flangerBody { 0xff2f6e7a };
+    const juce::Colour phaserBody  { 0xff7d3a6a };
+    const juce::Colour tremoloBody { 0xff8a5a2c };
 }
 
 PedalsPage::PedalsPage (juce::AudioProcessorValueTreeState& state)
@@ -31,12 +40,30 @@ PedalsPage::PedalsPage (juce::AudioProcessorValueTreeState& state)
             { { ParamID::gateThreshold, "thresh" } }),
       compressor (state, "comp", ParamID::compOn, compBody,
                   { { ParamID::compAmount, "amount" }, { ParamID::compLevel, "level" } }),
-      drive (state, "drive", ParamID::driveOn, driveBody,
-             { { ParamID::driveAmount, "drive" }, { ParamID::driveTone, "tone" },
-               { ParamID::driveLevel, "level" } }),
-      chorus (state, "chorus", ParamID::chorusOn, chorusBody,
-              { { ParamID::chorusRate, "rate" }, { ParamID::chorusDepth, "depth" },
-                { ParamID::chorusMix, "mix" } }),
+      drive (state, ParamID::driveOn, ParamID::dirtType,
+             { { "distortion", distortionBody, { { ParamID::driveAmount, "dist" },
+                                                 { ParamID::driveTone, "tone" },
+                                                 { ParamID::driveLevel, "level" } } },
+               { "overdrive",  overdriveBody,  { { ParamID::odAmount, "drive" },
+                                                 { ParamID::odTone, "tone" },
+                                                 { ParamID::odLevel, "level" } } },
+               { "boost",      boostBody,      { { ParamID::boostLevel, "boost" },
+                                                 { ParamID::boostTone, "tone" } } } }),
+      chorus (state, ParamID::chorusOn, ParamID::modulationType,
+              { { "chorus",  chorusBody,  { { ParamID::chorusRate, "rate" },
+                                            { ParamID::chorusDepth, "depth" },
+                                            { ParamID::chorusMix, "mix" } } },
+                { "flanger", flangerBody, { { ParamID::flangerRate, "rate" },
+                                            { ParamID::flangerDepth, "depth" },
+                                            { ParamID::flangerFeedback, "regen" },
+                                            { ParamID::flangerMix, "mix" } } },
+                { "phaser",  phaserBody,  { { ParamID::phaserRate, "rate" },
+                                            { ParamID::phaserDepth, "depth" },
+                                            { ParamID::phaserFeedback, "regen" },
+                                            { ParamID::phaserMix, "mix" } } },
+                { "tremolo", tremoloBody, { { ParamID::tremoloRate, "rate" },
+                                            { ParamID::tremoloDepth, "depth" },
+                                            { ParamID::tremoloShape, "shape" } } } }),
       delay (state, "delay", ParamID::delayOn, delayBody,
              { { ParamID::delayTime, "time" }, { ParamID::delayDivision, "sync" },
                { ParamID::delayFeedback, "repeats" }, { ParamID::delayMix, "mix" } }),

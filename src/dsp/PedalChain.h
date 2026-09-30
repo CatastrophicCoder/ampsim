@@ -10,10 +10,10 @@
 
 #pragma once
 
-#include "pedals/ChorusPedal.h"
 #include "pedals/CompressorPedal.h"
 #include "pedals/DelayPedal.h"
-#include "pedals/DrivePedal.h"
+#include "pedals/DirtPedal.h"
+#include "pedals/ModulationPedal.h"
 #include "pedals/NoiseGatePedal.h"
 #include "pedals/ReverbPedal.h"
 
@@ -40,11 +40,19 @@ public:
         bool compressorEngaged = false;
         float compressorAmount = 0.4f, compressorLevelDb = 0.0f;
 
+        // The dirt slot: which pedal is in it, and the settings of whichever that is. The
+        // processor picks the right knobs for the type, so this stays four numbers rather than
+        // one set per pedal.
         bool driveEngaged = false;
+        DirtPedal::Type dirtType = DirtPedal::Type::distortion;
         float driveAmount = 0.5f, driveTone = 0.5f, driveLevelDb = 0.0f;
 
+        // Likewise the modulation slot, where the third and fourth numbers mean different things
+        // to different pedals. ModulationPedal::setParameters says which.
         bool chorusEngaged = false;
-        float chorusRateHz = 1.2f, chorusDepth = 0.35f, chorusMix = 0.4f;
+        ModulationPedal::Type modulationType = ModulationPedal::Type::chorus;
+        float chorusRateHz = 1.2f, chorusDepth = 0.35f;
+        float modulationFeedback = 0.0f, chorusMix = 0.4f;
 
         bool delayEngaged = false;
         float delayTimeSeconds = 0.35f, delayFeedback = 0.35f, delayMix = 0.3f;
@@ -66,16 +74,16 @@ public:
     void processBeforeAmp (float* samples, int numSamples);
     void processAfterAmp (float* samples, int numSamples);
 
-    /** The drive pedal's oversampler, which runs whether or not the pedal is engaged so that this
-        number never changes under the host. */
+    /** The dirt slot's oversampler, which runs whatever is in it and whether or not it is engaged,
+        so that this number never changes under the host. */
     int getLatencySamples() const;
 
 private:
     NoiseGatePedal gate;
     CompressorPedal compressor;
-    DrivePedal drive;
+    DirtPedal dirt;
 
-    ChorusPedal chorus;
+    ModulationPedal modulation;
     DelayPedal delay;
     ReverbPedal reverb;
 

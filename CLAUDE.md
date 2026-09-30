@@ -143,6 +143,21 @@ amount of reading the paint code will: see the milestone 5 entry in `NOTES.md`. 
 in the rework, including a knob that grew to fill a fifth of the window and a caption sitting a
 hundred points away from the row it named.
 
+## The user guide
+
+`docs/guide/index.html` is one self-contained page, published by GitHub Pages from `main` and
+`/docs`. Its interface tour and walkthroughs are **data inside a `<script>` block**, so an edit to
+a tour entry is an edit to a JavaScript string literal.
+
+**Check the script parses after editing it.** A stray newline inside one of those strings is a
+syntax error that kills the whole block — the tour and the walkthroughs then render as empty boxes
+while every static section still looks fine, so the page does not obviously appear broken. It
+shipped that way once.
+
+```sh
+node --check <(python3 -c "s=open('docs/guide/index.html').read(); print(s[s.index('<script>')+8:s.index('</script>')])")
+```
+
 ## Bundled assets
 
 The amp model and one cabinet IR ship inside the binary, packed by `AssetPack.h` and written out
@@ -197,6 +212,24 @@ normalises each IR independently, which is the thing to avoid here.
 `PedalChain` owns all six and exposes `processBeforeAmp` and `processAfterAmp` as **two separate
 calls, not one list**, so the amp physically cannot end up on the wrong side of a pedal. The
 placement is the design; do not add a "reorder" feature without revisiting `ampsim_plan.md`.
+
+**Two of the six are slots rather than pedals.** `DirtPedal` holds a distortion, an overdrive or a
+clean boost; `ModulationPedal` holds a chorus, a flanger, a phaser or a tremolo. Substitution is
+not reordering — what each position does to the signal, and which side of the amp it is on, is
+unchanged — so it does not touch the rule above.
+
+- **Every type keeps its own parameters.** The processor picks the right ones in
+  `currentPedalSettings()` and hands the slot a fixed set of numbers. Anonymous per-slot knobs
+  would be fewer parameters and worse: a host would show "Slot 2 Knob 1", a MIDI mapping would
+  follow the slot instead of the pedal it was made for, and switching type would silently move the
+  settings of the one you switched away from.
+- **The IDs keep the names they had.** `driveOn`, `driveAmount` and the chorus's are what the
+  slots were called when each held one pedal, and a saved session looks parameters up by ID. The
+  first choice in each slot is therefore the pedal that used to be there.
+- **A type change fades.** Two pedals in a slot sound nothing alike, so `DirtPedal` and
+  `ModulationPedal` each dip to silence and back around the swap. The fade is about one block
+  long, which is why the test measures a 64-sample window rather than a block peak — a whole block
+  still contains a loud half.
 
 `BypassCrossfade` is the shared switch: every pedal uses it rather than carrying its own ramp. It
 answers `skip`, `processAll` or `crossfade`, and offers `scratchFor()` for the case below.

@@ -14,6 +14,7 @@ namespace
 {
     constexpr int knobLabelHeight = 13;
     constexpr int maxKnobWidth = 44;
+    constexpr int selectorHeight = 18;
     constexpr float enclosureCorner = 7.0f;
 }
 
@@ -107,13 +108,45 @@ void Footswitch::paintButton (juce::Graphics& g, bool shouldDrawButtonAsHighligh
 }
 
 //==============================================================================
-PedalObject::PedalObject (juce::AudioProcessorValueTreeState& state,
+PedalObject::SelectorButton::SelectorButton (int stepToTake)
+    : juce::Button ("type"), step (stepToTake)
+{
+}
+
+void PedalObject::SelectorButton::paintButton (juce::Graphics& g, bool shouldDrawButtonAsHighlighted,
+                                               bool shouldDrawButtonAsDown)
+{
+    const auto bounds = getLocalBounds().toFloat();
+    const auto centre = bounds.getCentre();
+    const auto reach = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.22f;
+
+    juce::Path arrow;
+    arrow.addTriangle (centre.x + (float) step * reach, centre.y,
+                       centre.x - (float) step * reach, centre.y - reach,
+                       centre.x - (float) step * reach, centre.y + reach);
+
+    g.setColour (juce::Colours::black.withAlpha (shouldDrawButtonAsDown ? 0.75f
+                                                 : (shouldDrawButtonAsHighlighted ? 0.6f : 0.4f)));
+    g.fillPath (arrow);
+}
+
+//==============================================================================
+PedalObject::PedalObject (juce::AudioProcessorValueTreeState& stateToUse,
                           const juce::String& pedalName,
                           const char* engageParameterID,
                           juce::Colour bodyColour,
                           std::initializer_list<Knob> knobsToAdd)
-    : name (pedalName), body (bodyColour),
-      engageAttachment (state, engageParameterID, footswitch)
+    : PedalObject (stateToUse, engageParameterID, nullptr,
+                   { Variant { pedalName, bodyColour, std::vector<Knob> (knobsToAdd) } })
+{
+}
+
+PedalObject::PedalObject (juce::AudioProcessorValueTreeState& stateToUse,
+                          const char* engageParameterID,
+                          const char* typeParameterID,
+                          std::vector<Variant> variantsToUse)
+    : state (stateToUse), variants (std::move (variantsToUse)),
+      engageAttachment (stateToUse, engageParameterID, footswitch)
 {
     // A click repaints the switch, and the LED is not inside it. This also covers the state
     // arriving from somewhere else — a preset, the host's automation — rather than from a foot.
@@ -128,14 +161,83 @@ PedalObject::PedalObject (juce::AudioProcessorValueTreeState& state,
 
     addAndMakeVisible (footswitch);
 
-    for (const auto& knob : knobsToAdd)
-        addAndMakeVisible (knobs.add (new PedalKnob (state, knob.parameterID, knob.label)));
+    if (typeParameterID != nullptr)
+    {
+        typeParameter = state.getParameter (typeParameterID);
+
+        previousType.onClick = [this] { stepVariant (-1); };
+        nextType.onClick = [this] { stepVariant (1); };
+
+        addAndMakeVisible (previousType);
+        addAndMakeVisible (nextType);
+
+        // A ParameterAttachment marshals the callback to the message thread for us, which matters:
+        // the value can change from the host's automation or from a preset, on whatever thread
+        // those arrive on, and this rebuilds components.
+        if (typeParameter != nullptr)
+            typeAttachment = std::make_unique<juce::ParameterAttachment> (
+                *typeParameter,
+                [this] (float value)
+                {
+                    showVariant (typeParameter->getNormalisableRange().convertTo0to1 (value) > 1.0f
+                                     ? 0 : juce::roundToInt (value));
+                },
+                nullptr);
+    }
+
+    showVariant (0);
+
+    if (typeAttachment != nullptr)
+        typeAttachment->sendInitialUpdate();
+}
+
+PedalObject::~PedalObject() = default;
+
+void PedalObject::stepVariant (int by)
+{
+    if (typeParameter == nullptr || variants.empty())
+        return;
+
+    const auto count = (int) variants.size();
+    const auto wanted = ((current + by) % count + count) % count;
+
+    typeParameter->beginChangeGesture();
+    typeParameter->setValueNotifyingHost (typeParameter->convertTo0to1 ((float) wanted));
+    typeParameter->endChangeGesture();
+}
+
+void PedalObject::showVariant (int index)
+{
+    const auto wanted = juce::jlimit (0, (int) variants.size() - 1, index);
+
+    if (! knobs.isEmpty() && wanted == current)
+        return;
+
+    current = wanted;
+    knobs.clear();
+
+    for (const auto& knob : variants[(size_t) current].knobs)
+    {
+        auto* added = knobs.add (new PedalKnob (state, knob.parameterID, knob.label));
+        added->setContextMenuHandler (contextMenu);
+        addAndMakeVisible (added);
+    }
+
+    resized();
+    repaint();
 }
 
 void PedalObject::setContextMenuHandler (std::function<void (const juce::String&, juce::Component&)> handler)
 {
+    contextMenu = std::move (handler);
+
     for (auto* knob : knobs)
-        knob->setContextMenuHandler (handler);
+        knob->setContextMenuHandler (contextMenu);
+}
+
+juce::Rectangle<int> PedalObject::selectorRow() const
+{
+    return getLocalBounds().reduced (7, 9).removeFromTop (selectorHeight);
 }
 
 void PedalObject::paint (juce::Graphics& g)
@@ -146,12 +248,14 @@ void PedalObject::paint (juce::Graphics& g)
     g.fillRoundedRectangle (bounds.translated (0.0f, 2.0f), enclosureCorner);
 
     // The enclosure: anodised, so it is lighter where the light falls and the grain runs down it.
+    const auto body = variants[(size_t) current].colour;
+
     g.setGradientFill (juce::ColourGradient (body.brighter (0.16f), bounds.getCentreX(), bounds.getY(),
                                              body.darker (0.24f), bounds.getCentreX(), bounds.getBottom(),
                                              false));
     g.fillRoundedRectangle (bounds, enclosureCorner);
 
-    juce::Random grain (0x9e37 + name.hashCode());
+    juce::Random grain (0x9e37 + variants[(size_t) current].name.hashCode());
 
     for (float x = bounds.getX() + 1.0f; x < bounds.getRight() - 1.0f; x += 1.0f)
     {
@@ -166,11 +270,27 @@ void PedalObject::paint (juce::Graphics& g)
     g.drawRoundedRectangle (bounds.reduced (0.5f), enclosureCorner, 1.0f);
 
     // The name, screen-printed across the bottom of the box.
+    const auto name = variants[(size_t) current].name.toUpperCase();
+
     g.setFont (AmpLookAndFeel::stencil (13.0f).withExtraKerningFactor (0.06f));
     g.setColour (juce::Colours::black.withAlpha (0.25f));
-    g.drawText (name.toUpperCase(), nameArea.translated (0, 1), juce::Justification::centred, false);
+    g.drawText (name, nameArea.translated (0, 1), juce::Justification::centred, false);
     g.setColour (juce::Colour (0xfff6f1e4));
-    g.drawText (name.toUpperCase(), nameArea, juce::Justification::centred, false);
+    g.drawText (name, nameArea, juce::Justification::centred, false);
+
+    // The selector, when the slot can hold more than one thing: the name of what is in it, with an
+    // arrow either side. Printed on the box like everything else rather than sitting on it.
+    if (variants.size() > 1)
+    {
+        auto row = selectorRow();
+
+        g.setColour (juce::Colours::black.withAlpha (0.18f));
+        g.fillRoundedRectangle (row.toFloat(), 3.0f);
+
+        g.setFont (AmpLookAndFeel::font (9.0f, true).withExtraKerningFactor (0.08f));
+        g.setColour (juce::Colours::black.withAlpha (0.65f));
+        g.drawText (name, row, juce::Justification::centred, false);
+    }
 
     // The LED, above the name: lit means this pedal is in your signal.
     const auto on = footswitch.getToggleState();
@@ -202,6 +322,14 @@ void PedalObject::paint (juce::Graphics& g)
 void PedalObject::resized()
 {
     auto bounds = getLocalBounds().reduced (7, 9);
+
+    if (variants.size() > 1)
+    {
+        auto row = bounds.removeFromTop (selectorHeight);
+        previousType.setBounds (row.removeFromLeft (selectorHeight));
+        nextType.setBounds (row.removeFromRight (selectorHeight));
+        bounds.removeFromTop (4);
+    }
 
     const auto switchSize = juce::jmin (34, bounds.getWidth() / 2);
     footswitch.setBounds (bounds.removeFromBottom (switchSize)

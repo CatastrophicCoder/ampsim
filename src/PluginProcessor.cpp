@@ -172,15 +172,46 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
     addKnob (ParamID::compAmount, "Comp Amount", 0.0f, 1.0f, 0.4f);
     addKnob (ParamID::compLevel, "Comp Level", -12.0f, 12.0f, 0.0f, "dB");
 
-    addSwitch (ParamID::driveOn, "Drive");
+    addSwitch (ParamID::driveOn, "Dirt");
+
+    // Distortion first, because that is what the slot held when it held one pedal — a session
+    // saved before the slot existed lands on it and keeps its knob positions.
+    layout.add (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID { ParamID::dirtType, 1 }, "Dirt Pedal",
+        juce::StringArray { "Distortion", "Overdrive", "Clean Boost" }, 0));
     addKnob (ParamID::driveAmount, "Drive", 0.0f, 1.0f, 0.5f);
     addKnob (ParamID::driveTone, "Drive Tone", 0.0f, 1.0f, 0.5f);
     addKnob (ParamID::driveLevel, "Drive Level", -12.0f, 12.0f, 0.0f, "dB");
 
-    addSwitch (ParamID::chorusOn, "Chorus");
+    addKnob (ParamID::odAmount, "Overdrive", 0.0f, 1.0f, 0.4f);
+    addKnob (ParamID::odTone, "Overdrive Tone", 0.0f, 1.0f, 0.5f);
+    addKnob (ParamID::odLevel, "Overdrive Level", -12.0f, 12.0f, 0.0f, "dB");
+
+    addKnob (ParamID::boostLevel, "Boost", 0.0f, 1.0f, 0.5f);
+    addKnob (ParamID::boostTone, "Boost Tone", 0.0f, 1.0f, 0.5f);
+
+    addSwitch (ParamID::chorusOn, "Modulation");
+
+    layout.add (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID { ParamID::modulationType, 1 }, "Modulation Pedal",
+        juce::StringArray { "Chorus", "Flanger", "Phaser", "Tremolo" }, 0));
     addKnob (ParamID::chorusRate, "Chorus Rate", 0.1f, 8.0f, 1.2f, "Hz");
     addKnob (ParamID::chorusDepth, "Chorus Depth", 0.0f, 1.0f, 0.35f);
     addKnob (ParamID::chorusMix, "Chorus Mix", 0.0f, 1.0f, 0.4f);
+
+    addKnob (ParamID::flangerRate, "Flanger Rate", 0.05f, 6.0f, 0.4f, "Hz");
+    addKnob (ParamID::flangerDepth, "Flanger Depth", 0.0f, 1.0f, 0.6f);
+    addKnob (ParamID::flangerFeedback, "Flanger Feedback", 0.0f, 0.9f, 0.5f);
+    addKnob (ParamID::flangerMix, "Flanger Mix", 0.0f, 1.0f, 0.5f);
+
+    addKnob (ParamID::phaserRate, "Phaser Rate", 0.05f, 8.0f, 0.6f, "Hz");
+    addKnob (ParamID::phaserDepth, "Phaser Depth", 0.0f, 1.0f, 0.7f);
+    addKnob (ParamID::phaserFeedback, "Phaser Feedback", 0.0f, 0.9f, 0.4f);
+    addKnob (ParamID::phaserMix, "Phaser Mix", 0.0f, 1.0f, 0.5f);
+
+    addKnob (ParamID::tremoloRate, "Tremolo Rate", 0.5f, 14.0f, 5.0f, "Hz");
+    addKnob (ParamID::tremoloDepth, "Tremolo Depth", 0.0f, 1.0f, 0.5f);
+    addKnob (ParamID::tremoloShape, "Tremolo Shape", 0.0f, 1.0f, 0.0f);
 
     addSwitch (ParamID::delayOn, "Delay");
     // Milliseconds, not seconds to one decimal: the shortest setting is 20 ms, which would read
@@ -351,15 +382,69 @@ PedalChain::Settings AmpSimAudioProcessor::currentPedalSettings() const
     s.compressorAmount = value (ParamID::compAmount);
     s.compressorLevelDb = value (ParamID::compLevel);
 
+    // Each slot reads the knobs of whatever is in it. Every type keeps its own parameters rather
+    // than sharing a set of anonymous ones, so a host shows "Phaser Rate" instead of "Slot 2
+    // Knob 1", a MIDI mapping stays with the pedal it was made for, and switching type does not
+    // silently move the settings of the one you switched away from.
     s.driveEngaged = flag (ParamID::driveOn);
-    s.driveAmount = value (ParamID::driveAmount);
-    s.driveTone = value (ParamID::driveTone);
-    s.driveLevelDb = value (ParamID::driveLevel);
+    s.dirtType = (DirtPedal::Type) (int) value (ParamID::dirtType);
+
+    switch (s.dirtType)
+    {
+        case DirtPedal::Type::overdrive:
+            s.driveAmount = value (ParamID::odAmount);
+            s.driveTone = value (ParamID::odTone);
+            s.driveLevelDb = value (ParamID::odLevel);
+            break;
+
+        case DirtPedal::Type::cleanBoost:
+            s.driveAmount = value (ParamID::boostLevel);
+            s.driveTone = value (ParamID::boostTone);
+            s.driveLevelDb = 0.0f;
+            break;
+
+        case DirtPedal::Type::distortion:
+        default:
+            s.driveAmount = value (ParamID::driveAmount);
+            s.driveTone = value (ParamID::driveTone);
+            s.driveLevelDb = value (ParamID::driveLevel);
+            break;
+    }
 
     s.chorusEngaged = flag (ParamID::chorusOn);
-    s.chorusRateHz = value (ParamID::chorusRate);
-    s.chorusDepth = value (ParamID::chorusDepth);
-    s.chorusMix = value (ParamID::chorusMix);
+    s.modulationType = (ModulationPedal::Type) (int) value (ParamID::modulationType);
+
+    switch (s.modulationType)
+    {
+        case ModulationPedal::Type::flanger:
+            s.chorusRateHz = value (ParamID::flangerRate);
+            s.chorusDepth = value (ParamID::flangerDepth);
+            s.modulationFeedback = value (ParamID::flangerFeedback);
+            s.chorusMix = value (ParamID::flangerMix);
+            break;
+
+        case ModulationPedal::Type::phaser:
+            s.chorusRateHz = value (ParamID::phaserRate);
+            s.chorusDepth = value (ParamID::phaserDepth);
+            s.modulationFeedback = value (ParamID::phaserFeedback);
+            s.chorusMix = value (ParamID::phaserMix);
+            break;
+
+        case ModulationPedal::Type::tremolo:
+            s.chorusRateHz = value (ParamID::tremoloRate);
+            s.chorusDepth = value (ParamID::tremoloDepth);
+            s.modulationFeedback = value (ParamID::tremoloShape);
+            s.chorusMix = 1.0f;
+            break;
+
+        case ModulationPedal::Type::chorus:
+        default:
+            s.chorusRateHz = value (ParamID::chorusRate);
+            s.chorusDepth = value (ParamID::chorusDepth);
+            s.modulationFeedback = 0.0f;
+            s.chorusMix = value (ParamID::chorusMix);
+            break;
+    }
 
     s.delayEngaged = flag (ParamID::delayOn);
     s.delayTimeSeconds = currentDelaySeconds();
