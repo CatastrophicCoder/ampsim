@@ -122,7 +122,7 @@ broke and nothing changed". Update it deliberately, in its own commit, and re-va
 ## Testing
 
 ```sh
-ctest --test-dir build                        # 90 tests
+ctest --test-dir build                        # 91 tests
 ctest --test-dir build --output-on-failure
 ctest --test-dir build -R "bypass"            # one test, or a pattern
 ```

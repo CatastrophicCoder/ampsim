@@ -25,6 +25,26 @@ PedalKnob::PedalKnob (juce::AudioProcessorValueTreeState& state,
     slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
     slider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     slider.setRotaryParameters (AmpLookAndFeel::rotaryStart, AmpLookAndFeel::rotaryEnd, true);
+
+    // Double-click puts a control back where it started. The default comes from the parameter, so
+    // there is no second copy of it here to drift out of step with the one the host is told about.
+    // Rounded to the range's own step, because a parameter knows its default only as a normalised
+    // number and coming back through a skewed dB range lands a millionth of a decibel off zero.
+    // Near enough to hear nothing, but far enough that a host comparing against the default would
+    // not call it one.
+    if (auto* parameter = state.getParameter (parameterID))
+    {
+        const auto& range = parameter->getNormalisableRange();
+        auto value = (double) range.convertFrom0to1 (parameter->getDefaultValue());
+
+        if (range.interval > 0.0f)
+        {
+            const auto steps = 1.0 / (double) range.interval;
+            value = std::round (value * steps) / steps;
+        }
+
+        slider.setDoubleClickReturnValue (true, (float) value);
+    }
     addAndMakeVisible (slider);
 }
 

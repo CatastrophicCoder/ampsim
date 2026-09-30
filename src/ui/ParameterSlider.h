@@ -35,6 +35,10 @@ public:
         juce::Slider::mouseDown (event);
     }
 
+    /** Which parameter this control drives. The menu needs it, and so does the test that checks
+        every knob on the panel is wired to one. */
+    const juce::String& getParameterID() const noexcept  { return parameterID; }
+
     std::function<void (const juce::String& parameterID, juce::Component& source)> onContextMenu;
 
 private:
