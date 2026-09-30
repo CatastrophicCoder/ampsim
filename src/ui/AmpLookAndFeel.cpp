@@ -25,6 +25,120 @@ const juce::Colour AmpPalette::value      { 0xffe8a33d };
 const juce::Colour AmpPalette::engaged    { 0xff4ad07a };
 const juce::Colour AmpPalette::bypassed   { 0xffdb4b3f };
 
+const juce::Colour AmpMaterials::tolex     { 0xff17181c };
+const juce::Colour AmpMaterials::piping    { 0xff3c4250 };
+const juce::Colour AmpMaterials::cloth     { 0xff0e1014 };
+const juce::Colour AmpMaterials::metal     { 0xff23262d };
+const juce::Colour AmpMaterials::brassLit  { 0xffb99a55 };
+const juce::Colour AmpMaterials::brassDark { 0xff7a6330 };
+const juce::Colour AmpMaterials::engraving { 0xffd9dee6 };
+const juce::Colour AmpMaterials::knobCap   { 0xff15171b };
+
+void AmpMaterials::drawBox (juce::Graphics& g, juce::Rectangle<float> bounds, int grainSeed)
+{
+    g.setColour (juce::Colours::black.withAlpha (0.5f));
+    g.fillRoundedRectangle (bounds.translated (0.0f, 3.0f), 11.0f);
+
+    g.setColour (tolex);
+    g.fillRoundedRectangle (bounds, 11.0f);
+
+    // The covering's pebble grain. Coarse on purpose: a finer one disappears at 75 % and costs
+    // four times as much to draw.
+    juce::Random grain (grainSeed);
+
+    for (int y = (int) bounds.getY() + 4; y < (int) bounds.getBottom() - 4; y += 5)
+        for (int x = (int) bounds.getX() + 4 + (y % 10 == 0 ? 0 : 2); x < (int) bounds.getRight() - 4; x += 5)
+        {
+            g.setColour (juce::Colours::white.withAlpha (0.012f + 0.022f * grain.nextFloat()));
+            g.fillRect (x, y, 1, 1);
+        }
+
+    // Piping, which is what stops a dark box looking like a dark rectangle.
+    g.setColour (piping);
+    g.drawRoundedRectangle (bounds.reduced (0.5f), 11.0f, 1.5f);
+
+    g.setColour (juce::Colours::black.withAlpha (0.45f));
+    g.drawRoundedRectangle (bounds.reduced (2.5f), 9.0f, 1.0f);
+}
+
+void AmpMaterials::drawGrille (juce::Graphics& g, juce::Rectangle<float> bounds)
+{
+    g.setColour (cloth);
+    g.fillRoundedRectangle (bounds, 4.0f);
+
+    // Basket weave: two sets of diagonals, both faint. Drawn rather than cached so it stays crisp
+    // at every scale, which is the whole reason nothing here is an image.
+    g.saveState();
+    g.reduceClipRegion (bounds.toNearestInt());
+
+    const auto span = bounds.getWidth() + bounds.getHeight();
+
+    for (float offset = -bounds.getHeight(); offset < span; offset += 6.0f)
+    {
+        g.setColour (juce::Colours::white.withAlpha (0.055f));
+        g.drawLine (bounds.getX() + offset, bounds.getY(),
+                    bounds.getX() + offset + bounds.getHeight(), bounds.getBottom(), 1.6f);
+
+        g.setColour (juce::Colours::white.withAlpha (0.035f));
+        g.drawLine (bounds.getRight() - offset, bounds.getY(),
+                    bounds.getRight() - offset - bounds.getHeight(), bounds.getBottom(), 1.6f);
+    }
+
+    g.restoreState();
+
+    // Lit from above, like cloth stretched over a baffle.
+    g.setGradientFill (juce::ColourGradient (juce::Colours::white.withAlpha (0.05f),
+                                             bounds.getCentreX(), bounds.getY(),
+                                             juce::Colours::black.withAlpha (0.28f),
+                                             bounds.getCentreX(), bounds.getBottom(), false));
+    g.fillRoundedRectangle (bounds, 4.0f);
+
+    // Sunk into the box rather than sitting on it.
+    g.setColour (juce::Colours::black.withAlpha (0.6f));
+    g.drawRoundedRectangle (bounds.reduced (0.5f), 4.0f, 1.5f);
+}
+
+void AmpMaterials::drawPlate (juce::Graphics& g, juce::Rectangle<float> bounds)
+{
+    g.setColour (juce::Colours::black.withAlpha (0.5f));
+    g.fillRoundedRectangle (bounds.translated (0.0f, 1.5f), 4.0f);
+
+    g.setGradientFill (juce::ColourGradient (metal.brighter (0.09f), bounds.getCentreX(), bounds.getY(),
+                                             metal.darker (0.18f), bounds.getCentreX(), bounds.getBottom(),
+                                             false));
+    g.fillRoundedRectangle (bounds, 4.0f);
+
+    // Brushed across, the way a rolled aluminium fascia is.
+    juce::Random grain (0x91a7e);
+
+    for (float y = bounds.getY() + 1.0f; y < bounds.getBottom() - 1.0f; y += 1.0f)
+    {
+        g.setColour (juce::Colours::white.withAlpha (0.018f * grain.nextFloat()));
+        g.fillRect (bounds.getX() + 1.0f, y, bounds.getWidth() - 2.0f, 1.0f);
+    }
+
+    g.setColour (juce::Colours::white.withAlpha (0.14f));
+    g.drawRoundedRectangle (bounds.reduced (0.5f), 4.0f, 1.0f);
+
+    // Four screws, where a plate is actually held on.
+    for (const auto corner : { bounds.getTopLeft(), bounds.getTopRight(),
+                               bounds.getBottomLeft(), bounds.getBottomRight() })
+    {
+        const auto x = corner.x < bounds.getCentreX() ? corner.x + 9.0f : corner.x - 9.0f;
+        const auto y = corner.y < bounds.getCentreY() ? corner.y + 9.0f : corner.y - 9.0f;
+        const juce::Rectangle<float> screw { x - 3.0f, y - 3.0f, 6.0f, 6.0f };
+
+        g.setColour (juce::Colours::black.withAlpha (0.55f));
+        g.fillEllipse (screw);
+
+        g.setColour (juce::Colours::white.withAlpha (0.16f));
+        g.drawEllipse (screw.reduced (0.5f), 1.0f);
+
+        g.setColour (juce::Colours::black.withAlpha (0.7f));
+        g.drawLine (screw.getX() + 1.2f, screw.getCentreY(), screw.getRight() - 1.2f, screw.getCentreY(), 1.0f);
+    }
+}
+
 juce::Font AmpLookAndFeel::font (float height, bool medium)
 {
     auto options = juce::FontOptions ("Avenir Next", height, juce::Font::plain);
@@ -47,6 +161,8 @@ AmpLookAndFeel::AmpLookAndFeel()
     setColour (juce::TextButton::textColourOffId, AmpPalette::text);
     setColour (juce::ToggleButton::textColourId, AmpPalette::textDim);
     setColour (juce::ToggleButton::tickColourId, AmpPalette::bypassed);
+    setColour (knobBodyColourId, AmpPalette::raised);
+    setColour (knobTrackColourId, AmpPalette::hairline);
 
     setColour (juce::PopupMenu::backgroundColourId, AmpPalette::surface);
     setColour (juce::PopupMenu::textColourId, AmpPalette::text);
@@ -55,7 +171,8 @@ AmpLookAndFeel::AmpLookAndFeel()
 }
 
 void AmpLookAndFeel::drawKnob (juce::Graphics& g, juce::Rectangle<float> bounds, float proportion,
-                               bool centred, juce::Colour bodyColour, float ringThickness)
+                               bool centred, juce::Colour bodyColour, juce::Colour trackColour,
+                               float ringThickness)
 {
     const auto centre = bounds.getCentre();
     const auto ringRadius = juce::jmin (bounds.getWidth(), bounds.getHeight()) * 0.5f - ringThickness * 0.5f;
@@ -65,7 +182,7 @@ void AmpLookAndFeel::drawKnob (juce::Graphics& g, juce::Rectangle<float> bounds,
 
     juce::Path track;
     track.addCentredArc (centre.x, centre.y, ringRadius, ringRadius, 0.0f, rotaryStart, rotaryEnd, true);
-    g.setColour (AmpPalette::hairline);
+    g.setColour (trackColour);
     g.strokePath (track, juce::PathStrokeType (ringThickness, juce::PathStrokeType::curved,
                                                juce::PathStrokeType::rounded));
 
@@ -86,6 +203,10 @@ void AmpLookAndFeel::drawKnob (juce::Graphics& g, juce::Rectangle<float> bounds,
     }
 
     const auto body = juce::Rectangle<float> (bodyRadius * 2.0f, bodyRadius * 2.0f).withCentre (centre);
+
+    // A shadow under the cap, so it reads as something mounted through the panel.
+    g.setColour (juce::Colours::black.withAlpha (0.4f));
+    g.fillEllipse (body.expanded (1.0f).translated (0.0f, 1.5f));
 
     g.setGradientFill (juce::ColourGradient (bodyColour.brighter (0.16f), body.getCentreX(), body.getY(),
                                              bodyColour.darker (0.22f), body.getCentreX(), body.getBottom(),
@@ -108,7 +229,8 @@ void AmpLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int widt
     const auto centred = slider.getMinimum() < 0.0 && slider.getMaximum() > 0.0;
     const auto thickness = juce::jmax (2.5f, bounds.getWidth() * 0.055f);
 
-    drawKnob (g, bounds, sliderPos, centred, AmpPalette::raised, thickness);
+    drawKnob (g, bounds, sliderPos, centred,
+              slider.findColour (knobBodyColourId), slider.findColour (knobTrackColourId), thickness);
 }
 
 void AmpLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& button,

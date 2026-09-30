@@ -41,6 +41,9 @@ namespace ParamID
     inline constexpr const char* bypass     = "bypass";
     inline constexpr const char* cabBypass  = "cabBypass";
     inline constexpr const char* tunerOn    = "tunerOn";
+    // The amp's own power switch. An amp with no power makes no sound, so this mutes rather than
+    // passing the signal through — which is what `bypass` is for.
+    inline constexpr const char* power      = "power";
     inline constexpr const char* micAxis     = "micAxis";
     inline constexpr const char* micDistance = "micDistance";
 
@@ -183,6 +186,11 @@ public:
 
     PresetManager& getPresets() { return presets; }
     bool isTunerEngaged() const { return tunerParam->get(); }
+    bool isPowered() const      { return powerParam->get(); }
+
+    /** Whether the end of the chain should be silent. Both reasons are the amp not reaching the
+        speaker, so they share one ramp. */
+    bool mutedNow() const       { return tunerParam->get() || ! powerParam->get(); }
 
     /** Last IR load error, empty if the last one succeeded or none has been attempted. */
     juce::String getImpulseResponseError() const { return irError; }
@@ -212,6 +220,7 @@ private:
     juce::AudioParameterBool*  bypassParam     = nullptr;
     juce::AudioParameterBool*  cabBypassParam  = nullptr;
     juce::AudioParameterBool*  tunerParam      = nullptr;
+    juce::AudioParameterBool*  powerParam      = nullptr;
     juce::AudioParameterFloat* micAxisParam    = nullptr;
     juce::AudioParameterFloat* micDistanceParam = nullptr;
 
@@ -231,7 +240,9 @@ private:
     Tuner tuner;
 
     // A tuner pedal mutes while you use it, so you can tune without the room hearing it.
-    juce::SmoothedValue<float> tunerMute;
+    /** Silence at the end of the chain, from the tuner or from the power switch. One smoother for
+        both, because they want the same thing and two ramps would fight over the same samples. */
+    juce::SmoothedValue<float> outputMute;
     PedalChain pedals;
     CabSim cabSim;
     PresetManager presets { *this };

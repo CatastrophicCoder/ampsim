@@ -88,7 +88,11 @@ else over them at any time; the public NAM model libraries and any cabinet IR wo
 standalone's input by default, which is right for a synth and wrong for an amp — with it ticked the
 meters move and nothing is heard.
 
-**Amp.** Gain sits before the model, so turning it up drives the network harder and it saturates,
+**Amp.** The head's power switch is at the right-hand end of the control plate. It mutes rather
+than bypasses — an amp that is switched off makes no sound, where **bypassed** in the bar passes
+your guitar through untouched. Click the brass nameplate on the grille to load a different capture.
+
+Gain sits before the model, so turning it up drives the network harder and it saturates,
 the way a preamp gain control does — with a real capture, 12 dB more input yields well under a
 decibel more output. Bass, Mid and Treble are independent parametric bands (low shelf 100 Hz, peak
 800 Hz, high shelf 3.2 kHz, ±12 dB) between the model and the cab. Master is the level out of the
@@ -96,9 +100,12 @@ amp. Because the bands are parametric rather than a modelled passive network, al
 genuinely flat and each moves only its own band — a real tone stack interacts with itself and is
 mid-scooped at noon.
 
-**Cabinet.** Four corners of a mic position — on and off axis, close and far — with axis and
-distance knobs blending between them. Click a corner to load or clear an IR. Fill one corner and it
-is a plain IR loader. A stereo IR is folded to mono.
+**Cabinet.** Four corners of a mic position — on and off axis, close and far — laid out on the
+cab's grille as the grid they are, with axis and distance knobs beside it blending along those same
+two directions. Click a corner to load or clear an IR. Fill one corner and it is a plain IR loader.
+A stereo IR is folded to mono.
+
+![The cabinet](docs/cab.png)
 
 Captures are not made to a common level — a commercial pack can carry 15 dB of broadband gain — so
 the cab normalises, using the average magnitude across the range a guitar occupies. One factor is
@@ -143,7 +150,7 @@ engaged so that the figure never changes under the host.
 ## Testing
 
 ```sh
-ctest --test-dir build                        # 87 tests
+ctest --test-dir build                        # 90 tests
 ctest --test-dir build --output-on-failure
 ctest --test-dir build -R "bypass"            # one test, or a pattern
 ```

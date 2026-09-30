@@ -86,9 +86,14 @@ interchangeable with the rest of the palette:
 - **red** (`bypassed`) — switched out of it.
 
 The shape is a persistent bar (preset field, scale, tuner, bypass), a tab bar, and one of three
-pages: `AmpPage` (the head, as an object), `PedalsPage` (six `PedalObject`s in one left-to-right
-run with the amp drawn in the middle of it) and `CabPage` (the mic-position grid). Nothing uses an
-image asset; everything is drawn.
+pages: `AmpPage` (the head), `PedalsPage` (six `PedalObject`s in one left-to-right run with the amp
+drawn in the middle of it) and `CabPage` (the cab, with the mic-position grid on its grille).
+Nothing uses an image asset; everything is drawn.
+
+`AmpMaterials` holds what the objects are *made of* — tolex, piping, grille cloth, brushed metal,
+brass — and draws a covered box, a grille and a control plate. The amp and the cab both use it, so
+the two pages read as parts of one rig. Those colours carry no meaning, unlike `AmpPalette`'s
+three; a pedal's enclosure colour and the amp's pilot lamp take the same licence.
 
 **Scaling is a transform on one child, not a proportional layout.** Every page lays out in fixed
 logical points inside `AmpSimAudioProcessorEditor::Panel`, which carries
@@ -99,6 +104,12 @@ for the user's own scale means the two fight. The chosen scale lives in `StateID
 
 Things that are easy to get wrong here:
 
+- **A child button repainting does not repaint the indicator its parent draws.** Clicking a
+  `Button` marks only that button's bounds dirty, so a pedal's LED and the amp head going dark —
+  both painted by the enclosure around the switch — stay stale. Hook the switch's `onStateChange`
+  (not `onClick`, which misses a preset or the host setting the value) and repaint the parent,
+  guarded against the last drawn value so hovering does not repaint the whole object. This has
+  been the same bug twice.
 - **A slider's text box takes its colours from the slider, not the LookAndFeel.** Clearing
   `textBoxOutlineColourId` and `textBoxBackgroundColourId` on the LookAndFeel does nothing; set them
   on the `juce::Slider`.
@@ -302,6 +313,7 @@ A standard `.nam` capture is a snapshot of one amp setting — the knobs are *no
 | Gain | `inputGain` | before the model | ±24 dB; more level in = more saturation out, which a test asserts against a real capture |
 | Bass / Mid / Treble | `bass` `mid` `treble` | after the model, before Master | ±12 dB parametric bands: low shelf 100 Hz, peak 800 Hz (Q 0.7), high shelf 3.2 kHz. **Settled** against a modelled passive stack — see `ToneStack.h` |
 | Master | `outputGain` | after the tone stack, before the cab | ±24 dB |
+| Power | `power` | the end of the chain | mutes, on the same ramp as the tuner. Not `bypass`: an amp that is off makes no sound, it does not pass your guitar through. A fully bypassed plugin ignores it, because then the amp is out of the chain |
 | Presence *(optional)* | — | after the model | high shelf ≈ 3–5 kHz; not in the minimal control set |
 | Model selector | — | replaces the model | `.nam` files loaded off-thread, atomic pointer swap |
 

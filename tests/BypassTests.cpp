@@ -78,3 +78,74 @@ TEST_CASE ("The bypass parameter is exposed to the host", "[bypass]")
     REQUIRE (bypass != nullptr);
     REQUIRE (bypass == processor.getValueTreeState().getParameter (ParamID::bypass));
 }
+
+TEST_CASE ("Power off silences the amp", "[power]")
+{
+    auto processor = test::makePreparedProcessor();
+    auto& state = processor->getValueTreeState();
+
+    test::setParam (state, ParamID::power, 0.0f);
+
+    REQUIRE_THAT (test::runConstant (*processor, test::blocksForRamp (0.03)),
+                  WithinAbs (0.0, 1.0e-6));
+}
+
+TEST_CASE ("Power off does not silence a bypassed plugin", "[power]")
+{
+    // The amp is out of the chain when the plugin is bypassed, so whether it is switched on is
+    // not the question — a host that bypasses an effect expects to hear what went into it.
+    auto processor = test::makePreparedProcessor();
+    auto& state = processor->getValueTreeState();
+
+    test::setParam (state, ParamID::power, 0.0f);
+    test::setParam (state, ParamID::bypass, 1.0f);
+
+    REQUIRE_THAT (test::runConstant (*processor, test::blocksForRamp (0.03)),
+                  WithinAbs (0.5, 1.0e-6));
+}
+
+TEST_CASE ("Switching the power off ramps rather than cutting", "[power]")
+{
+    auto processor = test::makePreparedProcessor();
+    auto& state = processor->getValueTreeState();
+
+    juce::AudioBuffer<float> buffer (processor->getTotalNumOutputChannels(), test::blockSize);
+    juce::MidiBuffer midi;
+
+    const auto runBlock = [&]
+    {
+        for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+            juce::FloatVectorOperations::fill (buffer.getWritePointer (ch), 0.5f, test::blockSize);
+
+        processor->processBlock (buffer, midi);
+    };
+
+    for (int i = 0; i < test::blocksForRamp (0.05); ++i)
+        runBlock();
+
+    auto previous = buffer.getSample (0, test::blockSize - 1);
+
+    test::setParam (state, ParamID::power, 0.0f);
+
+    float worstJump = 0.0f;
+
+    for (int i = 0; i < test::blocksForRamp (0.05); ++i)
+    {
+        runBlock();
+
+        for (int s = 0; s < test::blockSize; ++s)
+        {
+            const auto sample = buffer.getSample (0, s);
+            worstJump = juce::jmax (worstJump, std::abs (sample - previous));
+            previous = sample;
+        }
+    }
+
+    // A 30 ms ramp at this block size moves far less than this per sample; an instant cut of a
+    // 0.5 DC signal would move by the whole thing.
+    REQUIRE (worstJump < 0.01f);
+
+    // And it has to have arrived at silence, or the test above passes on a power switch that
+    // does nothing at all.
+    REQUIRE_THAT (buffer.getSample (0, test::blockSize - 1), WithinAbs (0.0, 1.0e-6));
+}

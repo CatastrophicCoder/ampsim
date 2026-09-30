@@ -34,8 +34,16 @@ public:
         slider.onContextMenu = std::move (handler);
     }
 
+    /** The knob's cap. Black on an amp's plate, raised grey on a page. */
+    void setBodyColour (juce::Colour);
+
+    /** Names cut into a metal fascia rather than set on a dark page: light type with a dark
+        impression above it, so the light reads as coming from in front and slightly above. */
+    void setEngravedOnMetal (bool);
+
 private:
     juce::String name;
+    bool engraved = false;
     ParameterSlider slider;
     juce::AudioProcessorValueTreeState::SliderAttachment attachment;
 

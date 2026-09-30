@@ -56,6 +56,8 @@ public:
 private:
     void showMenuFor (CabSim::Slot);
     juce::Rectangle<int> content() const;
+    juce::Rectangle<int> cabinet() const;
+    juce::Rectangle<int> knobPlate() const;
 
     AmpSimAudioProcessor& processorRef;
 

@@ -21,6 +21,18 @@ namespace
 
     /** One decimal, and a unit where there is one. Without a formatter JUCE prints the raw float,
         so a mix knob's value popup read 0.3499999 rather than 0.3. */
+    /** A blend between two ends. "0.3" tells nobody anything about where a microphone is; a
+        percentage at least says how far along it has been moved. */
+    juce::AudioParameterFloatAttributes percentage()
+    {
+        return juce::AudioParameterFloatAttributes()
+                   .withLabel ("%")
+                   .withStringFromValueFunction ([] (float value, int)
+                   {
+                       return juce::String (juce::roundToInt (value * 100.0f)) + " %";
+                   });
+    }
+
     juce::AudioParameterFloatAttributes oneDecimal (const juce::String& unit = {})
     {
         return juce::AudioParameterFloatAttributes()
@@ -80,13 +92,18 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
     layout.add (std::make_unique<juce::AudioParameterBool> (
         juce::ParameterID { ParamID::tunerOn, 1 }, "Tuner", false));
 
+    // On by default: a plugin that makes no sound until you find its power switch is a support
+    // ticket. A session saved before this parameter existed also lands on the default.
+    layout.add (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { ParamID::power, 1 }, "Power", true));
+
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { ParamID::micAxis, 1 }, "Mic Axis",
-        juce::NormalisableRange<float> { 0.0f, 1.0f }, 0.0f, oneDecimal()));
+        juce::NormalisableRange<float> { 0.0f, 1.0f }, 0.0f, percentage()));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { ParamID::micDistance, 1 }, "Mic Distance",
-        juce::NormalisableRange<float> { 0.0f, 1.0f }, 0.0f, oneDecimal()));
+        juce::NormalisableRange<float> { 0.0f, 1.0f }, 0.0f, percentage()));
 
     // --- Pedals -------------------------------------------------------------------------------
     const auto addSwitch = [&layout] (const char* id, const juce::String& name)
@@ -157,6 +174,7 @@ AmpSimAudioProcessor::AmpSimAudioProcessor()
     bypassParam     = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::bypass));
     cabBypassParam  = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::cabBypass));
     tunerParam      = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::tunerOn));
+    powerParam      = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::power));
     micAxisParam    = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::micAxis));
     micDistanceParam = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::micDistance));
     bassParam       = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::bass));
@@ -166,7 +184,7 @@ AmpSimAudioProcessor::AmpSimAudioProcessor()
     jassert (inputGainParam != nullptr && outputGainParam != nullptr
              && bypassParam != nullptr && cabBypassParam != nullptr
              && bassParam != nullptr && midParam != nullptr && trebleParam != nullptr
-             && tunerParam != nullptr);
+             && tunerParam != nullptr && powerParam != nullptr);
 
     modelLoader.onFinished = [this] (ModelLoader::Result)
     {
@@ -231,8 +249,8 @@ void AmpSimAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
     tuner.prepare (sampleRate);
     tuner.reset();
 
-    tunerMute.reset (sampleRate, 0.03);
-    tunerMute.setCurrentAndTargetValue (tunerParam->get() ? 0.0f : 1.0f);
+    outputMute.reset (sampleRate, 0.03);
+    outputMute.setCurrentAndTargetValue (mutedNow() ? 0.0f : 1.0f);
 
     pedals.prepare (sampleRate, samplesPerBlock);
     pedals.setSettings (currentPedalSettings());
@@ -487,17 +505,19 @@ void AmpSimAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     cabSim.setMicPosition (micAxisParam->get(), micDistanceParam->get());
     cabSim.process (mono, numSamples, cabBypassParam->get());
 
-    // Muting for the tuner happens last, so everything upstream keeps running and the chain does
-    // not have to settle again when you switch back.
-    tunerMute.setTargetValue (tunerParam->get() ? 0.0f : 1.0f);
+    // Muting happens last, so everything upstream keeps running and the chain does not have to
+    // settle again when you switch back. The power switch mutes here rather than stopping the
+    // chain for the same reason, and because a tail that was already in the air should die away
+    // with the ramp instead of being cut.
+    outputMute.setTargetValue (mutedNow() ? 0.0f : 1.0f);
 
-    if (tunerMute.isSmoothing() || tunerMute.getCurrentValue() < 1.0f)
+    if (outputMute.isSmoothing() || outputMute.getCurrentValue() < 1.0f)
     {
-        const auto start = tunerMute.getCurrentValue();
-        tunerMute.skip (numSamples);
+        const auto start = outputMute.getCurrentValue();
+        outputMute.skip (numSamples);
 
         juce::AudioBuffer<float> view (&mono, 1, numSamples);
-        view.applyGainRamp (0, 0, numSamples, start, tunerMute.getCurrentValue());
+        view.applyGainRamp (0, 0, numSamples, start, outputMute.getCurrentValue());
     }
 
     for (int ch = 0; ch < numChannels; ++ch)

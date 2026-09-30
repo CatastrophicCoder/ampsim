@@ -38,11 +38,42 @@ AmpKnob::AmpKnob (juce::AudioProcessorValueTreeState& state,
     addAndMakeVisible (slider);
 }
 
+void AmpKnob::setBodyColour (juce::Colour colour)
+{
+    slider.setColour (AmpLookAndFeel::knobBodyColourId, colour);
+
+    // A pale track would glare against a black cap; a dark one reads as the channel the pointer
+    // travels in, which is what it is.
+    slider.setColour (AmpLookAndFeel::knobTrackColourId,
+                      colour.brighter (0.22f).interpolatedWith (AmpPalette::hairline, 0.35f));
+}
+
+void AmpKnob::setEngravedOnMetal (bool shouldBeEngraved)
+{
+    engraved = shouldBeEngraved;
+
+    slider.setColour (juce::Slider::textBoxTextColourId,
+                      engraved ? juce::Colour (0xffd9dee6).withAlpha (0.72f) : AmpPalette::textDim);
+    repaint();
+}
+
 void AmpKnob::paint (juce::Graphics& g)
 {
-    g.setFont (AmpLookAndFeel::font (12.5f, true));
-    g.setColour (AmpPalette::text);
-    g.drawText (name, getLocalBounds().removeFromTop (nameHeight), juce::Justification::centred, false);
+    const auto area = getLocalBounds().removeFromTop (nameHeight);
+
+    if (! engraved)
+    {
+        g.setFont (AmpLookAndFeel::font (12.5f, true));
+        g.setColour (AmpPalette::text);
+        g.drawText (name, area, juce::Justification::centred, false);
+        return;
+    }
+
+    g.setFont (AmpLookAndFeel::font (9.5f, true).withExtraKerningFactor (0.2f));
+    g.setColour (juce::Colours::black.withAlpha (0.55f));
+    g.drawText (name, area.translated (0, 1), juce::Justification::centredBottom, false);
+    g.setColour (juce::Colour (0xffd9dee6));
+    g.drawText (name, area, juce::Justification::centredBottom, false);
 }
 
 void AmpKnob::resized()

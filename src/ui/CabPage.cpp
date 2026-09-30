@@ -13,10 +13,16 @@
 namespace
 {
     constexpr int captionHeight = 22;
-    constexpr int gridWidth     = 462;
-    constexpr int gridHeight    = 176;
-    constexpr int knobColumn    = 228;
-    constexpr int columnGap     = 28;
+
+    // The cab is a box like the amp is, so the two pages read as parts of one rig. The four mic
+    // positions sit on its grille, which is where a microphone in front of a cabinet actually is.
+    constexpr int cabWidth   = 470;
+    constexpr int cabHeight  = 252;
+    constexpr int shellInset = 14;
+
+    constexpr int columnGap  = 22;
+    constexpr int knobColumn = 256;
+    constexpr int plateHeight = 162;
 
     const char* positionNames[CabSim::numSlots]
     {
@@ -45,12 +51,16 @@ void CabinetSlotButton::paintButton (juce::Graphics& g, bool shouldDrawButtonAsH
     // A filled corner and an empty one should not be something you have to read to tell apart.
     // Everything differs: the plate, the marker down its edge, the border, and the weight of both
     // lines of text.
-    const auto lift = shouldDrawButtonAsDown ? -0.12f : (shouldDrawButtonAsHighlighted ? 0.12f : 0.0f);
+    const auto lift = shouldDrawButtonAsDown ? -0.03f : (shouldDrawButtonAsHighlighted ? 0.04f : 0.0f);
 
-    g.setColour (isLoaded ? AmpPalette::raised.brighter (lift) : AmpPalette::recess.brighter (lift));
+    // A filled corner and an empty one should not be something you have to read to tell apart.
+    // A loaded one is a lit plate on the cloth; an empty one barely interrupts it.
+    g.setColour (isLoaded ? juce::Colours::white.withAlpha (0.07f + lift)
+                          : juce::Colours::black.withAlpha (0.34f - lift));
     g.fillRoundedRectangle (bounds, corner);
 
-    g.setColour (isLoaded ? AmpPalette::value.withAlpha (0.55f) : AmpPalette::hairline);
+    g.setColour (isLoaded ? AmpPalette::value.withAlpha (0.7f)
+                          : juce::Colours::white.withAlpha (0.07f));
     g.drawRoundedRectangle (bounds.reduced (0.5f), corner, 1.0f);
 
     if (isLoaded)
@@ -77,8 +87,8 @@ void CabinetSlotButton::paintButton (juce::Graphics& g, bool shouldDrawButtonAsH
 //==============================================================================
 CabPage::CabPage (AmpSimAudioProcessor& p)
     : processorRef (p),
-      axisKnob (p.getValueTreeState(), ParamID::micAxis, "Axis"),
-      distanceKnob (p.getValueTreeState(), ParamID::micDistance, "Distance"),
+      axisKnob (p.getValueTreeState(), ParamID::micAxis, "AXIS"),
+      distanceKnob (p.getValueTreeState(), ParamID::micDistance, "DISTANCE"),
       bypassAttachment (p.getValueTreeState(), ParamID::cabBypass, bypassButton)
 {
     for (int slot = 0; slot < CabSim::numSlots; ++slot)
@@ -88,8 +98,12 @@ CabPage::CabPage (AmpSimAudioProcessor& p)
         addAndMakeVisible (button);
     }
 
-    addAndMakeVisible (axisKnob);
-    addAndMakeVisible (distanceKnob);
+    for (auto* knob : { &axisKnob, &distanceKnob })
+    {
+        knob->setBodyColour (AmpMaterials::knobCap);
+        knob->setEngravedOnMetal (true);
+        addAndMakeVisible (*knob);
+    }
 
     bypassButton.setColour (juce::ToggleButton::tickColourId, AmpPalette::bypassed);
     addAndMakeVisible (bypassButton);
@@ -147,18 +161,29 @@ void CabPage::showMenuFor (CabSim::Slot slot)
                         });
 }
 
-/** The grid and the two knobs, centred as one block with the caption on top of it. */
+/** The cab and the plate beside it, centred as one block. */
 juce::Rectangle<int> CabPage::content() const
 {
     return getLocalBounds().withSizeKeepingCentre (
-               juce::jmin (getWidth(), gridWidth + columnGap + knobColumn),
-               juce::jmin (getHeight(), captionHeight + gridHeight));
+               juce::jmin (getWidth(), cabWidth + columnGap + knobColumn),
+               juce::jmin (getHeight(), captionHeight + cabHeight));
+}
+
+juce::Rectangle<int> CabPage::cabinet() const
+{
+    return content().withTrimmedTop (captionHeight).withWidth (cabWidth);
+}
+
+juce::Rectangle<int> CabPage::knobPlate() const
+{
+    return content().withTrimmedTop (captionHeight)
+                    .removeFromRight (knobColumn)
+                    .withSizeKeepingCentre (knobColumn, plateHeight);
 }
 
 void CabPage::paint (juce::Graphics& g)
 {
-    auto caption = content().removeFromTop (captionHeight);
-    caption.removeFromRight (knobColumn + columnGap);
+    auto caption = content().removeFromTop (captionHeight).withWidth (cabWidth);
 
     g.setFont (AmpLookAndFeel::font (10.0f, true).withExtraKerningFactor (0.1f));
     g.setColour (AmpPalette::textFaint);
@@ -166,6 +191,10 @@ void CabPage::paint (juce::Graphics& g)
 
     g.setFont (AmpLookAndFeel::font (11.0f));
     g.drawText ("click a corner to load an IR", caption, juce::Justification::bottomRight, false);
+
+    AmpMaterials::drawBox (g, cabinet().toFloat(), 0x3ab19);
+    AmpMaterials::drawGrille (g, cabinet().reduced (shellInset).toFloat());
+    AmpMaterials::drawPlate (g, knobPlate().toFloat());
 
     // The only place a cab that would not load has to report itself.
     if (const auto error = processorRef.getImpulseResponseError(); error.isNotEmpty())
@@ -179,24 +208,23 @@ void CabPage::paint (juce::Graphics& g)
 
 void CabPage::resized()
 {
-    auto area = content();
+    // Directly above the plate it belongs to, rather than alone at the top of the page.
+    bypassButton.setBounds (knobPlate().withY (knobPlate().getY() - 28).withHeight (22)
+                                       .withTrimmedLeft (4));
 
-    auto caption = area.removeFromTop (captionHeight);
-    bypassButton.setBounds (caption.removeFromRight (knobColumn).withHeight (captionHeight));
-
-    auto knobArea = area.removeFromRight (knobColumn);
-    axisKnob.setBounds (knobArea.removeFromLeft (knobColumn / 2).reduced (6, 12));
-    distanceKnob.setBounds (knobArea.reduced (6, 12));
-
-    auto grid = area.removeFromLeft (gridWidth);
+    auto plate = knobPlate().reduced (16, 16);
+    axisKnob.setBounds (plate.removeFromLeft (plate.getWidth() / 2).reduced (6, 0));
+    distanceKnob.setBounds (plate.reduced (6, 0));
 
     // Left to right is on axis to off axis; top to bottom is close to far, so the two knobs beside
-    // the grid move along the axes the grid is laid out on.
-    const auto halfWidth = grid.getWidth() / 2;
-    const auto halfHeight = grid.getHeight() / 2;
+    // the cab move along the axes the grille is laid out on.
+    auto grille = cabinet().reduced (shellInset);
+
+    const auto halfWidth = grille.getWidth() / 2;
+    const auto halfHeight = grille.getHeight() / 2;
 
     for (int slot = 0; slot < CabSim::numSlots; ++slot)
-        slots[slot]->setBounds (juce::Rectangle<int> (grid.getX() + (slot % 2) * halfWidth,
-                                                      grid.getY() + (slot / 2) * halfHeight,
-                                                      halfWidth, halfHeight).reduced (4));
+        slots[slot]->setBounds (juce::Rectangle<int> (grille.getX() + (slot % 2) * halfWidth,
+                                                      grille.getY() + (slot / 2) * halfHeight,
+                                                      halfWidth, halfHeight).reduced (7));
 }

@@ -41,6 +41,33 @@ struct AmpPalette
     static const juce::Colour bypassed;     // red: switched out of it
 };
 
+/** What the amp and the cabinet are made of.
+
+    These are not the panel's signalling colours and carry no meaning — they are the materials an
+    object is built from, the way a pedal's enclosure colour is. Both boxes share them so that the
+    head on one page and the cab on another read as parts of the same rig.
+*/
+struct AmpMaterials
+{
+    static const juce::Colour tolex;      // the covering
+    static const juce::Colour piping;     // the trim around its edge
+    static const juce::Colour cloth;      // grille cloth
+    static const juce::Colour metal;      // a control plate
+    static const juce::Colour brassLit;
+    static const juce::Colour brassDark;
+    static const juce::Colour engraving;  // names cut into a plate
+    static const juce::Colour knobCap;
+
+    /** A covered box: tolex, its pebble grain, and piping round the edge. */
+    static void drawBox (juce::Graphics&, juce::Rectangle<float>, int grainSeed);
+
+    /** Grille cloth, woven and lit from above, sunk into whatever it is stretched across. */
+    static void drawGrille (juce::Graphics&, juce::Rectangle<float>);
+
+    /** A brushed fascia with a screw at each corner. */
+    static void drawPlate (juce::Graphics&, juce::Rectangle<float>);
+};
+
 class AmpLookAndFeel final : public juce::LookAndFeel_V4
 {
 public:
@@ -70,6 +97,11 @@ public:
         screen-printed onto metal, which is exactly what it is standing in for. */
     static juce::Font stencil (float height);
 
+    /** Where a knob takes its body and track colours from, so the same drawing serves a control
+        on a page and one mounted on an amp's metal plate. */
+    static constexpr int knobBodyColourId  = juce::Slider::thumbColourId;
+    static constexpr int knobTrackColourId = juce::Slider::rotarySliderOutlineColourId;
+
     /** A knob's travel: a gap at the bottom, like a real control's end stops. */
     static constexpr float rotaryStart = juce::MathConstants<float>::pi * 1.25f;
     static constexpr float rotaryEnd   = juce::MathConstants<float>::pi * 2.75f;
@@ -77,5 +109,6 @@ public:
     /** Draws a control's ring and pointer at an arbitrary size, so a pedal's knobs and the amp's
         share one drawing and differ only in scale. */
     static void drawKnob (juce::Graphics&, juce::Rectangle<float> bounds, float proportion,
-                          bool centred, juce::Colour bodyColour, float ringThickness);
+                          bool centred, juce::Colour bodyColour, juce::Colour trackColour,
+                          float ringThickness);
 };
