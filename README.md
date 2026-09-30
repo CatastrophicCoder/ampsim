@@ -151,6 +151,11 @@ CI runs all of this on every push: a Release build, the test suite, both validat
 packaging script, with the installer and disk image uploaded as artefacts. See
 [`.github/workflows/build.yml`](.github/workflows/build.yml).
 
+## Roadmap
+
+[`docs/roadmap.md`](docs/roadmap.md) holds what is agreed but not built — currently a rework of the
+panel's appearance.
+
 ## Reading the code
 
 [`CLAUDE.md`](CLAUDE.md) is the architecture note: what each block is, which thread may touch it,

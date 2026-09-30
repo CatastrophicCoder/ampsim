@@ -73,9 +73,14 @@ translation units and every model fails with "No config parser registered for ar
 `AmpLookAndFeel` holds the whole visual identity; `AmpPalette` holds the colours, so a second
 window inherits them rather than redefining them.
 
-The panel is deliberately not a tolex-and-gold-lettering amp pastiche. This amp is a file, so the
-panel is drawn as measuring equipment: a pale enamelled plate, engraved lettering, graphite knobs,
-a single blue arc reading the value, and red reserved for "switched out of your signal".
+The panel is currently drawn as measuring equipment rather than as an amplifier: a pale enamelled
+plate, engraved lettering, graphite knobs, a single blue arc reading the value, and red reserved for
+"switched out of your signal".
+
+**This is slated for replacement** — see [`docs/roadmap.md`](docs/roadmap.md). The decision is that
+it should look like a current amp plugin instead. Do not spend effort preserving the present
+appearance; do keep the red/blue meaning and the tuner reading dimmed rather than hidden when it is
+only being held.
 
 Two things that are easy to get wrong here:
 
