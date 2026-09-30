@@ -50,8 +50,13 @@ Thread rules, which the whole design turns on:
 - **Loader thread** (`ModelLoader`) parses the file, calls `AmpModel::prepareForLoading()` (which
   allocates and prewarms) and publishes with `setPendingModel()`. It reads the host's sample rate
   and block size *when it runs*, which at startup can be before `prepareToPlay` has supplied them —
-  so a `LoadedModel` records what it was sized for, the audio thread refuses one that does not
-  match, and the message thread re-prepares it. Getting this wrong crashes on the first block.
+  so the loader waits for `hasHostSettings()` before preparing, a `LoadedModel` records what it was
+  sized for, the audio thread refuses one that does not match, and the message thread re-prepares
+  it. Getting this wrong crashes on the first block.
+
+  The wait is what keeps the common path working; the other two are the backstop. Without the wait
+  the Release build lost the race often enough to fail CI while Debug passed, because a test has no
+  timer to do the re-preparing.
 - **Audio thread** takes it in `process()`, under a 10 ms mute so the change cannot click, and hands
   the old one back. It refuses to start a swap while a retired model is still uncollected — that is
   what keeps the hand-back slot a single pointer instead of a queue, and why the audio thread never

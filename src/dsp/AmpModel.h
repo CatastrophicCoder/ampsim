@@ -83,6 +83,10 @@ public:
     bool repreparePendingModelIfNeeded();
 
     bool hasModel() const noexcept          { return modelIsLoaded.load(); }
+
+    /** Whether prepareToPlay has supplied a sample rate and block size yet. Until it has, there is
+        nothing to size a model against. */
+    bool hasHostSettings() const noexcept   { return hostRate.load() > 0.0 && maxBlockSize.load() > 0; }
     int getLatencySamples() const noexcept  { return latencySamples.load(); }
 
     /** The sample rate the loaded model expects, or 0 if there is no model. */

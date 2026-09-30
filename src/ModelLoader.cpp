@@ -83,6 +83,15 @@ void ModelLoader::run()
                 }
                 else
                 {
+                    // A model is sized against the host's sample rate and block size, and those
+                    // are not known until prepareToPlay. At startup a session restores a model
+                    // path before the device is open, so wait rather than preparing against
+                    // zeroes — a model sized for nothing is one the audio thread has to refuse
+                    // and the message thread has to redo.
+                    for (int attempt = 0; attempt < 200 && ! threadShouldExit()
+                                          && ! ampModel.hasHostSettings(); ++attempt)
+                        wait (10);
+
                     // Allocates the resampler and prewarms the network — the reason all of this
                     // happens here and not on the audio thread.
                     auto loaded = ampModel.prepareForLoading (std::move (model));

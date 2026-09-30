@@ -117,6 +117,10 @@ TEST_CASE ("A new instance comes with the built-in amp and cab loaded", "[assetp
     {
         buffer.clear();
         processor.processBlock (buffer, midi);
+
+        // What the processor's timer does in a host.
+        processor.getAmpModelForTesting().repreparePendingModelIfNeeded();
+
         juce::Thread::sleep (2);
     }
 
