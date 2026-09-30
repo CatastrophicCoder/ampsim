@@ -58,16 +58,26 @@ namespace
             correlation[lag] = product / std::sqrt (juce::jmax (1.0e-12, here * there));
         }
 
-        auto bestLag = (size_t) std::distance (correlation.begin(),
-                                               std::max_element (correlation.begin() + (long) lowestLag,
-                                                                 correlation.end()));
+        const auto strongest = std::max_element (correlation.begin() + (long) lowestLag,
+                                                 correlation.end());
+        const auto bestLag = (size_t) std::distance (correlation.begin(), strongest);
 
-        // A period's multiples correlate just as well as the period, so the best lag may be two or
-        // three of them. Halve it while the half still correlates, which is the usual fix.
-        while (bestLag / 2 >= lowestLag && correlation[bestLag / 2] > 0.95 * correlation[bestLag])
-            bestLag /= 2;
+        // Every whole multiple of a period correlates as well as the period does, so the strongest
+        // lag may be two or three or five of them. Try its submultiples and take the shortest that
+        // still matches — which is different from taking the shortest lag that matches anywhere,
+        // since that picks up whatever noise happens to sit early in the range.
+        auto period = bestLag;
 
-        return bestLag > 0 ? sr / (double) bestLag : 0.0;
+        for (size_t divisor = 2; divisor <= 6; ++divisor)
+        {
+            // Rounded rather than divided exactly: a period is rarely a whole number of samples,
+            // so three of them is rarely three times one of them.
+            for (const auto candidate : { bestLag / divisor, (bestLag + divisor - 1) / divisor })
+                if (candidate >= lowestLag && correlation[candidate] > 0.9 * *strongest)
+                    period = juce::jmin (period, candidate);
+        }
+
+        return period > 0 ? sr / (double) period : 0.0;
     }
 
     float levelOf (const std::vector<float>& x, size_t from)
@@ -233,4 +243,37 @@ TEST_CASE ("Switching the transpose on shifts what comes out of the plugin", "[t
     // which is the order that used to leave it stuck.
     REQUIRE_THAT (centsBetween (pitchThroughPlugin (true, -12), 110.0), WithinAbs (0.0, 35.0));
     REQUIRE_THAT (centsBetween (pitchThroughPlugin (true, 7), 329.628), WithinAbs (0.0, 35.0));
+}
+
+TEST_CASE ("The shifted signal does not wobble", "[transpose]")
+{
+    // The artefact this kind of shifter is known for, and the reason the join is matched rather
+    // than taken at a fixed distance: two copies of the note crossing over at an arbitrary point
+    // in the waveform partly cancel, and the level dips every time they do. On a steady note that
+    // is a tremolo at a few hertz, which is what it sounded like before the join was aligned —
+    // eight decibels deep at some intervals.
+    for (const auto semitones : { -12, -5, -2, -1, 1, 2, 5, 12 })
+    {
+        const auto shifted = throughTranspose (semitones, true, 220.0, 200);
+        const auto from = (size_t) (test::blockSize * 60);
+
+        float loudest = 0.0f, quietest = 1.0e9f;
+
+        for (size_t start = from; start + 480 < shifted.size(); start += 240)
+        {
+            double sum = 0.0;
+
+            for (size_t i = start; i < start + 480; ++i)
+                sum += (double) shifted[i] * shifted[i];
+
+            const auto rms = (float) std::sqrt (sum / 480.0);
+            loudest = juce::jmax (loudest, rms);
+            quietest = juce::jmin (quietest, rms);
+        }
+
+        const auto swing = juce::Decibels::gainToDecibels (quietest / loudest);
+
+        INFO (semitones << " semitones: the envelope swings " << swing << " dB");
+        REQUIRE (swing > -1.5f);
+    }
 }

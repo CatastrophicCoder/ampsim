@@ -10,57 +10,18 @@
 
 #include "Transpose.h"
 
-namespace
-{
-    /** How much of a grain the two read pointers share, as a fraction of it.
-
-        The obvious window — a raised cosine over the whole grain — has both pointers sounding all
-        of the time, which means two copies of the note a third of a grain apart at every instant.
-        That is where a granular shifter's chorused, hollow sound comes from, and on a guitar it is
-        the difference between a retuned instrument and an effect. Handing over briefly instead
-        leaves one copy playing for most of the grain.
-    */
-    constexpr float crossfadeFraction = 0.12f;
-
-    /** The gain of a tap at its position through the grain. Two taps half a grain apart always
-        add to one, so nothing is lost or doubled at the handover. */
-    inline float gainAt (float position) noexcept
-    {
-        const auto rise = [] (float u)
-        {
-            return 0.5f - 0.5f * std::cos (juce::MathConstants<float>::pi * u);
-        };
-
-        if (position < crossfadeFraction)
-            return rise (position / crossfadeFraction);
-
-        if (position < 0.5f)
-            return 1.0f;
-
-        if (position < 0.5f + crossfadeFraction)
-            return 1.0f - rise ((position - 0.5f) / crossfadeFraction);
-
-        return 0.0f;
-    }
-}
-
-double Transpose::windowSecondsFor (int semitones)
-{
-    const auto ratio = std::pow (2.0, (double) semitones / 12.0);
-
-    return juce::jlimit (shortestWindowSeconds, longestWindowSeconds,
-                         windowPerUnitRate * std::abs (1.0 - ratio));
-}
-
 void Transpose::prepare (double sampleRate, int maxBlockSize)
 {
     preparedRate = sampleRate;
-    windowSamples = (float) (windowSecondsFor (pendingSemitones.load()) * sampleRate);
 
-    // The taps read up to a whole window behind the write pointer, and linear interpolation reads
-    // one sample either side of that. Sized for the longest window any interval can ask for, so
-    // turning the dial never needs an allocation.
-    line.setMaximumDelayInSamples ((int) std::ceil (longestWindowSeconds * sampleRate) + 4);
+    windowSamples = (float) (windowSeconds * sampleRate);
+    searchSamples = (int) std::round (searchSeconds * sampleRate);
+    matchSamples = (int) std::round (matchSeconds * sampleRate);
+    crossfadeSamples = (int) std::round (crossfadeSeconds * sampleRate);
+
+    // The furthest back anything reads: a pointer a window behind, plus the jump it is looking
+    // ahead to, plus the stretch the two sides are matched over.
+    line.setMaximumDelayInSamples ((int) std::ceil (windowSamples) + 2 * searchSamples + matchSamples + 8);
     line.prepare ({ sampleRate, (juce::uint32) maxBlockSize, 1 });
     line.reset();
 
@@ -76,7 +37,8 @@ void Transpose::prepare (double sampleRate, int maxBlockSize)
 void Transpose::reset()
 {
     line.reset();
-    phase = 0.0f;
+    readDelay = lowestDelay() + windowSamples * 0.5f;
+    crossfadeLeft = 0;
 }
 
 void Transpose::setSemitones (int semitones)
@@ -87,8 +49,66 @@ void Transpose::setSemitones (int semitones)
 void Transpose::adoptInterval (int semitones)
 {
     currentSemitones = semitones;
-    windowSamples = (float) (windowSecondsFor (semitones) * preparedRate);
-    phase = 0.0f;
+    rate = std::pow (2.0f, (float) semitones / 12.0f);
+
+    // Start in the middle of the travel, so there is room to move whichever way the pointer goes.
+    readDelay = lowestDelay() + windowSamples * 0.5f;
+    crossfadeLeft = 0;
+}
+
+float Transpose::readAt (float delayInSamples)
+{
+    const auto clamped = juce::jlimit (1.0f, (float) line.getMaximumDelayInSamples() - 2.0f,
+                                       delayInSamples);
+
+    return line.popSample (0, clamped, false);
+}
+
+float Transpose::bestJumpFrom (float delay, float direction)
+{
+    // How far back the signal most nearly repeats, looked for around a window's distance. Both
+    // stretches being compared are already in the line, so this is an autocorrelation of what has
+    // recently been played — no pitch detection, and nothing that a chord confuses.
+    const auto lowest = juce::jmax (1.0f, windowSamples - (float) searchSamples);
+    const auto highest = windowSamples + (float) searchSamples;
+
+    auto bestJump = windowSamples;
+    auto bestScore = -1.0e30f;
+
+    // Coarse then fine: a period is hundreds of samples across, so stepping four at a time finds
+    // the right hill and a second pass finds its top. Whole samples throughout — a join is being
+    // matched, not measured.
+    for (auto pass = 0; pass < 2; ++pass)
+    {
+        const auto step = pass == 0 ? 4.0f : 1.0f;
+        const auto from = pass == 0 ? lowest : juce::jmax (lowest, bestJump - 4.0f);
+        const auto to = pass == 0 ? highest : juce::jmin (highest, bestJump + 4.0f);
+
+        for (auto jump = from; jump <= to; jump += step)
+        {
+            float product = 0.0f, energy = 0.0f;
+
+            for (int i = 0; i < matchSamples; i += 2)
+            {
+                const auto here = readAt (delay + (float) i);
+                const auto there = readAt (delay + direction * jump + (float) i);
+
+                product += here * there;
+                energy += there * there;
+            }
+
+            // Normalised, or the loudest place always wins rather than the best match.
+            const auto score = product / std::sqrt (juce::jmax (1.0e-9f, energy));
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestJump = jump;
+            }
+        }
+    }
+
+    return bestJump;
 }
 
 void Transpose::process (float* samples, int numSamples, bool bypassed)
@@ -121,19 +141,16 @@ void Transpose::process (float* samples, int numSamples, bool bypassed)
         intervalFade.setTargetValue (1.0f);
     }
 
-    // At unity the shifter would still hold the signal a window behind for no reason, so the
-    // whole thing steps aside. This is also what makes the middle of the control honest.
+    // At unity the pointer would still sit half a window behind and delay the signal for nothing,
+    // so the whole thing steps aside. This is also what makes the middle of the control honest.
     const auto action = bypass.beginBlock (bypassed || currentSemitones == 0, samples, numSamples);
 
     if (action == BypassCrossfade::Action::skip)
     {
         // The fade has to keep moving even here, or an interval changed while the shifter is
-        // stepped aside would leave it waiting for a fade that never finishes — and it would
-        // never shift again.
+        // stepped aside would leave it waiting for a fade that never finishes.
         intervalFade.skip (numSamples);
 
-        // Keep the line fed, and its read pointer moving with its write pointer, so that engaging
-        // it does not start from a window of silence or from two pointers that have drifted apart.
         for (int i = 0; i < numSamples; ++i)
         {
             line.pushSample (0, samples[i]);
@@ -145,41 +162,44 @@ void Transpose::process (float* samples, int numSamples, bool bypassed)
 
     // out(t) = in(t - D(t)), so the frequency multiplier is 1 - D'(t): to raise the pitch the
     // delay has to shrink, and to lower it, grow.
-    const auto ratio = std::pow (2.0f, (float) currentSemitones / 12.0f);
-    phaseStep = (1.0f - ratio) / windowSamples;
+    const auto delayStep = 1.0f - rate;
+    const auto lower = lowestDelay();
+    const auto upper = lower + windowSamples;
 
     for (int i = 0; i < numSamples; ++i)
     {
         line.pushSample (0, samples[i]);
 
-        auto sum = 0.0f;
+        auto out = readAt (readDelay);
 
-        // Two taps half a window apart. Their raised cosines add to one, so a signal that is not
-        // being shifted comes back unchanged and there is no hole where a tap runs out of room.
-        //
-        // Only the second read advances the line's own pointer, and it has to: JUCE's DelayLine
-        // measures a delay from a read position that moves only when it is told to, so reading
-        // twice without advancing once leaves the two pointers drifting a sample apart per sample.
-        for (int tap = 0; tap < 2; ++tap)
+        if (crossfadeLeft > 0)
         {
-            auto position = phase + 0.5f * (float) tap;
-            position -= std::floor (position);
+            // Equal gain, because the two sides have been matched to each other and so add rather
+            // than cancel. An equal-power fade would bulge where they agree.
+            const auto through = 1.0f - (float) crossfadeLeft / (float) crossfadeSamples;
 
-            const auto gain = gainAt (position);
-            const auto delay = juce::jlimit (1.0f, windowSamples, position * windowSamples);
-
-            // The line's pointer is advanced by exactly one of the reads, whether or not that tap
-            // is contributing anything.
-            const auto read = line.popSample (0, delay, tap == 1);
-
-            if (gain > 0.0f)
-                sum += gain * read;
+            out = through * out + (1.0f - through) * readAt (outgoingDelay);
+            outgoingDelay += delayStep;
+            --crossfadeLeft;
         }
 
-        samples[i] = sum;
+        samples[i] = out;
 
-        phase += phaseStep;
-        phase -= std::floor (phase);
+        readDelay += delayStep;
+
+        // The pointer has run out of room, so hand over to one a matched distance away — nearer
+        // the write head if it has drifted too far from it, further if it has caught up.
+        if (readDelay > upper || readDelay < lower)
+        {
+            const auto direction = readDelay < lower ? 1.0f : -1.0f;
+            const auto jump = bestJumpFrom (readDelay, direction);
+
+            outgoingDelay = readDelay;
+            readDelay += direction * jump;
+            crossfadeLeft = crossfadeSamples;
+        }
+
+        line.popSample (0, 1.0f, true);
     }
 
     if (action == BypassCrossfade::Action::crossfade)

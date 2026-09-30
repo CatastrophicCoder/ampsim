@@ -83,14 +83,21 @@ shifter — two read pointers running through a delay line faster or slower than
 faded in and out so one takes over as the other runs out of room. It is polyphonic without being
 told, which a guitar needs, and it does not smear a pick attack the way an FFT-based shifter must.
 
-- **The window is sized from the interval, and that is what makes it in tune.** Each grain plays
-  back at exactly the right rate, but the joins between grains are phase discontinuities — and if
-  the grains are short, the joins are most of what there is. At twenty milliseconds an octave down
-  holds about two cycles of a low note and measures two hundred cents *sharp*; the fix is not a
-  better crossfade but a longer grain. `windowSecondsFor()` scales it with how far the read pointer
-  has to move, held between 20 and 100 ms, so a drop tuning keeps a short window and its small
-  delay while an octave pays for one ten times longer. A large interval costs delay: that is the
-  trade this kind of shifter makes, not a bug to be tuned out.
+- **Where the read pointer jumps to is the whole design.** It cannot run away for ever, so every
+  so often it jumps back about a window and carries on. Jump a *fixed* distance and the join lands
+  at an arbitrary point in the waveform: the two sides partly cancel through the crossfade, which
+  is a tremolo at the rate the joins happen — eight decibels deep at some intervals — and the phase
+  lost at each one accumulates into a pitch error, two hundred cents sharp at an octave down.
+  `bestJumpFrom()` instead looks back over the recent signal and picks the distance, within about
+  twelve milliseconds either side, at which it most nearly repeats. That is overlap-add
+  synchronisation; it needs no pitch detection and a chord does not confuse it.
+- **Matching the join is what keeps the window short, and the window is the delay.** An earlier
+  version hid unmatched joins by making the grains long enough to swamp them, which cost up to
+  100 ms at an octave. With the joins aligned, 25 ms does for every interval.
+- **The jump's direction is not symmetric.** Shifting down, the pointer drifts away from the write
+  head and jumps back toward it; shifting up, it catches up and jumps further away. The search has
+  to look the same way the jump goes, and the pointer is kept a search-width clear of the write
+  head so that looking never reads past it.
 - **It is bypassed outright at zero semitones**, rather than run at a ratio of one — the pointers
   would still sit a window behind and delay the signal for nothing. That interacts with the fade
   that covers an interval change: while the shifter is stepped aside the fade still has to be
@@ -98,8 +105,9 @@ told, which a guitar needs, and it does not smear a pick attack the way an FFT-b
   it never shifts again. Only a change between two *non-zero* intervals is faded at all; starting
   and stopping a shift is a change between dry and shifted, which the bypass crossfade already
   covers.
-- **Its delay is not reported to the host**, because it varies with the interval and with where in
-  a grain the pointers are. Anything recorded through an engaged transpose will be late.
+- **Its delay is not reported to the host**, because it varies with where in the sweep the pointer
+  is. It is under 25 ms at any interval. Anything recorded through an engaged transpose will be
+  late by about that.
 - **Test it through the processor, not only on its own.** The shifter was correct in isolation and
   unusable in the plugin, and the only processor-level test looked at the tuner — which the bug did
   not touch.

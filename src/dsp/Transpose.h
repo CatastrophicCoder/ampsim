@@ -16,32 +16,26 @@
 
 /** Retunes the instrument by a fixed interval, before anything else touches it.
 
-    Two read pointers running through a delay line faster or slower than it is written, each
-    faded in and out by a raised cosine so that one takes over as the other runs out of room.
-    That is how a pitch shifter in a box does it, and it is the right choice here for two
-    reasons a phase vocoder would get wrong:
+    A read pointer runs through a delay line faster or slower than it is written, which resamples
+    the signal and so moves its pitch. The pointer cannot run away for ever, so every so often it
+    has to jump back by about a window's worth and carry on — and **where it jumps to is the whole
+    problem.** Jump by a fixed amount and the join lands at an arbitrary point in the waveform: the
+    two sides do not line up, they partly cancel through the crossfade, and what comes out has a
+    tremolo on it at the rate the joins happen. Worse, the phase lost at each join accumulates, and
+    a big interval ends up measurably out of tune.
 
-      - **It is polyphonic without being told.** A guitar plays chords, and this does not care —
-        it is resampling a window of audio, not tracking a pitch.
-      - **It does not smear a pick attack.** An FFT-based shifter has to spread a transient over
-        its whole window, which on a guitar is the one thing you would notice. This one's
-        artefact is a periodic roughness instead, which is what players already know pitch
-        shifters to sound like.
+    So the jump is not fixed. Before each one this looks back over the recent signal and picks the
+    distance, within about twelve milliseconds either side, at which it most nearly repeats — the
+    overlap-add trick that time-stretchers have used for decades. The join then lands on a matching
+    part of the waveform, the two sides add rather than fight, and the crossfade can be short.
 
-    **The window is sized from the interval, and that is not a detail.** What decides whether the
-    result is in tune is how many cycles of the note fit inside one grain: each grain plays back
-    at exactly the right rate, but the joins between them are phase discontinuities, and if the
-    grains are short enough the joins are most of what there is. At twenty milliseconds an octave
-    down holds barely two cycles of a low note, and the result measures — and sounds — a couple of
-    hundred cents sharp of where it should be. A semitone or two down moves the read pointer five
-    times more slowly, so the same window holds forty cycles and is fine.
+    That is what lets the window stay short as well, which is what keeps the delay down: a
+    granular shifter's delay is its window, and it was only ever long here to hide joins that no
+    longer need hiding.
 
-    So the window is proportional to how far the pointer has to move, clamped at both ends. A drop
-    tuning keeps the short window and its small delay; an octave takes the long one and pays for
-    it. That is the honest trade for this kind of shifter: a large interval costs delay.
-
-    At zero semitones, or switched off, it is bypassed outright rather than run at a ratio of one:
-    the read pointers would still sit behind the write pointer and delay the signal for nothing.
+    Two properties this keeps that an FFT-based shifter would not: it is polyphonic without being
+    told, because it resamples audio rather than tracking a pitch, and it does not have to smear a
+    pick attack across an analysis window.
 */
 class Transpose
 {
@@ -62,35 +56,47 @@ public:
         holds together, and further than anyone retunes a guitar. */
     static constexpr int maxSemitones = 12;
 
-    /** What the window is scaled from, and the ends it is held between. The product of the middle
-        figure and how far the read pointer moves per sample is what keeps a grain long enough to
-        hold the note it is carrying. */
-    static constexpr double shortestWindowSeconds = 0.020;
-    static constexpr double longestWindowSeconds = 0.100;
-    static constexpr double windowPerUnitRate = 0.200;
+    /** How far the read pointer travels between jumps, and so how much delay this can add. */
+    static constexpr double windowSeconds = 0.025;
 
-    /** The window a given interval needs, in seconds. */
-    static double windowSecondsFor (int semitones);
+    /** How far either side of a window the jump is allowed to land, which has to cover a period of
+        the lowest note a guitar makes. */
+    static constexpr double searchSeconds = 0.013;
+
+    /** How much signal the two sides of a join are matched over, and how long they overlap for. */
+    static constexpr double matchSeconds = 0.011;
+    static constexpr double crossfadeSeconds = 0.004;
 
 private:
-    /** Takes a new interval, with the window and the grain it implies. */
     void adoptInterval (int semitones);
+    float readAt (float delayInSamples);
 
-    juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Linear> line { 4096 };
+    /** How far to jump, chosen so that the signal most nearly repeats across the join.
+        @param direction -1 when the pointer has run to the far end and must come back, +1 when it
+                         has run to the near end and must go further away. */
+    float bestJumpFrom (float delay, float direction);
+
+    /** The nearest the read pointer is allowed to get to the write head. Far enough that a jump
+        the other way can always be searched for without reading past it. */
+    float lowestDelay() const  { return (float) searchSamples; }
+
+    juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Linear> line { 8192 };
 
     double preparedRate = 48000.0;
 
-    float windowSamples = 1024.0f;
-    float phase = 0.0f;          // 0–1 through the window, and where the first tap reads
-    float phaseStep = 0.0f;      // per sample; its sign is the direction of the shift
+    float windowSamples = 1200.0f;
+    int searchSamples = 600, matchSamples = 512, crossfadeSamples = 192;
 
-    /** Changing the interval changes the window with it, so the grains restart. Fade across it
-        rather than cutting, the way the pedal slots do when what is in them changes. */
-    juce::SmoothedValue<float> intervalFade;
-    bool changing = false;
+    float readDelay = 0.0f;       // the live pointer, in samples behind the write head
+    float outgoingDelay = 0.0f;   // the one being faded out across a join
+    int crossfadeLeft = 0;
+    float rate = 1.0f;            // how fast the read pointer moves, in samples per sample
 
     std::atomic<int> pendingSemitones { 0 };
     int currentSemitones = 0;
+
+    juce::SmoothedValue<float> intervalFade;
+    bool changing = false;
 
     BypassCrossfade bypass;
 };

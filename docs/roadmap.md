@@ -116,12 +116,13 @@ harmonic sits more than 20 dB above the distortion's, and a signal below its thr
 Built, in the bottom bar. A granular shifter at the very front of the chain, with the tuner tapping
 ahead of it so it goes on reading the strings.
 
-The thing that turned out to matter was not the crossfade but the grain length. Each grain plays
-back at exactly the right rate; the joins between them are phase discontinuities, and at a twenty
-millisecond window an octave down holds barely two cycles of a low note — so the joins dominate and
-the result measures two hundred cents sharp. The window is now scaled from the interval, between 20
-and 100 ms, and every whole step from −12 to +12 lands within a third of a semitone of where it was
-asked for. The cost is that a large interval delays more, and that delay is not reported.
+What turned out to matter was where the read pointer jumps to when it runs out of room. Jumping a
+fixed distance lands the join at an arbitrary point in the waveform: the two sides partly cancel,
+which is a tremolo a few decibels deep at the rate the joins happen, and the phase lost at each one
+accumulates into a pitch error — two hundred cents sharp at an octave down. Matching the join
+against the recent signal fixes both, and it also removes the reason the grains had to be long, so
+the delay is now under 25 ms at any interval rather than up to 100. Every whole step from −12 to
++12 lands within a third of a semitone, and the envelope holds to within a decibel.
 
 ### How it was verified
 
