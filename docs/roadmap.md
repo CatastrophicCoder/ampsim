@@ -3,6 +3,10 @@
 Work that is agreed but not done. The original milestone plan was retired once its milestones were
 finished; this replaces it and holds only what is still outstanding.
 
+[`signal-chain-review.md`](signal-chain-review.md) is the other half of this: an assessment of the
+blocks in the chain and what could be done to them, with the case against each. Nothing in it is
+agreed, which is why it is not here.
+
 ## Still to settle
 
 ### Whether the pedals get names of their own
