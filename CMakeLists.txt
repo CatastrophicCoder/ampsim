@@ -51,6 +51,13 @@ juce_add_plugin(AmpSim
     FORMATS                     AU VST3 Standalone
     IS_SYNTH                    FALSE
     NEEDS_MIDI_INPUT            TRUE          # for CC control of the parameters
+
+    # Without this the standalone has no NSMicrophoneUsageDescription, and macOS denies it audio
+    # input without ever asking — the app opens, the device appears, and nothing comes in. The
+    # plugin builds are unaffected, since they record under the host's permission.
+    MICROPHONE_PERMISSION_ENABLED TRUE
+    MICROPHONE_PERMISSION_TEXT  "AmpSim needs your audio input to amplify the guitar plugged into it."
+
     NEEDS_MIDI_OUTPUT           FALSE
     IS_MIDI_EFFECT              FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
