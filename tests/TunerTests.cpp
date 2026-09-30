@@ -80,7 +80,7 @@ TEST_CASE ("The tuner reads each open string of a guitar in standard tuning", "[
     INFO (openString.name << ": read " << reading.frequencyHz << " Hz, note "
                           << Tuner::noteName (reading.midiNote) << ", " << reading.cents << " cents");
 
-    REQUIRE (reading.valid);
+    REQUIRE (reading.live);
     REQUIRE (reading.midiNote == openString.midiNote);
     REQUIRE (Tuner::noteName (reading.midiNote) == juce::String (openString.name));
     REQUIRE_THAT (reading.cents, WithinAbs (0.0, 2.0));
@@ -94,7 +94,7 @@ TEST_CASE ("The tuner says how far off the note is, and which way", "[tuner]")
     const auto frequency = 110.0 * std::pow (2.0, offsetCents / 1200.0);
     const auto reading = readingFor (guitarLikeTone (frequency, test::blockSize * 16));
 
-    REQUIRE (reading.valid);
+    REQUIRE (reading.live);
     REQUIRE (reading.midiNote == 45);
     REQUIRE_THAT (reading.cents, WithinAbs (offsetCents, 2.5));
 }
@@ -116,22 +116,22 @@ TEST_CASE ("The tuner does not answer an octave out on a bright note", "[tuner]"
     const auto reading = readingFor (signal);
 
     INFO ("read " << reading.frequencyHz << " Hz");
-    REQUIRE (reading.valid);
+    REQUIRE (reading.live);
     REQUIRE (reading.midiNote == 45);      // A2, not A3
 }
 
-TEST_CASE ("The tuner reports nothing rather than guessing", "[tuner]")
+TEST_CASE ("The tuner reports nothing live rather than guessing", "[tuner]")
 {
     SECTION ("silence")
     {
         const std::vector<float> silence ((size_t) test::blockSize * 16, 0.0f);
-        REQUIRE_FALSE (readingFor (silence).valid);
+        REQUIRE_FALSE (readingFor (silence).live);
     }
 
     SECTION ("a note that has decayed away")
     {
         auto quiet = guitarLikeTone (110.0, test::blockSize * 16, 0.0002f);
-        REQUIRE_FALSE (readingFor (quiet).valid);
+        REQUIRE_FALSE (readingFor (quiet).live);
     }
 
     SECTION ("noise with no pitch in it")
@@ -142,7 +142,7 @@ TEST_CASE ("The tuner reports nothing rather than guessing", "[tuner]")
         for (auto& sample : noise)
             sample = 0.3f * (random.nextFloat() * 2.0f - 1.0f);
 
-        REQUIRE_FALSE (readingFor (noise).valid);
+        REQUIRE_FALSE (readingFor (noise).live);
     }
 }
 
@@ -162,6 +162,74 @@ TEST_CASE ("The tuner keeps up rather than falling behind", "[tuner]")
 
     const auto reading = tuner.getReading();
 
-    REQUIRE (reading.valid);
+    REQUIRE (reading.live);
     REQUIRE (reading.midiNote == 55);   // G3
+}
+
+
+TEST_CASE ("The tuner holds the last note once it has found one", "[tuner]")
+{
+    // A string decays long before you have finished turning the peg, and a display that blanks
+    // in between is unusable. The reading stays; only its liveness goes.
+    Tuner tuner;
+    tuner.prepare (sr);
+
+    const auto note = guitarLikeTone (196.0, test::blockSize * 16);   // G3
+
+    for (size_t pos = 0; pos + (size_t) test::blockSize <= note.size(); pos += (size_t) test::blockSize)
+    {
+        tuner.pushSamples (note.data() + pos, test::blockSize);
+        tuner.analyse();
+    }
+
+    REQUIRE (tuner.getReading().live);
+    REQUIRE (tuner.getReading().midiNote == 55);
+
+    // Then silence.
+    const std::vector<float> silence ((size_t) test::blockSize, 0.0f);
+
+    for (int b = 0; b < 16; ++b)
+    {
+        tuner.pushSamples (silence.data(), test::blockSize);
+        tuner.analyse();
+    }
+
+    const auto held = tuner.getReading();
+
+    REQUIRE (held.valid);            // still on screen
+    REQUIRE_FALSE (held.live);       // but shown as held
+    REQUIRE (held.midiNote == 55);   // and still the note that was played
+}
+
+TEST_CASE ("One bad frame does not move the needle to another note", "[tuner]")
+{
+    // A decaying string throws the occasional wrong answer, often an octave out. Following it
+    // immediately is what makes a tuner unusable; refusing to follow a real change would be
+    // worse. A different pitch has to repeat before it is believed.
+    Tuner tuner;
+    tuner.prepare (sr);
+
+    const auto settle = [&] (const std::vector<float>& signal, int blocks)
+    {
+        for (int b = 0; b < blocks; ++b)
+        {
+            tuner.pushSamples (signal.data() + (size_t) (b % 8) * (size_t) test::blockSize,
+                               test::blockSize);
+            tuner.analyse();
+        }
+    };
+
+    const auto a2 = guitarLikeTone (110.0, test::blockSize * 16);
+    const auto a3 = guitarLikeTone (220.0, test::blockSize * 16);   // an octave up
+
+    settle (a2, 12);
+    REQUIRE (tuner.getReading().midiNote == 45);
+
+    // Two frames of the octave: not enough to be believed.
+    settle (a3, 2);
+    REQUIRE (tuner.getReading().midiNote == 45);
+
+    // Sustained, it is a real change and the tuner follows.
+    settle (a3, 12);
+    REQUIRE (tuner.getReading().midiNote == 57);
 }

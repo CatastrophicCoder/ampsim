@@ -263,10 +263,14 @@ void AmpSimAudioProcessorEditor::paintTuner (juce::Graphics& g, juce::Rectangle<
         return;
     }
 
+    // Held readings stay on screen, dimmed: a tuner that blanks between plucks is unusable, and
+    // a note decays long before you have finished turning the peg.
+    const auto alpha = reading.live ? 1.0f : 0.45f;
+
     auto noteArea = area.removeFromLeft (52);
 
     g.setFont (AmpLookAndFeel::panelFont (20.0f, true));
-    g.setColour (AmpPalette::enamel);
+    g.setColour (AmpPalette::enamel.withAlpha (alpha));
     g.drawText (Tuner::noteName (reading.midiNote), noteArea, juce::Justification::centredLeft, false);
 
     // The meter: ±50 cents across the strip, with the centre marked.
@@ -276,7 +280,7 @@ void AmpSimAudioProcessorEditor::paintTuner (juce::Graphics& g, juce::Rectangle<
     g.setColour (AmpPalette::railRecess);
     g.fillRect (meter);
 
-    g.setColour (AmpPalette::enamel.withAlpha (0.25f));
+    g.setColour (AmpPalette::enamel.withAlpha (0.25f * alpha));
     g.drawLine (meter.getCentreX(), meter.getY() - 3.0f, meter.getCentreX(), meter.getBottom() + 3.0f, 1.0f);
 
     const auto inTune = std::abs (reading.cents) < 3.0f;
@@ -285,11 +289,11 @@ void AmpSimAudioProcessorEditor::paintTuner (juce::Graphics& g, juce::Rectangle<
     const juce::Rectangle<float> needle { meter.getCentreX() + juce::jmin (offset, 0.0f),
                                           meter.getY(), std::abs (offset), meter.getHeight() };
 
-    g.setColour (inTune ? AmpPalette::reading : AmpPalette::attention);
+    g.setColour ((inTune ? AmpPalette::reading : AmpPalette::attention).withAlpha (alpha));
     g.fillRect (inTune ? meter.withSizeKeepingCentre (4.0f, meter.getHeight()) : needle);
 
     g.setFont (AmpLookAndFeel::panelFont (12.0f));
-    g.setColour (AmpPalette::enamel.withAlpha (0.5f));
+    g.setColour (AmpPalette::enamel.withAlpha (0.5f * alpha));
     g.drawText (juce::String (juce::roundToInt (reading.cents)) + " cents",
                 area.withTrimmedLeft (10), juce::Justification::centredLeft, false);
 }

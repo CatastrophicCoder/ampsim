@@ -12,6 +12,7 @@
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
+#include <array>
 #include <atomic>
 
 /** Pitch detection for the tuner display.
@@ -29,7 +30,15 @@ class Tuner
 public:
     struct Reading
     {
+        /** There is a note to show. Sticky once the first one has been found, so a display does
+            not blink out between plucks or as a note decays — a tuner that vanishes while you are
+            turning the peg is no use. Cleared by reset(). */
         bool valid = false;
+
+        /** The most recent analysis found a pitch. False while the reading is only being held,
+            which is a display's cue to dim it rather than to hide it. */
+        bool live = false;
+
         float frequencyHz = 0.0f;
         int midiNote = 0;        // 69 = A440
         float cents = 0.0f;      // how far off that note, -50 to +50
@@ -50,6 +59,13 @@ public:
     /** Message thread. Reads whatever has arrived and updates the published reading. */
     void analyse();
 
+private:
+    /** Publishes a detection through the median filter and the cents smoothing. */
+    void publish (float frequency);
+    void publishNoDetection();
+
+public:
+
     Reading getReading() const;
 
     /** The note name for a MIDI note number, as a tuner would print it. */
@@ -65,7 +81,22 @@ private:
     std::vector<float> window = std::vector<float> ((size_t) windowSize, 0.0f);
     std::vector<float> difference;
 
+    /** Recent detections, median-filtered before display. A single bad frame — and a decaying
+        string produces them — would otherwise throw the needle across the meter. */
+    static constexpr int historySize = 5;
+    std::array<float, historySize> recentFrequencies {};
+    int historyCount = 0, historyWriteIndex = 0;
+
+    float smoothedCents = 0.0f;
+    bool haveSmoothedCents = false;
+
+    /** Candidates that disagree with what is already being shown have to be repeated before they
+        are believed, so one bad frame cannot move the needle to another note. */
+    float pendingFrequency = 0.0f;
+    int pendingAgreements = 0;
+
     std::atomic<bool> readingValid { false };
+    std::atomic<bool> readingLive { false };
     std::atomic<float> readingFrequency { 0.0f };
     std::atomic<int> readingNote { 0 };
     std::atomic<float> readingCents { 0.0f };
