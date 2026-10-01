@@ -11,6 +11,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # Tests are for developing this project, not for anyone consuming it as a subproject.
 option(AMPSIM_BUILD_TESTS "Build the offline DSP tests" ${PROJECT_IS_TOP_LEVEL})
+option(AMPSIM_BUILD_TOOLS "Build the offline measurement tools" OFF)
 
 # JUCE is a pinned submodule (9.0.2); see README for the update policy.
 add_subdirectory(external/JUCE)
@@ -130,4 +131,18 @@ if(AMPSIM_BUILD_TESTS)
     enable_testing()
     add_subdirectory(external/Catch2)
     add_subdirectory(tests)
+endif()
+
+# Off by default: these measure the plugin rather than being part of it, and only a Release build
+# of them says anything true.
+if(AMPSIM_BUILD_TOOLS)
+    add_executable(ampsim_bench tools/Benchmark.cpp)
+    target_include_directories(ampsim_bench PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_compile_definitions(ampsim_bench PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1)
+    target_link_libraries(ampsim_bench
+        PRIVATE
+            AmpSim
+            ${NAM_CORE_WHOLE}
+            juce::juce_audio_utils
+            juce::juce_dsp)
 endif()

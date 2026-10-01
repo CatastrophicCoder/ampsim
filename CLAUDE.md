@@ -529,6 +529,30 @@ by reverting the fix, not by assuming.
 `COPY_PLUGIN_AFTER_BUILD` is on, so every build installs into `~/Library/Audio/Plug-Ins/`. Use
 `-DCMAKE_BUILD_TYPE=Release` for anything judged by ear or by CPU load.
 
+## What it costs
+
+`tools/Benchmark.cpp` runs the real processor through two seconds of audio per pass and reports the
+time as a percentage of one core, one row per thing switched on. It is off by default and only a
+Release build of it means anything — a Debug figure is several times the real one.
+
+```bash
+cmake -B build-release -G Ninja -DCMAKE_BUILD_TYPE=Release -DAMPSIM_BUILD_TOOLS=ON
+cmake --build build-release --target ampsim_bench && ./build-release/ampsim_bench
+```
+
+On an M-series laptop at 48 kHz, the shape of the answer is: **the amp model is the whole cost and
+everything else is rounding.** 2.8 % of a core at a 512-sample block and 3.5 % at 64; the cab adds
+about 0.1, each pedal between 0.01 and 0.07, and all six plus the transpose and the metronome
+together take it to 4.4 % at 64 samples. A fully bypassed plugin is 0.03 %.
+
+Two consequences worth keeping in mind before optimising anything in the chain: **a block that is
+not the model is not worth hand-tuning for speed**, and **the small block sizes are where the cost
+is**, because the model's own overhead per call does not shrink with the block.
+
+The figure to watch is not the average. See the transpose's note above: a cost that arrives in
+bursts drops audio while averaging under one per cent. For that, Instruments' Time Profiler at a
+64-sample buffer is the tool, not this one.
+
 JUCE is pinned to the 9.0.2 tag as a submodule under `external/JUCE` — update it deliberately, in
 its own commit, and re-validate. Full Xcode is not needed; the Command Line Tools build and sign all
 three formats. NAM Core, Eigen and nlohmann/json get added as submodules the same way in milestone 2;
