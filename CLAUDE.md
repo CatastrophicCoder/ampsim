@@ -217,7 +217,17 @@ the panel's height, so a taller panel needs all of them scaled by the old height
 `AmpMaterials` holds what the objects are *made of* — tolex, piping, grille cloth, brushed metal,
 brass — and draws a covered box, a grille and a control plate. The amp and the cab both use it, so
 the two pages read as parts of one rig. Those colours carry no meaning, unlike `AmpPalette`'s
-three; a pedal's enclosure colour and the amp's pilot lamp take the same licence.
+three; a pedal's enclosure colour and the amp's pilot lamp take the same licence. **The pilot lamp
+is red and does not mean what red means elsewhere** — it is a jewel on the front of an amplifier,
+a thing rather than a reading. It is deeper and more saturated than `AmpPalette::bypassed` so that
+the two do not read as the same mark, and dark is the whole of its off state.
+
+**A glow has to fall off, and needs somewhere to fall off into.** The lamp's halo was a flat disc
+of one alpha, which has an edge; the edge ran into the switch's own top edge and into the rocker
+below, so it looked cut rather than lit. It is now a radial `ColourGradient` reaching zero alpha at
+its rim, and `PowerSwitch`'s bounds are expanded upward by `lampHeadroom` into the control plate's
+inset, which is empty. `paintButton` removes that headroom before laying anything out, so the lamp,
+the rocker and the word stay level with the knobs beside them.
 
 **Scaling is a transform on one child, not a proportional layout.** Every page lays out in fixed
 logical points inside `AmpSimAudioProcessorEditor::Panel`, which carries

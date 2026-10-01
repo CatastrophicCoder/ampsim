@@ -27,11 +27,17 @@ namespace
     constexpr int plateInsetX = 18;
     constexpr int plateInsetY = 15;
 
+    /** Room above the pilot lamp for its glow, taken out of the plate's own inset rather than out
+        of the switch, so the lamp, the rocker and the word stay level with the knobs beside them.
+        `PowerSwitch::paintButton` skips it before laying anything out. */
+    constexpr int lampHeadroom = 9;
 
-    /** The pilot lamp's amber. On the panel amber means "where a control is set"; here it is a
+    /** The pilot lamp's red. On the panel red means "switched out of your signal"; here it is a
         jewel on the front of an amplifier, which is a thing rather than a reading — the same
-        licence a pedal's enclosure colour takes. Dark is off, and that is the whole message. */
-    const juce::Colour jewel { 0xffe8912f };
+        licence a pedal's enclosure colour takes. Deeper and more saturated than
+        `AmpPalette::bypassed`, which is the reading, so the two do not read as the same mark.
+        Dark is off, and that is the whole message. */
+    const juce::Colour jewel { 0xffe0241c };
 }
 
 //==============================================================================
@@ -100,19 +106,32 @@ void PowerSwitch::paintButton (juce::Graphics& g, bool shouldDrawButtonAsHighlig
     const auto on = getToggleState();
     auto bounds = getLocalBounds();
 
+    // The switch's own bounds reach above the control plate's inset to give the glow somewhere to
+    // go. Everything below is laid out from here, so it sits where it did before the glow existed.
+    bounds.removeFromTop (lampHeadroom);
+
     // The jewel above, the rocker below it, and the word under both.
     const auto lamp = bounds.removeFromTop (18).withSizeKeepingCentre (14, 14).toFloat();
 
     if (on)
     {
-        g.setColour (jewel.withAlpha (0.18f));
-        g.fillEllipse (lamp.expanded (7.0f));
+        // A glow falls off; it does not stop. A flat disc of one alpha has an edge, and an edge
+        // that runs into the component's own is what makes it look cut rather than lit.
+        const auto glow = lamp.expanded (9.0f);
+
+        juce::ColourGradient halo (jewel.withAlpha (0.34f), lamp.getCentreX(), lamp.getCentreY(),
+                                   jewel.withAlpha (0.0f), glow.getCentreX(), glow.getBottom(), true);
+        halo.addColour (0.5, jewel.withAlpha (0.13f));
+
+        g.setGradientFill (halo);
+        g.fillEllipse (glow);
     }
 
     g.setColour (juce::Colour (0xff474d57));
     g.fillEllipse (lamp.expanded (2.0f));
 
-    g.setColour (on ? jewel : juce::Colour (0xff3a2313));
+    // Off is the same jewel unlit: dark, but still the colour of the glass rather than of a hole.
+    g.setColour (on ? jewel : juce::Colour (0xff3b1512));
     g.fillEllipse (lamp);
 
     if (on)
@@ -292,7 +311,9 @@ void AmpPage::resized()
 
     auto face = plate().reduced (plateInsetX, plateInsetY);
 
-    powerSwitch.setBounds (face.removeFromRight (powerWidth));
+    // Expanded upward into the plate's inset, which is empty, so the glow above the lamp is not
+    // clipped off by the switch's own top edge.
+    powerSwitch.setBounds (face.removeFromRight (powerWidth).withTrimmedTop (-lampHeadroom));
     face.removeFromRight (10);
 
     AmpKnob* controls[] { &gainKnob, &bassKnob, &midKnob, &trebleKnob,
