@@ -108,8 +108,15 @@ the delay is now under 25 ms at any interval rather than up to 100. Every whole 
 
 ### A metronome, in the bottom bar
 
-Built. Its own level, a bar of 2 to 7 beats, three sounds, and a tempo that is used only when
+Built. Its own level, eleven time signatures, three sounds, and a tempo that is used only when
 there is no host transport to follow.
+
+The bars are the six simple ones from 2/4 to 7/4, cut time, and the compound 3/8, 6/8, 9/8 and
+12/8. Each carries a beat length as well as a count, because the tempo is the quarter note — the
+unit the host reports its position in — so an /8 bar clicks twice as often at the same setting and
+cut time half as often. The list lives in `Metronome`'s own table and the parameter's choices are
+built from it, and it is appended to rather than reordered because a saved session stores the
+choice as an index.
 
 **Where its sound goes was the thing to settle, and the answer is "everywhere but a bounce".** A
 metronome inside a plugin on a track is in that track's signal path, so the question was whether
@@ -160,10 +167,15 @@ What it costs and what to watch:
   controls. That is a chore, not a risk, but it is the part that gets forgotten.
 
 The bar arrived with its first occupant rather than on its own — an empty strip is not worth
-shipping, and its height depended on what went in it. It is now 46 points holding eight controls,
-with about 20 points of slack: **anything else that wants to live down here needs the shelf to grow
-or something already on it to leave.** The rule that made eight fit was giving every reading its own
-unit instead of a caption — `+2 st`, `120 BPM`, `-14.0 dB` — and the next thing added should keep it.
+shipping, and its height depended on what went in it. It went in at 46 points of steppers and is
+now 88, because its three value controls were changed to the same `AmpKnob` the amp and the cab
+pages carry and a knob needs its name over it and its value under it. That makes it taller than the
+top bar, which the note above says to avoid: what keeps the two from reading as a frame is now
+colour and the hairline alone.
+
+Eight controls leave about 50 points of width spare. **Anything else that wants to live down here
+needs a group of its own with a hairline before it, and there is room for roughly one more small
+control before something has to leave.**
 
 ### How it was verified
 

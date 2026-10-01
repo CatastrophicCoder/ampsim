@@ -135,6 +135,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
         juce::ParameterID { ParamID::metronomeOn, 1 }, "Metronome", false));
 
     // Used only when there is no host tempo to follow, which in practice means the standalone.
+    // It is the quarter note, as it is in every host — so an /8 bar clicks twice as often at the
+    // same setting, and cut time half as often. See Metronome::TimeSignature.
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { ParamID::metronomeTempo, 1 }, "Metronome Tempo",
         juce::NormalisableRange<float> { Metronome::slowestTempo, Metronome::fastestTempo, 1.0f },
@@ -144,11 +146,11 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
                         return juce::String (juce::roundToInt (value)) + " BPM";
                     })));
 
-    // Where the accent falls. The beat is a quarter note in every case, which is what a practice
-    // click needs — a choice between 6/8 and 3/4 is a notation question, not a timing one.
+    // Where the accent falls, and what a beat is worth. The list and the timing both come from
+    // Metronome's own table, so a name cannot end up attached to the wrong bar.
     layout.add (std::make_unique<juce::AudioParameterChoice> (
         juce::ParameterID { ParamID::metronomeBeats, 1 }, "Metronome Bar",
-        juce::StringArray { "2/4", "3/4", "4/4", "5/4", "6/4", "7/4" }, 2));
+        Metronome::timeSignatureNames(), 2));
 
     layout.add (std::make_unique<juce::AudioParameterChoice> (
         juce::ParameterID { ParamID::metronomeSound, 1 }, "Metronome Sound",
@@ -918,7 +920,7 @@ void AmpSimAudioProcessor::addMetronome (juce::AudioBuffer<float>& buffer, int n
     }
 
     metronome.setParameters (tempo,
-                             (int) value (ParamID::metronomeBeats) + 2,
+                             (int) value (ParamID::metronomeBeats),
                              (Metronome::Sound) (int) value (ParamID::metronomeSound),
                              value (ParamID::metronomeLevel));
 

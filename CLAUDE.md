@@ -143,6 +143,17 @@ the chain has finished, and again on the early return the fully-bypassed path ta
   `ppqPosition`, so the clicks land on the host's bar lines rather than drifting against them. The
   tempo parameter is used only when there is no transport to follow, which in practice means the
   standalone.
+- **The tempo is the quarter note, and the bar decides what a beat is worth.** Both paths count
+  quarter notes — the host reports them, and the free-running counter accumulates them — and
+  `Metronome::TimeSignature::quarterNotesPerBeat` is what turns that into beats. So 6/8 clicks
+  eighths and comes twice as often as 6/4 at the same setting, and 2/2 clicks halves and comes
+  half as often. Counting in beats instead would have made a bar change move the position.
+- **`Metronome`'s own table is the one place the list of bars lives**, and the parameter's choices
+  are built from it with `timeSignatureNames()`. This is the dirt slot's lesson applied in
+  advance: a hand-written choice list beside a hand-written table is two orders that can drift,
+  and the symptom is a name attached to the wrong bar rather than anything that looks like a bug.
+  **Append to the table, never reorder it** — a saved session stores the choice as an index, and
+  `tests/MetronomeTests.cpp` pins the six that shipped first to theirs.
 - The accent is the same sound a fifth up rather than a louder one, so the bar reads as a bar in
   a mix. It is also somewhat louder, which is what a test can measure — but measure it against a
   threshold *between* the two levels, not just under the loudest: where a sine's own peak lands
@@ -172,22 +183,28 @@ Nothing uses an image asset; everything is drawn.
 **There are two bars, and they are deliberately not alike.** The top one is what you are playing
 *through* — which preset, whether the amp is in circuit, whether you are tuning. The bottom shelf
 is what you are playing *against*: the transpose, the metronome, and the panel's size, which is
-housekeeping. It is shorter than the top bar and keeps the background's colour with a hairline
-over it, because two matching bars would frame the pages and make the window look like a picture
-rather than a piece of gear. The pages between them are laid out in exactly the space they always
-were — the panel grew downwards, so nothing on a page moved.
+housekeeping. It keeps the background's colour with a hairline over it rather than taking the top
+bar's, because two bars of the same colour would frame the pages and make the window look like a
+picture rather than a piece of gear. The pages between them are laid out in exactly the space they
+always were — the panel grew downwards, so nothing on a page moved.
 
-Two things keep eight controls legible in 46 points, and both are worth holding to if anything
-else lands down there:
+**The shelf is taller than the top bar, which it was not meant to be.** It was 46 points of
+steppers; it is 88 because its three value controls are `AmpKnob`s, the same object the amp and the
+cab pages carry, and a knob needs its name over it and its value under it. Three controls on a
+shelf are not worth a second kind of knob, so the shelf gave way rather than the knob. What keeps
+the two bars from reading as a frame is now colour and the hairline alone, not the difference in
+height — if anything else is added down here, that is the property to protect.
 
-- **Every reading on the shelf carries its own unit, so nothing needs a caption over it.** That is
-  why the transpose reads `+2 st` rather than `+2`, and why the level is a stepper reading
-  `-14.0 dB` rather than a knob — a caption costs more width than the unit does, and a knob with
-  no caption says nothing at all. It is also why the metronome's level parameter steps in 0.5 dB:
-  a stepper with a 0.1 dB step is 400 clicks wide.
+- **A shelf knob keeps the default body colour.** `AmpPalette::raised` is the one for a knob
+  sitting on a page; the amp and the cab both call `setBodyColour (AmpMaterials::knobCap)` and
+  `setEngravedOnMetal (true)` because theirs are cut into a brushed plate. The shelf is not a
+  plate, so it does neither.
 - **The groups are separated by a hairline in the gap, not by spacing alone.** `transposeGroupWidth`
   and `metronomeGroupWidth` sit with the other layout constants because the paint and the layout
   both need them.
+- Captions returned with the knobs, so the unit in a reading is no longer load-bearing — but it
+  is still there (`+2 st`, `120 BPM`) and still worth keeping, because a knob's name says what it
+  is and only the reading says what it is set to.
 
 `AmpSimAudioProcessorEditor::ChoiceButton` is how a choice parameter gets onto the panel: the
 scale button's shape pointed at a parameter, with the choices in a `PopupMenu`. A

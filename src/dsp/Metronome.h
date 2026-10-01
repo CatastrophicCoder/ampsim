@@ -33,11 +33,34 @@ public:
         how fast, how high, and how much noise is in the attack. */
     enum class Sound { beep, wood, click };
 
+    /** One of the bars on offer, and what a beat of it is worth in quarter notes.
+
+        **The tempo is always the quarter note**, as it is in every host, so the bar decides how
+        fast the clicks come rather than the other way round: an /8 bar clicks eighths and so
+        clicks twice as often at the same BPM, and cut time clicks halves and so clicks half as
+        often. Sharing the host's unit is what lets the free-running count and the host's grid mean
+        the same thing.
+    */
+    struct TimeSignature
+    {
+        const char* name;
+        int beatsPerBar;
+        double quarterNotesPerBeat;
+    };
+
+    /** The table, which is the one place the list lives. The parameter's choices are built from
+        it, so a name and a bar cannot drift apart the way a hand-written choice list would.
+
+        **Append to it, never reorder it.** A saved session stores the choice as an index. */
+    static int numTimeSignatures();
+    static const TimeSignature& timeSignature (int index);
+    static juce::StringArray timeSignatureNames();
+
     void prepare (double sampleRate, int maxBlockSize);
     void reset();
 
-    /** Audio thread. @param beatsPerBar where the accent falls. */
-    void setParameters (float tempoBpm, int beatsPerBar, Sound sound, float levelDb);
+    /** Audio thread. @param timeSignatureIndex an index into the table above. */
+    void setParameters (float tempoBpm, int timeSignatureIndex, Sound sound, float levelDb);
 
     /** Audio thread. Adds the click to every channel.
 
@@ -58,6 +81,7 @@ private:
 
     float tempo = 120.0f;
     int beatsPerBar = 4;
+    double quarterNotesPerBeat = 1.0;
     Sound sound = Sound::wood;
     juce::SmoothedValue<float> level;
 
@@ -69,7 +93,9 @@ private:
         it with both pitch and weight; either alone is easy to lose behind a guitar. */
     static constexpr float unaccentedGain = 0.7f;
 
-    double freeRunningBeats = 0.0;   // in beats, so a tempo change takes effect at once
+    // Counted in quarter notes rather than in beats, so it is the same quantity the host supplies
+    // and changing the bar mid-count does not move the position.
+    double freeRunningQuarterNotes = 0.0;
     int lastBeat = -1;
 
     juce::Random noise;

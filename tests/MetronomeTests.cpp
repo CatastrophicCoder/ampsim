@@ -9,6 +9,7 @@
 */
 
 #include "TestHelpers.h"
+#include "dsp/Metronome.h"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_floating_point.hpp>
@@ -60,8 +61,10 @@ namespace
         test::setParam (state, ParamID::metronomeOn, 1.0f);
         test::setParam (state, ParamID::metronomeTempo, tempo);
         test::setParam (state, ParamID::metronomeLevel, 0.0f);
-        state.getParameter (ParamID::metronomeBeats)
-             ->setValueNotifyingHost ((float) barChoice / 5.0f);
+        // Through the parameter's own conversion rather than a hand-written denominator: the list
+        // has grown once already, and a hard-coded one silently selects a different bar when it does.
+        auto* bar = state.getParameter (ParamID::metronomeBeats);
+        bar->setValueNotifyingHost (bar->convertTo0to1 ((float) barChoice));
     }
 }
 
@@ -138,7 +141,7 @@ TEST_CASE ("The accent falls once a bar, where the time signature puts it", "[me
             }
         }
 
-        REQUIRE (peaks.size() > 20);
+        REQUIRE (peaks.size() > 10);
 
         // Halfway between the loudest click and the quietest, which separates the two cleanly:
         // where exactly a sine's own peak lands inside a fast decay varies a little, so a
@@ -160,9 +163,77 @@ TEST_CASE ("The accent falls once a bar, where the time signature puts it", "[me
         return accents[1] - accents[0];
     };
 
+    // The six that were there when the control was a plain count of beats, at the indices they
+    // have always had — a saved session stores the choice as an index, so these cannot move.
     REQUIRE (accentEvery (0) == 2);   // 2/4
     REQUIRE (accentEvery (2) == 4);   // 4/4
     REQUIRE (accentEvery (4) == 6);   // 6/4
+
+    // And the ones added after, where a beat is not a quarter note.
+    REQUIRE (accentEvery (6) == 2);   // 2/2
+    REQUIRE (accentEvery (8) == 6);   // 6/8
+}
+
+TEST_CASE ("A bar whose beat is not a quarter note clicks at its own rate", "[metronome]")
+{
+    // The tempo is the quarter note, as it is in every host, so the bar is what decides how fast
+    // the clicks come. Getting this wrong is not visible in the accent pattern — 6/8 and 6/4
+    // accent identically and differ only in rate, which is the whole of what separates them.
+    const auto gapAt = [] (int barChoice)
+    {
+        auto processor = test::makePreparedProcessor();
+        setUp (*processor, 120.0f, barChoice);
+
+        // Long enough for cut time, which at 120 BPM is one click a second.
+        const auto clicks = clickPositions (*processor, 800);
+        REQUIRE (clicks.size() > 6);
+
+        return clicks[5] - clicks[4];
+    };
+
+    // 120 quarter notes a minute is one every 24000 samples at 48 kHz.
+    const auto quarter = gapAt (2);              // 4/4
+    INFO ("a quarter note is " << quarter << " samples");
+    REQUIRE (std::abs (quarter - 24000) < 64);
+
+    // An eighth-note bar clicks twice as often, and cut time half as often.
+    INFO ("6/8 gap " << gapAt (8) << ", 2/2 gap " << gapAt (6));
+    REQUIRE (std::abs (gapAt (8) - quarter / 2) < 64);
+    REQUIRE (std::abs (gapAt (6) - quarter * 2) < 64);
+}
+
+TEST_CASE ("Every time signature on offer is a name the table agrees with", "[metronome]")
+{
+    // The parameter's choices are built from the table, so this cannot drift — but the list is
+    // append-only, and that is the part a future edit can get wrong. The six that shipped first
+    // are pinned to their indices here, because a saved session looks the bar up by index.
+    auto processor = test::makePreparedProcessor();
+
+    auto* bar = dynamic_cast<juce::AudioParameterChoice*> (
+        processor->getValueTreeState().getParameter (ParamID::metronomeBeats));
+
+    REQUIRE (bar != nullptr);
+    REQUIRE (bar->choices.size() == Metronome::numTimeSignatures());
+
+    const char* pinned[] { "2/4", "3/4", "4/4", "5/4", "6/4", "7/4" };
+
+    for (int i = 0; i < (int) std::size (pinned); ++i)
+    {
+        INFO ("index " << i);
+        REQUIRE (bar->choices[i] == pinned[i]);
+    }
+
+    for (int i = 0; i < Metronome::numTimeSignatures(); ++i)
+    {
+        const auto& signature = Metronome::timeSignature (i);
+
+        INFO ("index " << i << ", named " << signature.name);
+        REQUIRE (bar->choices[i] == signature.name);
+
+        // A bar is a count of beats and a beat length, and neither is ever zero.
+        REQUIRE (signature.beatsPerBar > 0);
+        REQUIRE (signature.quarterNotesPerBeat > 0.0);
+    }
 }
 
 TEST_CASE ("The metronome keeps going through everything that silences the amp", "[metronome]")

@@ -11,6 +11,7 @@
 #pragma once
 
 #include "PluginProcessor.h"
+#include "ui/AmpKnob.h"
 #include "ui/AmpLookAndFeel.h"
 #include "ui/AmpPage.h"
 #include "ui/CabPage.h"
@@ -46,7 +47,7 @@ class AmpSimAudioProcessorEditor final : public juce::AudioProcessorEditor,
 public:
     /** The size everything is laid out at, before the scale factor is applied. */
     static constexpr int panelWidth = 780;
-    static constexpr int panelHeight = 506;
+    static constexpr int panelHeight = 548;
 
     explicit AmpSimAudioProcessorEditor (AmpSimAudioProcessor&);
     ~AmpSimAudioProcessorEditor() override;
@@ -115,19 +116,14 @@ private:
     juce::ToggleButton transposeButton { "transpose" };
     juce::AudioProcessorValueTreeState::ButtonAttachment transposeAttachment;
 
-    ParameterSlider semitonesSlider { ParamID::transposeSemitones };
-    juce::AudioProcessorValueTreeState::SliderAttachment semitonesAttachment;
+    AmpKnob semitonesKnob;
 
     juce::ToggleButton metronomeButton { "metronome" };
     juce::AudioProcessorValueTreeState::ButtonAttachment metronomeAttachment;
 
-    ParameterSlider tempoSlider { ParamID::metronomeTempo };
-    juce::AudioProcessorValueTreeState::SliderAttachment tempoAttachment;
-
+    AmpKnob tempoKnob;
     ChoiceButton beatsButton, soundButton;
-
-    ParameterSlider metronomeLevelSlider { ParamID::metronomeLevel };
-    juce::AudioProcessorValueTreeState::SliderAttachment metronomeLevelAttachment;
+    AmpKnob metronomeLevelKnob;
 
     TabButton ampTab { "AMP" }, pedalsTab { "PEDALS" }, cabTab { "CAB" };
 

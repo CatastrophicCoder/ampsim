@@ -13,7 +13,12 @@
 namespace
 {
     constexpr int barHeight   = 52;
-    constexpr int shelfHeight = 46;
+
+    // Tall enough for a knob with its name over it and its value under it — the same object the
+    // amp and the cab pages use, rather than a second kind of control that happens to fit.
+    constexpr int shelfHeight = 88;
+    constexpr int shelfKnobHeight = 76;
+    constexpr int shelfKnobWidth = 80;
     constexpr int tabHeight   = 34;
     constexpr int margin      = 16;
     constexpr int tabWidth    = 104;
@@ -21,9 +26,9 @@ namespace
     // The shelf holds three groups: what your signal is transposed by, what you play against, and
     // the window's own size. The paint draws a hairline in each gap and the layout leaves it, so
     // both need the widths — which is why they are here rather than buried in either.
-    constexpr int transposeGroupWidth = 96 + 4 + 92;
-    constexpr int metronomeGroupWidth = 104 + 6 + 98 + 8 + 52 + 6 + 70 + 8 + 102;
-    constexpr int shelfGroupGap = 22;
+    constexpr int transposeGroupWidth = 96 + 6 + shelfKnobWidth;
+    constexpr int metronomeGroupWidth = 104 + 8 + shelfKnobWidth + 10 + 56 + 8 + 72 + 10 + shelfKnobWidth;
+    constexpr int shelfGroupGap = 24;
     constexpr int scaleWidth = 58;
 
     constexpr int wordmarkWidth = 96;
@@ -98,12 +103,12 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
       tunerAttachment (p.getValueTreeState(), ParamID::tunerOn, tunerButton),
       bypassAttachment (p.getValueTreeState(), ParamID::bypass, bypassButton),
       transposeAttachment (p.getValueTreeState(), ParamID::transposeOn, transposeButton),
-      semitonesAttachment (p.getValueTreeState(), ParamID::transposeSemitones, semitonesSlider),
+      semitonesKnob (p.getValueTreeState(), ParamID::transposeSemitones, "SEMITONES"),
       metronomeAttachment (p.getValueTreeState(), ParamID::metronomeOn, metronomeButton),
-      tempoAttachment (p.getValueTreeState(), ParamID::metronomeTempo, tempoSlider),
+      tempoKnob (p.getValueTreeState(), ParamID::metronomeTempo, "TEMPO"),
       beatsButton (p.getValueTreeState(), ParamID::metronomeBeats),
       soundButton (p.getValueTreeState(), ParamID::metronomeSound),
-      metronomeLevelAttachment (p.getValueTreeState(), ParamID::metronomeLevel, metronomeLevelSlider),
+      metronomeLevelKnob (p.getValueTreeState(), ParamID::metronomeLevel, "LEVEL"),
       ampPage (p),
       pedalsPage (p.getValueTreeState()),
       cabPage (p)
@@ -130,27 +135,20 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
     transposeButton.setColour (juce::ToggleButton::tickColourId, AmpPalette::engaged);
     panel.addAndMakeVisible (transposeButton);
 
-    // Two buttons and a reading rather than a knob: an interval, a tempo and a level in decibels
-    // are all counts, and a count is easier to step than to aim at. Every reading on the shelf
-    // carries its own unit, which is why nothing down here needs a caption over it.
-    const auto prepareStepper = [this] (ParameterSlider& slider, int textWidth)
+    // The same knob the amp and the cab pages carry, not a stepper of its own kind: three controls
+    // on a shelf are not worth a second way of setting a number. They keep their default body
+    // colour, which is the one for a knob sitting on a page rather than cut into a metal plate.
+    AmpKnob* shelfKnobs[] { &semitonesKnob, &tempoKnob, &metronomeLevelKnob };
+
+    for (auto* knob : shelfKnobs)
     {
-        slider.setSliderStyle (juce::Slider::IncDecButtons);
-        slider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, textWidth, 22);
-        slider.setIncDecButtonsMode (juce::Slider::incDecButtonsDraggable_Vertical);
-        slider.setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
-        slider.setColour (juce::Slider::textBoxBackgroundColourId, AmpPalette::recess);
-        slider.setColour (juce::Slider::textBoxTextColourId, AmpPalette::text);
-        slider.onContextMenu = [this] (const juce::String& id, juce::Component& source)
+        knob->setContextMenuHandler ([this] (const juce::String& id, juce::Component& source)
         {
             showParameterMenu (id, source);
-        };
-        panel.addAndMakeVisible (slider);
-    };
+        });
 
-    prepareStepper (semitonesSlider, 52);
-    prepareStepper (tempoSlider, 64);
-    prepareStepper (metronomeLevelSlider, 68);
+        panel.addAndMakeVisible (*knob);
+    }
 
     // Amber rather than green: a click is not in your signal, it is something you play against.
     metronomeButton.setColour (juce::ToggleButton::tickColourId, AmpPalette::value);
@@ -374,7 +372,7 @@ void AmpSimAudioProcessorEditor::paintPanel (juce::Graphics& g)
     g.setColour (AmpPalette::hairline);
 
     for (const auto x : { first, second })
-        g.drawLine (x, (float) shelf.getY() + 11.0f, x, (float) shelf.getBottom() - 11.0f, 1.0f);
+        g.drawLine (x, (float) shelf.getY() + 16.0f, x, (float) shelf.getBottom() - 16.0f, 1.0f);
 
     g.setColour (AmpPalette::surface);
     g.fillRect (area);
@@ -422,14 +420,14 @@ void AmpSimAudioProcessorEditor::layOutPanel()
         shelf.removeFromLeft (gapAfter);
     };
 
-    place (transposeButton, 96, 22, 4);
-    place (semitonesSlider, 92, 24, shelfGroupGap);
+    place (transposeButton, 96, 22, 6);
+    place (semitonesKnob, shelfKnobWidth, shelfKnobHeight, shelfGroupGap);
 
-    place (metronomeButton, 104, 22, 6);
-    place (tempoSlider, 98, 24, 8);
-    place (beatsButton, 52, 24, 6);
-    place (soundButton, 70, 24, 8);
-    place (metronomeLevelSlider, 102, 24, 0);
+    place (metronomeButton, 104, 22, 8);
+    place (tempoKnob, shelfKnobWidth, shelfKnobHeight, 10);
+    place (beatsButton, 56, 24, 8);
+    place (soundButton, 72, 24, 10);
+    place (metronomeLevelKnob, shelfKnobWidth, shelfKnobHeight, 0);
 
     scaleButton.setBounds (shelf.removeFromRight (scaleWidth).withSizeKeepingCentre (scaleWidth, 24));
 

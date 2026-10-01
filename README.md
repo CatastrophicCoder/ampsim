@@ -47,7 +47,9 @@ A shelf along the bottom of the panel holds what you play *against* rather than 
 through: a **transpose** of up to an octave either way, at the very front of the chain with the
 tuner tapping in ahead of it so it still reads your strings, and a **metronome** that is added to
 the output after everything — the power switch, the tuner's mute and the plugin's own bypass all
-leave it running, and it is silent in an offline bounce.
+leave it running, and it is silent in an offline bounce. Eleven time signatures, from 2/4 through
+cut time to 12/8; the tempo is the quarter note, as it is in every host, so the bar decides how
+fast the clicks come.
 
 Mono from end to end, because a guitar amp is and a NAM capture is; a stereo input is summed in at
 the top. The placement is fixed rather than user-reorderable, because it is the point: a drive

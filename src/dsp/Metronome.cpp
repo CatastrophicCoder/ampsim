@@ -17,6 +17,28 @@ namespace
         the bar — a different pitch rather than a different sound. */
     struct Voice { double frequency; double decaySeconds; float noise; };
 
+    /** Appended to, never reordered: a saved session stores the choice as an index.
+
+        The first six are what the control offered when it was one number, so those sessions keep
+        their meaning; cut time and the compound bars were added after. Every one of them is a
+        count of beats and a beat length, because a bar of 6/8 is not six of anything a bar of 6/4
+        is made of.
+    */
+    const Metronome::TimeSignature signatures[]
+    {
+        { "2/4",  2, 1.0 },
+        { "3/4",  3, 1.0 },
+        { "4/4",  4, 1.0 },
+        { "5/4",  5, 1.0 },
+        { "6/4",  6, 1.0 },
+        { "7/4",  7, 1.0 },
+        { "2/2",  2, 2.0 },
+        { "3/8",  3, 0.5 },
+        { "6/8",  6, 0.5 },
+        { "9/8",  9, 0.5 },
+        { "12/8", 12, 0.5 }
+    };
+
     Voice voiceFor (Metronome::Sound sound, bool accented)
     {
         const auto lift = accented ? 1.5 : 1.0;
@@ -30,6 +52,26 @@ namespace
 
         return { 1000.0, 0.03, 0.0f };
     }
+}
+
+int Metronome::numTimeSignatures()
+{
+    return (int) std::size (signatures);
+}
+
+const Metronome::TimeSignature& Metronome::timeSignature (int index)
+{
+    return signatures[juce::jlimit (0, numTimeSignatures() - 1, index)];
+}
+
+juce::StringArray Metronome::timeSignatureNames()
+{
+    juce::StringArray names;
+
+    for (const auto& s : signatures)
+        names.add (s.name);
+
+    return names;
 }
 
 void Metronome::prepare (double sampleRate, int maxBlockSize)
@@ -48,14 +90,17 @@ void Metronome::reset()
 {
     envelope = 0.0f;
     phase = 0.0;
-    freeRunningBeats = 0.0;
+    freeRunningQuarterNotes = 0.0;
     lastBeat = -1;
 }
 
-void Metronome::setParameters (float tempoBpm, int beats, Sound newSound, float levelDb)
+void Metronome::setParameters (float tempoBpm, int timeSignatureIndex, Sound newSound, float levelDb)
 {
+    const auto& signature = timeSignature (timeSignatureIndex);
+
     tempo = juce::jlimit (slowestTempo, fastestTempo, tempoBpm);
-    beatsPerBar = juce::jmax (1, beats);
+    beatsPerBar = signature.beatsPerBar;
+    quarterNotesPerBeat = signature.quarterNotesPerBeat;
     sound = newSound;
     level.setTargetValue (juce::Decibels::decibelsToGain (levelDb, -60.0f));
 }
@@ -91,14 +136,19 @@ float Metronome::nextClickSample()
 
 void Metronome::addTo (juce::AudioBuffer<float>& buffer, int numSamples, const double* hostQuarterNotes)
 {
-    const auto beatsPerSample = (double) tempo / 60.0 / preparedRate;
+    // The tempo is the quarter note, which is the unit the host reports its position in, so the
+    // two paths below count the same thing and the bar is the only thing that turns it into beats.
+    const auto quarterNotesPerSample = (double) tempo / 60.0 / preparedRate;
 
     for (int i = 0; i < numSamples; ++i)
     {
         // The host's grid while it is running, so the clicks land on its bar lines rather than
         // near them; a count of our own when there is nothing to follow.
-        const auto beats = hostQuarterNotes != nullptr ? *hostQuarterNotes + (double) i * beatsPerSample
-                                                       : freeRunningBeats;
+        const auto quarterNotes = hostQuarterNotes != nullptr
+                                      ? *hostQuarterNotes + (double) i * quarterNotesPerSample
+                                      : freeRunningQuarterNotes;
+
+        const auto beats = quarterNotes / quarterNotesPerBeat;
         const auto beat = (int) std::floor (beats);
 
         if (beat != lastBeat && beats >= 0.0)
@@ -108,7 +158,7 @@ void Metronome::addTo (juce::AudioBuffer<float>& buffer, int numSamples, const d
         }
 
         if (hostQuarterNotes == nullptr)
-            freeRunningBeats += beatsPerSample;
+            freeRunningQuarterNotes += quarterNotesPerSample;
 
         const auto click = nextClickSample() * level.getNextValue();
 
