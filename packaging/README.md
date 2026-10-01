@@ -22,7 +22,7 @@ click **Open Anyway** beside the message about AmpSim. Authenticate, then open t
 **Or in Terminal**, by removing the quarantine flag the download attached to it:
 
 ```sh
-xattr -d com.apple.quarantine ~/Downloads/AmpSim-0.1.0.pkg
+xattr -d com.apple.quarantine ~/Downloads/AmpSim-*.pkg
 ```
 
 Neither of these verifies anything about who built the software. They record that *you* have
@@ -65,7 +65,7 @@ It builds Release, ad-hoc signs the three formats, and writes to `build-release/
 To install without an administrator password, into your own library rather than the system one:
 
 ```sh
-installer -pkg build-release/artefacts/AmpSim-0.1.0.pkg -target CurrentUserHomeDirectory
+installer -pkg build-release/artefacts/AmpSim-*.pkg -target CurrentUserHomeDirectory
 ```
 
 That puts the plugins in `~/Library/Audio/Plug-Ins/` and the app in `~/Applications`, which every
