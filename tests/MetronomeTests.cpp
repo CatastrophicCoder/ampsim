@@ -185,6 +185,7 @@ TEST_CASE ("The accent falls once a bar, where the time signature puts it", "[me
     // And the ones added after, where a beat is not a quarter note.
     REQUIRE (accentEvery (6) == 2);   // 2/2
     REQUIRE (accentEvery (8) == 6);   // 6/8
+    REQUIRE (accentEvery (11) == 7);  // 7/8, which is on the end rather than beside 7/4
 }
 
 TEST_CASE ("A bar whose beat is not a quarter note clicks at its own rate", "[metronome]")

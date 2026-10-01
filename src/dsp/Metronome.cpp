@@ -20,9 +20,9 @@ namespace
     /** Appended to, never reordered: a saved session stores the choice as an index.
 
         The first six are what the control offered when it was one number, so those sessions keep
-        their meaning; cut time and the compound bars were added after. Every one of them is a
-        count of beats and a beat length, because a bar of 6/8 is not six of anything a bar of 6/4
-        is made of.
+        their meaning; cut time and the compound bars were added after, and 7/8 after them — which
+        is why it sits on the end rather than beside its neighbours. Every one of them is a count of
+        beats and a beat length, because a bar of 6/8 is not six of anything a bar of 6/4 is made of.
     */
     const Metronome::TimeSignature signatures[]
     {
@@ -36,7 +36,8 @@ namespace
         { "3/8",  3, 0.5 },
         { "6/8",  6, 0.5 },
         { "9/8",  9, 0.5 },
-        { "12/8", 12, 0.5 }
+        { "12/8", 12, 0.5 },
+        { "7/8",  7, 0.5 }
     };
 
     Voice voiceFor (Metronome::Sound sound, bool accented)

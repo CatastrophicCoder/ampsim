@@ -108,11 +108,12 @@ the delay is now under 25 ms at any interval rather than up to 100. Every whole 
 
 ### A metronome, in the bottom bar
 
-Built. Its own level, eleven time signatures, three sounds, and a tempo that is used only when
+Built. Its own level, twelve time signatures, three sounds, and a tempo that is used only when
 there is no host transport to follow.
 
-The bars are the six simple ones from 2/4 to 7/4, cut time, and the compound 3/8, 6/8, 9/8 and
-12/8. Each carries a beat length as well as a count, because the tempo is the quarter note — the
+The bars are the six simple ones from 2/4 to 7/4, cut time, and the eighth-note 3/8, 6/8, 7/8, 9/8
+and 12/8. 7/8 was added last and so sits on the end of the list rather than beside its neighbours,
+which is what append-only costs and what it buys. Each carries a beat length as well as a count, because the tempo is the quarter note — the
 unit the host reports its position in — so an /8 bar clicks twice as often at the same setting and
 cut time half as often. The list lives in `Metronome`'s own table and the parameter's choices are
 built from it, and it is appended to rather than reordered because a saved session stores the
