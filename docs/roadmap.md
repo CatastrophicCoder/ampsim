@@ -66,6 +66,44 @@ shipping, and its height depends on what goes in it.
 
 ## Still to settle
 
+### Whether to tame a downshifted tone in code
+
+A heavily downshifted distorted tone goes muddy and loses its articulation. Measured, by putting a
+harmonically rich low E through the shifter and comparing band energies against the dry signal:
+
+| shift | below 70 Hz | 70–250 Hz | 250 Hz–2 kHz | 2–8 kHz |
+| --- | --- | --- | --- | --- |
+| −2 | +5.5 dB | −0.2 | +0.1 | −1.5 |
+| −6 | **+19.2 dB** | −6.9 | −1.6 | −5.7 |
+| −12 | +21.5 dB | −4.9 | −3.1 | −28.1 |
+
+Two separate things, which want different answers:
+
+- **The mud is the energy below 70 Hz.** A low E at 82 Hz becomes 58 Hz at −6, and everything under
+  it comes along — content a guitar never produces. Fed to a distortion it intermodulates into
+  low-mid porridge, which is the flub and the lost tightness.
+- **The lost articulation is the loss above 2 kHz.** A constant-ratio shift moves everything down,
+  including the region that makes a pick attack read. It is also why a shifter never quite sounds
+  like a genuinely detuned guitar: detune a real one and the string, pickup and body resonances
+  stay where they are, and only the pitch moves.
+
+**In practice the plugin already handles it**, which is why nothing has been built. The overdrive
+high-passes at 700 Hz before its clipper, so the low end is never driven hard — that is the
+difference between it and the clean boost for this job, and the distortion is the wrong choice
+because its corner is at 90 Hz by design. With the cab's low cut brought up to 80–100 Hz as well,
+the result was reported as "way better" and the question stopped being pressing.
+
+If it ever stops being enough, two things could be built:
+
+- **A high-pass inside the transpose**, before anything distorts what it produces. This is the
+  targeted fix: it is the only point at which removing the sub-bass *prevents* the mud rather than
+  cleaning it up afterwards, where the cab's low cut sits after the amp and can only do the latter.
+  Fixed at about 70 Hz and automatic, or a control in the bottom bar. Against: a fixed corner will
+  not suit every guitar and tuning, and it changes how the existing feature sounds for everyone.
+- **Brightness compensation** — a high shelf scaled with the interval, putting back what the shift
+  darkened. Against: it is a cosmetic correction to a real physical consequence rather than a fix
+  for a fault, and at large intervals it is likely to sound applied rather than natural.
+
 ### Whether the pedals get names of their own
 
 The reference the board's anatomy came from gives each effect an identity — Green Mamba, Metal
