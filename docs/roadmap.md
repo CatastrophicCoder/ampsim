@@ -183,6 +183,12 @@ Built. Gain, Bass, Middle, Treble, Presence, Depth and Master are printed 0 to 1
 decibels, which is how an amplifier is marked and the one thing on the panel that was still
 speaking in the units of the implementation rather than the units of the instrument.
 
+The knobs print the two ends of the travel — 0 at the lower left, 10 at the lower right, where
+the pointer sits at either stop — instead of carrying a read-out. That is what an amplifier's
+fascia does, and it is the point of numbering them: the panel now says what the control is and
+where its limits are, and the position of the pointer says the rest. Typing a value into the panel
+goes with it; the host's own editor still takes one.
+
 Only the display changed. The parameters are still the dB figures their stages work in, so no
 range moved, no preset or saved session shifted, and the host shows the same dial the panel does.
 The two things worth knowing if this is ever extended: a read-out can be typed into, so a

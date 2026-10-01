@@ -18,6 +18,14 @@ namespace
     /** A knob is a thing you grip, not a thing that grows to fill a panel: past this it stops
         reading as a control and starts reading as a dial on a wall. */
     constexpr int maxSize = 88;
+
+    /** How far an end mark is carried past the ring, and the room that leaves it.
+
+        The marks sit at the ends of the arc, 45 degrees below the horizontal, so a mark's own
+        centre is only 0.707 of the way out diagonally — it overhangs the knob's circle by far
+        less than `markGap` suggests, and six points each way covers it along with the text. */
+    constexpr int markGap = 7;
+    constexpr int markMargin = 6;
 }
 
 AmpKnob::AmpKnob (juce::AudioProcessorValueTreeState& state,
@@ -68,6 +76,18 @@ void AmpKnob::setBodyColour (juce::Colour colour)
                       colour.brighter (0.22f).interpolatedWith (AmpPalette::hairline, 0.35f));
 }
 
+void AmpKnob::setEndMarks (const juce::String& low, const juce::String& high)
+{
+    lowMark = low;
+    highMark = high;
+    marksEnds = true;
+
+    slider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+
+    resized();
+    repaint();
+}
+
 void AmpKnob::setEngravedOnMetal (bool shouldBeEngraved)
 {
     engraved = shouldBeEngraved;
@@ -77,29 +97,77 @@ void AmpKnob::setEngravedOnMetal (bool shouldBeEngraved)
     repaint();
 }
 
+void AmpKnob::drawEngraved (juce::Graphics& g, const juce::String& text,
+                            juce::Rectangle<int> area, juce::Justification justification) const
+{
+    g.setColour (juce::Colours::black.withAlpha (0.55f));
+    g.drawText (text, area.translated (0, 1), justification, false);
+    g.setColour (juce::Colour (0xffd9dee6));
+    g.drawText (text, area, justification, false);
+}
+
 void AmpKnob::paint (juce::Graphics& g)
 {
     const auto area = getLocalBounds().removeFromTop (nameHeight);
 
-    if (! engraved)
+    if (engraved)
+    {
+        g.setFont (AmpLookAndFeel::font (9.5f, true).withExtraKerningFactor (0.2f));
+        drawEngraved (g, name, area, juce::Justification::centredBottom);
+    }
+    else
     {
         g.setFont (AmpLookAndFeel::font (12.5f, true));
         g.setColour (AmpPalette::text);
         g.drawText (name, area, juce::Justification::centred, false);
-        return;
     }
 
-    g.setFont (AmpLookAndFeel::font (9.5f, true).withExtraKerningFactor (0.2f));
-    g.setColour (juce::Colours::black.withAlpha (0.55f));
-    g.drawText (name, area.translated (0, 1), juce::Justification::centredBottom, false);
-    g.setColour (juce::Colour (0xffd9dee6));
-    g.drawText (name, area, juce::Justification::centredBottom, false);
+    if (! marksEnds)
+        return;
+
+    // Where the pointer sits at either stop, which is where an amplifier prints its numbers: the
+    // arc's own ends, carried out past the ring by a few points.
+    const auto knob = slider.getBounds().toFloat();
+    const auto centre = knob.getCentre();
+    const auto radius = juce::jmin (knob.getWidth(), knob.getHeight()) * 0.5f + (float) markGap;
+
+    g.setFont (AmpLookAndFeel::font (9.0f, true));
+
+    const auto mark = [&] (const juce::String& text, float angle)
+    {
+        const auto spot = juce::Point<float> (centre.x + radius * std::sin (angle),
+                                              centre.y - radius * std::cos (angle));
+
+        const auto box = juce::Rectangle<float> (24.0f, 12.0f).withCentre (spot).toNearestInt();
+
+        if (engraved)
+            drawEngraved (g, text, box, juce::Justification::centred);
+        else
+        {
+            g.setColour (AmpPalette::textFaint);
+            g.drawText (text, box, juce::Justification::centred, false);
+        }
+    };
+
+    mark (lowMark, AmpLookAndFeel::rotaryStart);
+    mark (highMark, AmpLookAndFeel::rotaryEnd);
 }
 
 void AmpKnob::resized()
 {
     auto area = getLocalBounds();
     area.removeFromTop (nameHeight);
+
+    if (marksEnds)
+    {
+        // No read-out to leave room for, so the knob takes the area it is given — less the margin
+        // the two marks overhang into, on all four sides.
+        const auto size = juce::jmin (area.getWidth() - markMargin * 2,
+                                      area.getHeight() - markMargin * 2, maxSize);
+
+        slider.setBounds (area.withSizeKeepingCentre (size, size));
+        return;
+    }
 
     const auto size = juce::jmin (area.getWidth(), area.getHeight() - valueHeight, maxSize);
     slider.setBounds (area.withSizeKeepingCentre (size, size + valueHeight).withY (area.getY()));

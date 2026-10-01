@@ -43,8 +43,8 @@ of the amp. A gate only in front cannot remove hiss the amp itself makes, and a 
 has no dynamics left to trigger on — which is why hardware gates for high-gain rigs have a key
 input, and why this one works the same way.
 
-**The amp's controls are marked 0 to 10**, the way an amplifier is, with 5 flat for a tone band
-and unity for Gain and Master. Only the printing changes: underneath they are the same dB
+**The amp's controls are marked 0 to 10**, the way an amplifier is: 0 and 10 printed at the ends
+of each knob's travel, no read-out, and 5 flat for a tone band and unity for Gain and Master. Only the printing changes: underneath they are the same dB
 parameters they always were, so presets and saved sessions carry over. The cabinet's controls and
 the pedals' keep their own units.
 

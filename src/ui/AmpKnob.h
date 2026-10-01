@@ -40,12 +40,27 @@ public:
     /** Where the value ring starts, as a proportion of the travel. See ParameterSlider. */
     void setRingOrigin (float proportion)  { slider.ringOrigin = proportion; repaint(); }
 
+    /** Marks the two ends of the travel instead of printing a value — what an amplifier's fascia
+        does, and the reason the amp's controls are numbered 0 to 10 at all.
+
+        The marks sit at the ends of the knob's own arc, which runs from the lower left round to
+        the lower right, so they land where the pointer does when the control is at either stop.
+        Calling this takes the read-out away, and with it the ability to type a value into the
+        panel; the host's own editor still accepts one.
+    */
+    void setEndMarks (const juce::String& low, const juce::String& high);
+
     /** Names cut into a metal fascia rather than set on a dark page: light type with a dark
         impression above it, so the light reads as coming from in front and slightly above. */
     void setEngravedOnMetal (bool);
 
 private:
+    void drawEngraved (juce::Graphics&, const juce::String&, juce::Rectangle<int>,
+                       juce::Justification) const;
+
     juce::String name;
+    juce::String lowMark, highMark;
+    bool marksEnds = false;
     bool engraved = false;
     ParameterSlider slider;
     juce::AudioProcessorValueTreeState::SliderAttachment attachment;

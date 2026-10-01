@@ -206,7 +206,7 @@
       <table>
         <thead><tr><th>Where</th><th>Action</th><th>Result</th></tr></thead>
         <tbody>
-          <tr><td>Any knob</td><td>Drag up/down or left/right</td><td>Turns it. A pedal knob shows its value in a bubble while you drag; an amp or cab knob has its value printed under it</td></tr>
+          <tr><td>Any knob</td><td>Drag up/down or left/right</td><td>Turns it. A pedal knob shows its value in a bubble while you drag; a cab or shelf knob has its value printed under it. The amp's knobs show no number — they are marked 0 and 10 at the ends of the travel and the pointer says the rest, the way an amplifier is</td></tr>
           <tr><td>Any knob</td><td>Double-click</td><td>Back to its default</td></tr>
           <tr><td>Delay's sync knob</td><td>Turn fully down</td><td>Free — the time knob decides instead of the tempo</td></tr>
           <tr><td>Any knob</td><td>Read the ring</td><td>How far it has moved from where it does nothing — the middle for a tone band, the bottom for an amount, the top for the cab's high cut</td></tr>
@@ -276,8 +276,9 @@
       distortion, not the volume. <b>Master</b> is the level control.</p>
 
     <h3>Why do the amp knobs read 0 to 10 and not in decibels?</h3>
-    <p>Because that is how an amplifier is marked, and the controls are the amp's. 5 is the middle of every one of them: flat for a tone band, unity for Gain and Master. What each is worth in decibels is in the interface tour, and typing a number into a read-out works on the same 0&ndash;10 scale.</p>
-    <p>The cabinet's controls and the pedals' keep their own units, because a cut at 100 Hz and a delay of 320 ms are not dial positions.</p>
+    <p>Because that is how an amplifier is marked, and the controls are the amp's. Only the two ends are printed, at the ends of each knob's travel; 5 is the middle of every one of them, which is flat for a tone band and unity for Gain and Master. What each is worth in decibels is in the interface tour.</p>
+    <p>The cabinet's controls and the shelf's keep their read-outs and their units, because a cut at 100 Hz and a delay of 320 ms are measurements rather than dial positions.</p>
+    <p>If you want an exact figure on an amp control, your host's own plugin editor lists all seven and takes a typed value on the same 0&ndash;10 scale.</p>
 
     <h3>Why does everything sound flat with the tone knobs at 5?</h3>
     <p>Because it is flat. Bass, Middle, Treble, Presence and Depth are independent parametric
@@ -391,7 +392,7 @@
     { id: "amp", label: "Amp", image: "amp.png",
       spots: bar.concat([
         { x: 50.0, y: 37.8, title: "The capture, and how to change it", body: "<p>The nameplate on the grille is the model in use — and clicking it is how you load another. An amp wears its name on the front, and on this amp the name <em>is</em> the file.</p><p>Any <code>.nam</code> file works. If one will not load, the plate turns red and says why.</p>" },
-        { x: 11.6, y: 64.6, title: "Gain", body: "<p><b>The amp's seven controls are marked 0 to 10</b>, the way an amplifier is, and 5 is the middle of the range in every case. The figures below are what the dial is worth.</p><p>±24 dB <em>before</em> the model, so turning it up drives the network harder and it saturates — exactly what a preamp gain control does.</p><p>It is not a volume control: with a real capture, 12 dB more going in yields well under a decibel more coming out. What changes is how hard the amp is being hit.</p>" },
+        { x: 11.6, y: 64.6, title: "Gain", body: "<p><b>The amp's seven controls are marked 0 to 10</b>, the way an amplifier is: 0 and 10 are printed at the two ends of each knob's travel and there is no read-out, because where the pointer sits is the reading. 5 is the middle of the range in every case. The figures below are what the dial is worth.</p><p>±24 dB <em>before</em> the model, so turning it up drives the network harder and it saturates — exactly what a preamp gain control does.</p><p>It is not a volume control: with a real capture, 12 dB more going in yields well under a decibel more coming out. What changes is how hard the amp is being hit.</p>" },
         { x: 32.8, y: 64.6, title: "Bass, Middle, Treble", body: "<p>Three independent parametric bands between the model and the cab, ±12 dB each — so <b>5 on the dial is flat</b>, 0 is a full cut and 10 a full boost:</p><ul><li><b>Bass</b>: low shelf at 100 Hz</li><li><b>Middle</b>: peak at 800 Hz, Q 0.7</li><li><b>Treble</b>: high shelf at 3.2 kHz</li></ul><p>All three at 5 is genuinely flat, and each moves only its own band — unlike a real passive tone stack, which interacts with itself and is mid-scooped at noon.</p>" },
         { x: 53.7, y: 64.6, title: "Presence and Depth", body: "<p>A lift at the top of the range and one at the cabinet's own resonance: <b>Presence</b> is a shelf from about 5.5 kHz, above where Treble starts, and <b>Depth</b> is a resonant peak around 85 Hz rather than a second bass control. \u00b112 dB each, flat at 5.</p><p><b>They are named after the controls they sit where, not modelled on them.</b> On a real amplifier presence and depth work by taking negative feedback off the power amp at one end of the range, which raises the gain there and changes the distortion and the damping with it. The capture already contains the power amp, so what these two offer is the frequency response of those controls and none of the rest of their behaviour. Useful, and worth knowing.</p>" },
         { x: 74.7, y: 64.6, title: "Master", body: "<p>±24 dB over the dial's travel, the level out of the amp. 5 is unity, not silence — at 0 the amp is 24 dB down rather than off, which is what the <b>power</b> switch is for. This is the volume control; <b>Gain</b> is the one that changes the tone.</p><p>It sits before the cabinet. Convolution is linear, so that is the same level as putting it after — it is here because that is where the control belongs on an amp.</p>" },

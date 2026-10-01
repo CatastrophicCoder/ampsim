@@ -256,6 +256,15 @@ Things that are easy to get wrong here:
   The cab's knobs and the pedals' keep their units. A cut at 100 Hz and a delay of 320 ms are
   measurements; a dial position is not, and the amp's controls are the only ones a player reads
   as an amp's.
+- **The amp's knobs print the two ends of the travel rather than the value**, through
+  `AmpKnob::setEndMarks`, which is what a fascia does and the reason they are numbered at all.
+  The marks go at the ends of the knob's own arc — `rotaryStart` and `rotaryEnd`, which run from
+  the lower left round to the lower right — so they sit where the pointer does at either stop.
+  A mark's centre is therefore only 0.707 of the way out diagonally, which is why six points of
+  margin each side is enough and fifteen made the knobs visibly smaller for nothing.
+
+  It also takes the read-out away, and with it typing a value into the panel. The host's own
+  editor still accepts one, which is why `valueFromString` is still worth having.
 - **A value ring reads outward from wherever the control is doing nothing** — the middle for a
   band that cuts and boosts, the bottom for an amount, the top for a high cut that is switched out
   of the way when it is turned up. `ParameterSlider::ringOrigin` overrides the default guess; the

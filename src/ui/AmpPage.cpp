@@ -208,6 +208,11 @@ AmpPage::AmpPage (AmpSimAudioProcessor& p)
         // Black knobs on a metal plate, rather than the raised grey they wear on a page.
         knob->setBodyColour (AmpMaterials::knobCap);
         knob->setEngravedOnMetal (true);
+
+        // The amp's controls are marked 0 to 10 and the two ends are printed on the plate, the way
+        // an amplifier's are. The cab's knobs and the shelf's keep their read-outs, because what
+        // they are set to is a measurement rather than a dial position.
+        knob->setEndMarks ("0", "10");
         addAndMakeVisible (*knob);
     }
 
