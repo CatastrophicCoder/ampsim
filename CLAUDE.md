@@ -576,7 +576,7 @@ expression `packaging/package.sh` uses, so the release and the files in it canno
 what version they are. To cut a release: bump `project(AmpSim VERSION ...)`, commit, then
 
 ```bash
-git tag -a v0.2.0 -m "AmpSim 0.2.0" && git push origin v0.2.0
+git tag -a vX.Y.Z -m "AmpSim X.Y.Z" && git push origin vX.Y.Z   # after the version commit is pushed
 ```
 
 The runner is `macos-latest`, which is Apple silicon, and nothing sets `CMAKE_OSX_ARCHITECTURES`,

@@ -89,13 +89,14 @@ CI builds, tests, validates and packages every push. A `v*` tag does the same an
 GitHub Release with the installer and disk image attached:
 
 ```sh
-# bump project(AmpSim VERSION ...) in CMakeLists.txt first, and commit it
-git tag -a v0.2.0 -m "AmpSim 0.2.0"
-git push origin v0.2.0
+# bump project(AmpSim VERSION X.Y.Z) in CMakeLists.txt first, and commit and push it
+git tag -a vX.Y.Z -m "AmpSim X.Y.Z"
+git push origin vX.Y.Z
 ```
 
 The tag must match the version in `CMakeLists.txt`; if it does not, the run fails rather than
-publishing something misnamed.
+publishing something misnamed. Push the version commit before the tag, or the tagged run checks out
+a tree that still carries the old number and the check rejects it.
 
 ## Using it
 
