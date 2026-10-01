@@ -91,6 +91,14 @@ private:
     void paintTuner (juce::Graphics&, juce::Rectangle<int>);
     void updateLoadedFileDisplay();
     void showParameterMenu (const juce::String& parameterID, juce::Component& source);
+
+public:
+    /** A knob's right-click menu, or an empty one where there is nothing to offer — which is
+        everywhere but the standalone, since that is the only place MIDI arrives. Public so a test
+        can ask what each wrapper would be shown without popping a menu up. */
+    juce::PopupMenu buildParameterMenu (const juce::String& parameterID) const;
+
+private:
     void showPage (int index);
     void showScaleMenu();
     void applyScale (int percent);

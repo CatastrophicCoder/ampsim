@@ -166,6 +166,17 @@ public:
 
     const juce::String getName() const override          { return JucePlugin_Name; }
     bool acceptsMidi() const override                    { return true; }   // CC control
+
+    /** Whether MIDI ever reaches this instance, which is what decides whether the panel offers to
+        learn a controller.
+
+        Only the standalone receives any. The plug-ins declare no MIDI input — declaring one made
+        the Audio Unit a MIDI-controlled effect, which Logic feeds from a side chain, and the same
+        setting carries the VST3's — so in either of them a "learn" would wait for a controller it
+        could never hear. acceptsMidi() stays true regardless: the standalone's player routes MIDI
+        to processBlock without consulting it, and nothing else does either.
+    */
+    bool midiLearnAvailable() const noexcept             { return wrapperType == wrapperType_Standalone; }
     bool producesMidi() const override                   { return false; }
     bool isMidiEffect() const override                   { return false; }
     double getTailLengthSeconds() const override         { return 0.0; }

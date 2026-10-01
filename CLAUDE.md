@@ -367,6 +367,12 @@ normalises each IR independently, which is the thing to avoid here.
   consults `acceptsMidi()`, which is why that still returns `true`. **In Logic, use its own
   Controller Assignments (Cmd-L) instead** — they map any plugin's parameters without the plugin
   declaring MIDI at all.
+
+  So the panel offers MIDI learn only where it can work. `AmpSimAudioProcessor::midiLearnAvailable()`
+  is `wrapperType == wrapperType_Standalone`, and `buildParameterMenu` returns an empty menu
+  otherwise, which `showParameterMenu` then declines to show. `wrapperType` is `const` and fixed at
+  construction, so a test impersonates a wrapper with `AudioProcessor::setTypeOfNextNewPlugin()`
+  before making the processor — see `tests/EditorTests.cpp`.
 - **`MidiLearn`** reads its map on the audio thread through an array of atomics, and **never writes
   it there** — learning sets an atomic that the message thread commits to the ValueTree, because a
   ValueTree may only be touched from one thread.

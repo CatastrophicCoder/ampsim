@@ -3,6 +3,16 @@
 What changed in each published release. The [user guide](https://catastrophiccoder.github.io/ampsim/)
 describes how the current version behaves; this records what moved between versions.
 
+## Unreleased
+
+### Fixed
+
+- **The plug-ins no longer offer MIDI learn.** In 0.3.0 a knob's right-click menu offered to learn a
+  MIDI controller in every format, and in the Audio Unit or the VST3 it then waited for a controller
+  it could never hear, since neither receives MIDI. The menu now appears only in the standalone; in
+  the plug-ins a right-click does nothing, and the host's own controller mapping is the way to
+  drive a control.
+
 ## [0.3.0] — 2026-10-01
 
 **The first published release.** 0.2.0 was published briefly and withdrawn: its Audio Unit was a

@@ -64,3 +64,33 @@ TEST_CASE ("Every knob returns to its parameter's default on a double-click", "[
     // built would otherwise pass this test by having nothing to check.
     REQUIRE (knobs == 29);
 }
+
+TEST_CASE ("A knob offers MIDI learn only where MIDI can arrive", "[editor][midi]")
+{
+    // Only the standalone receives MIDI: the plug-ins declare no MIDI input, because declaring one
+    // made the Audio Unit a MIDI-controlled effect that Logic fed from a side chain. A "learn"
+    // offered in a plug-in would wait for a controller it could never hear, so it is not offered.
+    //
+    // The wrapper type is fixed when the processor is constructed, from a value JUCE's wrappers set
+    // just before they make one. Setting it here is how each wrapper is impersonated.
+    const auto menuItemsAs = [] (juce::AudioProcessor::WrapperType type)
+    {
+        juce::AudioProcessor::setTypeOfNextNewPlugin (type);
+        auto processor = std::make_unique<AmpSimAudioProcessor>();
+        juce::AudioProcessor::setTypeOfNextNewPlugin (juce::AudioProcessor::wrapperType_Undefined);
+
+        REQUIRE (processor->wrapperType == type);
+        processor->prepareToPlay (48000.0, test::blockSize);
+
+        auto* editor = dynamic_cast<AmpSimAudioProcessorEditor*> (processor->createEditor());
+        REQUIRE (editor != nullptr);
+
+        const auto items = editor->buildParameterMenu (ParamID::inputGain).getNumItems();
+        delete editor;
+        return items;
+    };
+
+    REQUIRE (menuItemsAs (juce::AudioProcessor::wrapperType_Standalone) > 0);
+    REQUIRE (menuItemsAs (juce::AudioProcessor::wrapperType_AudioUnit) == 0);
+    REQUIRE (menuItemsAs (juce::AudioProcessor::wrapperType_VST3) == 0);
+}

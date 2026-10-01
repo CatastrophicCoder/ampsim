@@ -212,7 +212,7 @@
           <tr><td>Any knob</td><td>Double-click</td><td>Back to its default</td></tr>
           <tr><td>Delay's sync knob</td><td>Turn fully down</td><td>Free — the time knob decides instead of the tempo</td></tr>
           <tr><td>Any knob</td><td>Read the ring</td><td>How far it has moved from where it does nothing — the middle for a tone band, the bottom for an amount, the top for the cab's high cut</td></tr>
-          <tr><td>Any knob</td><td>Right-click</td><td>Learn a MIDI controller for it, or forget the one it has. <b>Standalone only</b> — the plug-ins receive no MIDI, so in Logic use Controller Assignments (Cmd-L)</td></tr>
+          <tr><td>Any knob</td><td>Right-click</td><td>In the standalone: learn a MIDI controller for it, or forget the one it has. In the plug-ins a right-click does nothing, since they receive no MIDI — in Logic use Controller Assignments (Cmd-L)</td></tr>
           <tr><td>Brass nameplate</td><td>Click</td><td>Opens a file chooser for a <code>.nam</code> capture</td></tr>
           <tr><td>Power rocker</td><td>Click</td><td>Mutes the amp. The front of the head goes dark; the control plate stays lit</td></tr>
           <tr><td>Pedal footswitch</td><td>Click</td><td>Switches the pedal in or out. Its LED lights green when it is in your signal</td></tr>
@@ -549,7 +549,7 @@
       </ol>
       <p>One controller drives one parameter and one parameter answers to one controller, so learning a
         CC that is already in use moves it. The map is saved with your session and travels with a preset.</p>
-      <div class="tip"><b>This works in the standalone only.</b> The plug-in versions no longer declare a MIDI input \u2014 doing so made the Audio Unit a "MIDI-controlled effect", which in Logic means it takes its audio from a side chain and is silent inserted any other way. In Logic use <b>Controller Assignments</b> (Cmd-L) instead; it maps any plug-in's parameters and needs nothing from the plug-in.</div>` },
+      <div class="tip"><b>This works in the standalone only</b>, and the plug-ins do not show the menu at all. They declare no MIDI input \u2014 doing so made the Audio Unit a "MIDI-controlled effect", which in Logic means it takes its audio from a side chain and is silent inserted any other way. In Logic use <b>Controller Assignments</b> (Cmd-L) instead; it maps any plug-in's parameters and needs nothing from the plug-in.</div>` },
     { id: "presets", label: "Presets", image: "amp.png", caption: "The preset field sits in the bar, above all three pages.",
       html: `<h3>Save and recall a sound</h3>
       <ol>

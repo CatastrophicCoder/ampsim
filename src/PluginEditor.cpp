@@ -307,15 +307,19 @@ void AmpSimAudioProcessorEditor::paintTuner (juce::Graphics& g, juce::Rectangle<
     g.drawLine (meter.getCentreX(), meter.getY() - 4.0f, meter.getCentreX(), meter.getBottom() + 4.0f, 1.0f);
 }
 
-void AmpSimAudioProcessorEditor::showParameterMenu (const juce::String& parameterID,
-                                                    juce::Component& source)
+juce::PopupMenu AmpSimAudioProcessorEditor::buildParameterMenu (const juce::String& parameterID) const
 {
+    juce::PopupMenu menu;
+
+    // Everything in this menu is MIDI learn, and only the standalone ever receives MIDI. Offering
+    // it in a plug-in would start a learn that waits for ever, so there it is not offered at all.
+    if (! processorRef.midiLearnAvailable())
+        return menu;
+
     auto& midiLearn = processorRef.getMidiLearn();
 
     const auto mapped = midiLearn.getControllerFor (parameterID);
     const auto learningThis = midiLearn.isLearning() && midiLearn.getLearningParameter() == parameterID;
-
-    juce::PopupMenu menu;
 
     if (learningThis)
         menu.addItem (2, "Stop listening for a controller");
@@ -324,6 +328,17 @@ void AmpSimAudioProcessorEditor::showParameterMenu (const juce::String& paramete
 
     if (mapped >= 0)
         menu.addItem (3, "Forget CC " + juce::String (mapped));
+
+    return menu;
+}
+
+void AmpSimAudioProcessorEditor::showParameterMenu (const juce::String& parameterID,
+                                                    juce::Component& source)
+{
+    auto menu = buildParameterMenu (parameterID);
+
+    if (menu.getNumItems() == 0)
+        return;
 
     menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (source),
                         [this, parameterID] (int result)

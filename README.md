@@ -214,9 +214,10 @@ assistant.
 - **The mic-position blend is unproven musically.** The interpolation is exact and tested, but
   whether it sounds like moving a microphone depends entirely on having a grid of IRs of one cab
   captured at known positions. None ship here.
-- **MIDI learn works in the standalone only.** Declaring a MIDI input made the Audio Unit a
-  MIDI-controlled effect, which Logic feeds from a side chain; the same setting carries the VST3's
-  MIDI input. In Logic, Controller Assignments (Cmd-L) map any plugin's parameters instead.
+- **MIDI learn works in the standalone only**, and the plug-ins do not offer it. Declaring a MIDI
+  input made the Audio Unit a MIDI-controlled effect, which Logic feeds from a side chain; the same
+  setting carries the VST3's MIDI input. In Logic, Controller Assignments (Cmd-L) map any plugin's
+  parameters instead.
 - **Nothing is notarised**, so anyone you give a build to has to allow it through Gatekeeper.
 
 ## Licence

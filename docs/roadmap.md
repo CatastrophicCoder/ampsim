@@ -48,16 +48,6 @@ If it ever stops being enough, two things could be built:
   darkened. Against: it is a cosmetic correction to a real physical consequence rather than a fix
   for a fault, and at large intervals it is likely to sound applied rather than natural.
 
-### The plug-ins offer a MIDI learn that cannot work
-
-Since the Audio Unit became an ordinary effect, neither plug-in receives MIDI — but the right-click
-menu still offers **Learn a MIDI controller** in every format, and in the AU or VST3 it waits for a
-controller it will never hear. Two options, not decided:
-
-- hide the MIDI items when `wrapperType` is not the standalone, which is honest and small;
-- or show them disabled with a note pointing at the host's own controller mapping, which explains
-  where the feature went rather than making it vanish.
-
 ### Whether the pedals get names of their own
 
 The reference the board's anatomy came from gives each effect an identity — Green Mamba, Metal
@@ -222,6 +212,10 @@ directly and skipped the AU and VST3 wrappers entirely:
   Release build installs now.
 - **The release pipeline** publishes a GitHub Release from a `v*` tag that matches the version in
   `CMakeLists.txt`. 0.2.0 went out through it and was withdrawn for the first reason above.
+
+Since then, the plug-ins have stopped offering MIDI learn: a knob's right-click menu is built only
+when `midiLearnAvailable()` says the instance is the standalone, so a plug-in no longer starts a
+learn that waits for a controller it can never hear. Hiding it was chosen over showing it disabled.
 
 `tools/HostCheck.cpp` loads the installed bundles through the real wrappers and measures level and
 CPU, and JUCE's AudioPluginHost builds from the submodule for live testing. The AU has been
