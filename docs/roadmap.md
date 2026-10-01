@@ -177,6 +177,19 @@ Eight controls leave about 50 points of width spare. **Anything else that wants 
 needs a group of its own with a hairline before it, and there is room for roughly one more small
 control before something has to leave.**
 
+### The amp's dial
+
+Built. Gain, Bass, Middle, Treble, Presence, Depth and Master are printed 0 to 10 rather than in
+decibels, which is how an amplifier is marked and the one thing on the panel that was still
+speaking in the units of the implementation rather than the units of the instrument.
+
+Only the display changed. The parameters are still the dB figures their stages work in, so no
+range moved, no preset or saved session shifted, and the host shows the same dial the panel does.
+The two things worth knowing if this is ever extended: a read-out can be typed into, so a
+`valueFromString` has to be supplied alongside the `stringFromValue` or a host will take "7" as
+seven decibels; and the cab's and the pedals' controls were deliberately left in their own units,
+because a cut at 100 Hz and a delay of 320 ms are measurements rather than dial positions.
+
 ### How it was verified
 
 By rendering the editor to a PNG at each scale and looking at it, not by reading the paint code.

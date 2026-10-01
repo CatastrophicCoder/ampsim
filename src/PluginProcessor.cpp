@@ -79,40 +79,63 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
-    const auto dbAttributes = juce::AudioParameterFloatAttributes()
-                                  .withLabel ("dB")
-                                  .withStringFromValueFunction ([] (float v, int)
-                                                                { return juce::String (v, 1) + " dB"; });
+    // **The amp's own controls are marked 0 to 10, the way an amplifier is**, not in decibels.
+    // Only what is printed changes: the parameter is still the dB figure the stage works in, so
+    // the range, the DSP and every saved session are untouched, and a host sees the same dial the
+    // panel does. The two ends of the range are 0 and 10 and the middle is 5, which is where a
+    // tone band is flat and the Gain is unity — the reading agrees with the ring, which is drawn
+    // outward from the same place.
+    //
+    // The read-out can be typed into, so the inverse has to be given as well; without it a host
+    // would take "7" as seven decibels and then print 6.5 back.
+    const auto dialAttributes = [] (float limit)
+    {
+        return juce::AudioParameterFloatAttributes()
+                   .withStringFromValueFunction ([limit] (float v, int)
+                                                 {
+                                                     // A whole number loses its decimal, because an
+                                                     // amp goes to 10 rather than to 10.0.
+                                                     const auto dial = 5.0f + 5.0f * v / limit;
+                                                     const auto whole = std::abs (dial - std::round (dial)) < 0.05f;
+
+                                                     return juce::String (dial, whole ? 0 : 1);
+                                                 })
+                   .withValueFromStringFunction ([limit] (const juce::String& text)
+                                                 { return (text.getFloatValue() - 5.0f) * limit / 5.0f; });
+    };
+
+    const auto gainDial = dialAttributes (gainRangeDb);
+    const auto toneDial = dialAttributes (toneRangeDb);
 
     // Gain drives the model: more level in means more saturation out, which is how a real
     // preamp gain control works too.
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { ParamID::inputGain, 1 }, "Gain",
-        decibelRange (gainRangeDb), 0.0f, dbAttributes));
+        decibelRange (gainRangeDb), 0.0f, gainDial));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { ParamID::bass, 1 }, "Bass",
-        decibelRange (toneRangeDb), 0.0f, dbAttributes));
+        decibelRange (toneRangeDb), 0.0f, toneDial));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { ParamID::mid, 1 }, "Mid",
-        decibelRange (toneRangeDb), 0.0f, dbAttributes));
+        decibelRange (toneRangeDb), 0.0f, toneDial));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { ParamID::treble, 1 }, "Treble",
-        decibelRange (toneRangeDb), 0.0f, dbAttributes));
+        decibelRange (toneRangeDb), 0.0f, toneDial));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { ParamID::presence, 1 }, "Presence",
-        decibelRange (toneRangeDb), 0.0f, dbAttributes));
+        decibelRange (toneRangeDb), 0.0f, toneDial));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { ParamID::depth, 1 }, "Depth",
-        decibelRange (toneRangeDb), 0.0f, dbAttributes));
+        decibelRange (toneRangeDb), 0.0f, toneDial));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
         juce::ParameterID { ParamID::outputGain, 1 }, "Master",
-        decibelRange (gainRangeDb), 0.0f, dbAttributes));
+        decibelRange (gainRangeDb), 0.0f, gainDial));
 
     layout.add (std::make_unique<juce::AudioParameterBool> (
         juce::ParameterID { ParamID::bypass, 1 }, "Bypass", false));

@@ -61,6 +61,14 @@ namespace
         test::setParam (state, ParamID::metronomeOn, 1.0f);
         test::setParam (state, ParamID::metronomeTempo, tempo);
         test::setParam (state, ParamID::metronomeLevel, 0.0f);
+
+        // Beep, which is the one voice with no noise in it. The other two are part tone and part
+        // noise from a clock-seeded juce::Random, so how tall a click measures moves from run to
+        // run — enough, on the wood block, to push an unaccented click over a threshold set
+        // between the two levels about one run in ten. The accent is the same code for every
+        // voice, so measuring it on the deterministic one tests the same thing without the dice.
+        auto* sound = state.getParameter (ParamID::metronomeSound);
+        sound->setValueNotifyingHost (sound->convertTo0to1 (0.0f));
         // Through the parameter's own conversion rather than a hand-written denominator: the list
         // has grown once already, and a hard-coded one silently selects a different bar when it does.
         auto* bar = state.getParameter (ParamID::metronomeBeats);
@@ -141,7 +149,12 @@ TEST_CASE ("The accent falls once a bar, where the time signature puts it", "[me
             }
         }
 
-        REQUIRE (peaks.size() > 10);
+        REQUIRE (peaks.size() > 12);
+
+        // The level smoother ramps up over the first 20 ms, so the clicks at the very start are
+        // partial ones. One of them measured 0.119 against a settled 0.673 and 0.974, which drags
+        // the midpoint below the unaccented level and makes every click look like an accent.
+        peaks.erase (peaks.begin(), peaks.begin() + 2);
 
         // Halfway between the loudest click and the quietest, which separates the two cleanly:
         // where exactly a sine's own peak lands inside a fast decay varies a little, so a

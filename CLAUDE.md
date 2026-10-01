@@ -244,6 +244,18 @@ Things that are easy to get wrong here:
   inside the parent, so a control near the window edge needs a margin.
 - **A `const char*` literal must be ASCII.** `juce::String` asserts on anything else and renders
   mojibake in a Release build, so an em dash in a caption comes out as `â€`.
+- **The amp's seven controls are marked 0 to 10, and only the printing changes.** `dialAttributes`
+  in `createParameterLayout` gives Gain, the three tone bands, Presence, Depth and Master a
+  `stringFromValue` that maps their dB range linearly onto 0–10, so 5 is flat for a band and unity
+  for Gain and Master. The parameter is still the dB figure the stage works in — the range, the
+  DSP, every preset and every saved session are untouched, and the host sees the same dial the
+  panel does. **Give the inverse too**: an `AmpKnob`'s read-out can be typed into, and without a
+  `valueFromString` a host takes "7" as seven decibels and prints 6.5 back. A whole number drops
+  its decimal, because an amp goes to 10 rather than to 10.0.
+
+  The cab's knobs and the pedals' keep their units. A cut at 100 Hz and a delay of 320 ms are
+  measurements; a dial position is not, and the amp's controls are the only ones a player reads
+  as an amp's.
 - **A value ring reads outward from wherever the control is doing nothing** — the middle for a
   band that cuts and boosts, the bottom for an amount, the top for a high cut that is switched out
   of the way when it is turned up. `ParameterSlider::ringOrigin` overrides the default guess; the
@@ -536,7 +548,7 @@ A standard `.nam` capture is a snapshot of one amp setting — the knobs are *no
 
 | Control | Parameter ID | Placement | Implementation |
 | --- | --- | --- | --- |
-| Gain | `inputGain` | before the model | ±24 dB; more level in = more saturation out, which a test asserts against a real capture |
+| Gain | `inputGain` | before the model | ±24 dB; more level in = more saturation out, which a test asserts against a real capture. Printed as 0–10 — see the panel section |
 | Bass / Mid / Treble | `bass` `mid` `treble` | after the model, before Master | ±12 dB parametric bands: low shelf 100 Hz, peak 800 Hz (Q 0.7), high shelf 3.2 kHz. **Settled** against a modelled passive stack — see `ToneStack.h` |
 | Master | `outputGain` | after the tone stack, before the cab | ±24 dB |
 | Cab Low/High Cut | `cabLowCut` `cabHighCut` | inside the cab, after the convolution | second order, 20 Hz–1 kHz and 1–20 kHz, skipped at their end stops |

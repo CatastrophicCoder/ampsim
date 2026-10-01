@@ -275,11 +275,15 @@
       12 dB more going in yields well under a decibel more coming out; what changes is the
       distortion, not the volume. <b>Master</b> is the level control.</p>
 
-    <h3>Why does everything sound flat with the tone knobs at noon?</h3>
+    <h3>Why do the amp knobs read 0 to 10 and not in decibels?</h3>
+    <p>Because that is how an amplifier is marked, and the controls are the amp's. 5 is the middle of every one of them: flat for a tone band, unity for Gain and Master. What each is worth in decibels is in the interface tour, and typing a number into a read-out works on the same 0&ndash;10 scale.</p>
+    <p>The cabinet's controls and the pedals' keep their own units, because a cut at 100 Hz and a delay of 320 ms are not dial positions.</p>
+
+    <h3>Why does everything sound flat with the tone knobs at 5?</h3>
     <p>Because it is flat. Bass, Middle, Treble, Presence and Depth are independent parametric
       bands — low shelf at 100 Hz, peak at 800 Hz, high shelf at 3.2 kHz, high shelf at 5.5 kHz and
       a resonant peak at 85 Hz, ±12 dB each — rather than a modelled passive tone stack. A real
-      tone stack interacts with itself and is mid-scooped with everything at noon; this one is not,
+      tone stack interacts with itself and is mid-scooped with everything at 5; this one is not,
       and each knob moves only its own band.</p>
 
     <h3>Are Presence and Depth the same as the ones on my amp?</h3>
@@ -387,10 +391,10 @@
     { id: "amp", label: "Amp", image: "amp.png",
       spots: bar.concat([
         { x: 50.0, y: 37.8, title: "The capture, and how to change it", body: "<p>The nameplate on the grille is the model in use — and clicking it is how you load another. An amp wears its name on the front, and on this amp the name <em>is</em> the file.</p><p>Any <code>.nam</code> file works. If one will not load, the plate turns red and says why.</p>" },
-        { x: 11.6, y: 64.6, title: "Gain", body: "<p>±24 dB <em>before</em> the model, so turning it up drives the network harder and it saturates — exactly what a preamp gain control does.</p><p>It is not a volume control: with a real capture, 12 dB more going in yields well under a decibel more coming out. What changes is how hard the amp is being hit.</p>" },
-        { x: 32.8, y: 64.6, title: "Bass, Middle, Treble", body: "<p>Three independent parametric bands between the model and the cab, ±12 dB each:</p><ul><li><b>Bass</b>: low shelf at 100 Hz</li><li><b>Middle</b>: peak at 800 Hz, Q 0.7</li><li><b>Treble</b>: high shelf at 3.2 kHz</li></ul><p>All three at noon is genuinely flat, and each moves only its own band — unlike a real passive tone stack, which interacts with itself and is mid-scooped at noon.</p>" },
-        { x: 53.7, y: 64.6, title: "Presence and Depth", body: "<p>A lift at the top of the range and one at the cabinet's own resonance: <b>Presence</b> is a shelf from about 5.5 kHz, above where Treble starts, and <b>Depth</b> is a resonant peak around 85 Hz rather than a second bass control. \u00b112 dB each, flat at noon.</p><p><b>They are named after the controls they sit where, not modelled on them.</b> On a real amplifier presence and depth work by taking negative feedback off the power amp at one end of the range, which raises the gain there and changes the distortion and the damping with it. The capture already contains the power amp, so what these two offer is the frequency response of those controls and none of the rest of their behaviour. Useful, and worth knowing.</p>" },
-        { x: 74.7, y: 64.6, title: "Master", body: "<p>±24 dB, the level out of the amp. This is the volume control; <b>Gain</b> is the one that changes the tone.</p><p>It sits before the cabinet. Convolution is linear, so that is the same level as putting it after — it is here because that is where the control belongs on an amp.</p>" },
+        { x: 11.6, y: 64.6, title: "Gain", body: "<p><b>The amp's seven controls are marked 0 to 10</b>, the way an amplifier is, and 5 is the middle of the range in every case. The figures below are what the dial is worth.</p><p>±24 dB <em>before</em> the model, so turning it up drives the network harder and it saturates — exactly what a preamp gain control does.</p><p>It is not a volume control: with a real capture, 12 dB more going in yields well under a decibel more coming out. What changes is how hard the amp is being hit.</p>" },
+        { x: 32.8, y: 64.6, title: "Bass, Middle, Treble", body: "<p>Three independent parametric bands between the model and the cab, ±12 dB each — so <b>5 on the dial is flat</b>, 0 is a full cut and 10 a full boost:</p><ul><li><b>Bass</b>: low shelf at 100 Hz</li><li><b>Middle</b>: peak at 800 Hz, Q 0.7</li><li><b>Treble</b>: high shelf at 3.2 kHz</li></ul><p>All three at 5 is genuinely flat, and each moves only its own band — unlike a real passive tone stack, which interacts with itself and is mid-scooped at noon.</p>" },
+        { x: 53.7, y: 64.6, title: "Presence and Depth", body: "<p>A lift at the top of the range and one at the cabinet's own resonance: <b>Presence</b> is a shelf from about 5.5 kHz, above where Treble starts, and <b>Depth</b> is a resonant peak around 85 Hz rather than a second bass control. \u00b112 dB each, flat at 5.</p><p><b>They are named after the controls they sit where, not modelled on them.</b> On a real amplifier presence and depth work by taking negative feedback off the power amp at one end of the range, which raises the gain there and changes the distortion and the damping with it. The capture already contains the power amp, so what these two offer is the frequency response of those controls and none of the rest of their behaviour. Useful, and worth knowing.</p>" },
+        { x: 74.7, y: 64.6, title: "Master", body: "<p>±24 dB over the dial's travel, the level out of the amp. 5 is unity, not silence — at 0 the amp is 24 dB down rather than off, which is what the <b>power</b> switch is for. This is the volume control; <b>Gain</b> is the one that changes the tone.</p><p>It sits before the cabinet. Convolution is linear, so that is the same level as putting it after — it is here because that is where the control belongs on an amp.</p>" },
         { x: 87.7, y: 59.6, title: "Power", body: "<p>Mutes the amp, on a short ramp so it never clicks. The pilot lamp goes dark and the front of the head goes with it, while the control plate keeps its light so you can still read your settings.</p><p>This is not the same as <b>bypassed</b>: an amp that is switched off makes no sound, where a bypassed plugin passes your guitar through.</p>" }
       ]) },
     { id: "pedals", label: "Pedals", image: "pedals.png",
@@ -486,7 +490,7 @@
     { id: "tone", label: "Dial in a tone", image: "amp.png", caption: "Gain drives the model; Master sets the level; the three bands sit between the model and the cab.",
       html: `<h3>Dial in a tone</h3>
       <ol>
-        <li>Start with <b>Gain</b> at noon and <b>Master</b> wherever the level is comfortable, and the three tone knobs at noon — which on this amp is genuinely flat.</li>
+        <li>Start with <b>Gain</b> at 5 and <b>Master</b> wherever the level is comfortable, and the three tone knobs at 5 — which on this amp is genuinely flat.</li>
         <li>Move <b>Gain</b> and listen to the <em>distortion</em>, not the volume. It sits before the model, so it changes how hard the capture is being hit; the level barely moves.</li>
         <li>Then set the tone. <b>Bass</b> is a shelf at 100 Hz, <b>Middle</b> a peak at 800 Hz, <b>Treble</b> a shelf at 3.2 kHz, ±12 dB each and independent of one another.</li>
         <li>Want more dirt than the capture gives you at full Gain? Put the <b>drive</b> pedal in front with its <b>level</b> up and its <b>drive</b> low — that is what a real boost in front of an amp does.</li>
