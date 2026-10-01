@@ -26,7 +26,7 @@
 
 namespace
 {
-    constexpr double sampleRate = 48000.0;
+    double sampleRate = 48000.0;
 
     void set (juce::AudioProcessorValueTreeState& state, const juce::String& id, float value)
     {
@@ -95,9 +95,17 @@ namespace
     }
 }
 
-int main()
+int main (int argc, char** argv)
 {
     juce::ScopedJuceInitialiser_GUI gui;
+
+    // The rate matters more than anything else here: the model's resampler is bypassed outright
+    // when the host already runs at the model's own rate, so 48 kHz measures a chain with one
+    // whole stage missing from it.
+    if (argc > 1)
+        sampleRate = juce::String (argv[1]).getDoubleValue();
+
+    std::cout << "at " << (int) sampleRate << " Hz\n\n";
 
     AmpSimAudioProcessor processor;
     processor.prepareToPlay (sampleRate, 512);

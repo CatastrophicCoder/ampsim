@@ -25,6 +25,9 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_audio_utils/juce_audio_utils.h>
 #include <iostream>
+#include <chrono>
+#include <vector>
+#include <algorithm>
 
 namespace
 {
@@ -75,10 +78,38 @@ namespace
         const auto in  = std::sqrt (inSum / (double) n);
         const auto out = std::sqrt (outSum / (double) n);
 
+        // What it costs in real time, through the wrapper and with the model prepared for this
+        // rate — which is the only place the resampler is actually in the signal.
+        std::vector<double> passes;
+
+        for (int pass = 0; pass < 7; ++pass)
+        {
+            const auto start = std::chrono::steady_clock::now();
+
+            for (int b = 0; b < blocks; ++b)
+            {
+                // Refilled every block. Left alone, the buffer carries the previous block's
+                // output back in as input, which through a distorting amp is a feedback loop and
+                // measures something other than the plugin.
+                for (int ch = 0; ch < plugin.getTotalNumInputChannels(); ++ch)
+                    for (int i = 0; i < blockSize; ++i)
+                        buffer.setSample (ch, i, 0.2f * (float) std::sin (juce::MathConstants<double>::twoPi
+                                                                              * 220.0 * (b * blockSize + i) / rate));
+
+                plugin.processBlock (buffer, midi);
+            }
+
+            const std::chrono::duration<double> elapsed = std::chrono::steady_clock::now() - start;
+            passes.push_back (elapsed.count() / ((double) (blocks * blockSize) / rate) * 100.0);
+        }
+
+        std::sort (passes.begin(), passes.end());
+
         std::cout << "    " << label << "  " << (int) rate << " Hz  " << blockSize << " spl"
                   << "  in=" << juce::String (in, 4) << "  out=" << juce::String (out, 4)
                   << "  (" << juce::String (juce::Decibels::gainToDecibels (out / juce::jmax (1.0e-9, in)), 1) << " dB)"
                   << "  latency=" << plugin.getLatencySamples()
+                  << "  cpu=" << juce::String (passes[passes.size() / 2], 2) << "%"
                   << (out < 1.0e-4 ? "   <-- SILENT" : "")
                   << "\n";
         std::cout.flush();
@@ -140,7 +171,22 @@ namespace
                 }
 
                 for (const auto rate : { 44100.0, 48000.0 })
-                    measure (*plugin, rate, 512, label);
+                {
+                    for (const auto block : { 128, 512 })
+                    {
+                        // A fresh instance each time. Re-preparing one instance for a new rate
+                        // leaves the model prepared for the old one, and the audio thread refuses
+                        // a model that does not match what it was sized for.
+                        juce::String e;
+                        std::unique_ptr<juce::AudioPluginInstance> fresh (
+                            format.createInstanceFromDescription (*desc, rate, block, e));
+
+                        if (fresh == nullptr) { std::cout << "    could not re-instantiate: " << e << "\n"; continue; }
+
+                        fresh->setBusesLayout (layout);
+                        measure (*fresh, rate, block, label);
+                    }
+                }
             }
         }
     }
