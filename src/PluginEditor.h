@@ -66,6 +66,23 @@ private:
         AmpSimAudioProcessorEditor& owner;
     };
 
+    /** A text button that reads a choice parameter and offers its choices in a menu.
+
+        The panel draws everything on it, so a juce::ComboBox would be the one object on the
+        window that came out of the box. This is the scale button's shape, pointed at a parameter.
+    */
+    class ChoiceButton final : public juce::TextButton
+    {
+    public:
+        ChoiceButton (juce::AudioProcessorValueTreeState&, const juce::String& parameterID);
+
+    private:
+        void showMenu();
+
+        juce::AudioParameterChoice& parameter;
+        juce::ParameterAttachment attachment;
+    };
+
     void paintPanel (juce::Graphics&);
     void layOutPanel();
 
@@ -100,6 +117,17 @@ private:
 
     ParameterSlider semitonesSlider { ParamID::transposeSemitones };
     juce::AudioProcessorValueTreeState::SliderAttachment semitonesAttachment;
+
+    juce::ToggleButton metronomeButton { "metronome" };
+    juce::AudioProcessorValueTreeState::ButtonAttachment metronomeAttachment;
+
+    ParameterSlider tempoSlider { ParamID::metronomeTempo };
+    juce::AudioProcessorValueTreeState::SliderAttachment tempoAttachment;
+
+    ChoiceButton beatsButton, soundButton;
+
+    ParameterSlider metronomeLevelSlider { ParamID::metronomeLevel };
+    juce::AudioProcessorValueTreeState::SliderAttachment metronomeLevelAttachment;
 
     TabButton ampTab { "AMP" }, pedalsTab { "PEDALS" }, cabTab { "CAB" };
 

@@ -146,7 +146,7 @@
     <div class="tabs" role="tablist" id="tourTabs"></div>
     <div class="tour">
       <div class="shot card">
-        <img id="tourShot" src="../images/amp.png" alt="The AmpSim window with numbered markers on each control" width="1560" height="920">
+        <img id="tourShot" src="../images/amp.png" alt="The AmpSim window with numbered markers on each control" width="1560" height="1012">
         <div id="hotspots"></div>
       </div>
       <aside class="info card" id="info" aria-live="polite"></aside>
@@ -165,7 +165,7 @@
   <!-- ============================================================ Signal chain -->
   <section id="chain">
     <h2>The signal chain</h2>
-    <div class="card chain">compressor → drive → <b>Gain</b> → <b>amp model</b> → <b>Bass / Middle / Treble</b> → <b>Master</b>
+    <div class="card chain">transpose → compressor → drive → <b>Gain</b> → <b>amp model</b> → <b>Bass / Middle / Treble</b> → <b>Master</b>
            → gate → chorus → delay → reverb → <b>cabinet IR</b> → power switch</div>
     <p>The order is fixed rather than something you rearrange, because the order <em>is</em> the
       design. A drive pedal in front of the amp works by changing what the amp distorts; modulation
@@ -178,6 +178,14 @@
       trigger on, because the distortion has flattened them. Hardware gates for high-gain rigs solve
       this with a key input, and this one works the same way. Its <b>thresh</b> control is still a
       level of your raw guitar, which is what makes it possible to set.</p>
+    <p>The <b>transpose</b> is at the very front, ahead of everything — it changes the note before
+      any pedal or the amp sees it, which is the only place a shifter can go if the amp is to
+      distort the shifted note rather than the shifted note being made out of distortion. The
+      <b>tuner</b> taps in ahead of even that, so it reads your strings whatever the transpose is
+      set to.</p>
+    <p>The <b>metronome</b> is in none of this. It is added to the output after the chain has
+      finished, after the power switch and after the plugin's own bypass, so nothing on the panel
+      silences it.</p>
     <p>Everything is <b>mono</b>, because a guitar amp is and a NAM capture is. A stereo input is
       summed in at the top and the result goes back out to both channels.</p>
     <h3>Latency</h3>
@@ -185,6 +193,10 @@
       and out at any other session rate, reporting about <b>220 samples at 44.1 kHz</b> for your host
       to compensate. The drive pedal's oversampler adds <b>5 more</b>, and runs whether or not the
       pedal is on so that the figure never changes underneath your host.</p>
+    <p>The <b>transpose</b> adds about <b>25 ms</b> while it is engaged, and that one is <em>not</em>
+      reported — it varies with where the shifter is in its cycle, so there is no single honest
+      figure to give. Anything recorded through an engaged transpose will be late by roughly that
+      much.</p>
   </section>
 
   <!-- ============================================================ Gestures -->
@@ -303,6 +315,13 @@
       loaded carries only the controls, and recalling it will not unload your amp. This is also what
       makes a preset survive a move to another machine, where your models live somewhere else.</p>
 
+    <h3>Will the metronome end up in my recording?</h3>
+    <p>Not in an offline bounce \u2014 the click is switched off whenever the host is rendering, so a mixdown never has one printed into it.</p>
+    <p>It <em>will</em> be captured if you record live through an armed track, because at that point it is part of the plugin's output like everything else. Switch it off before a take. There is no way for a plugin to put a click anywhere but its own output.</p>
+
+    <h3>The metronome ignores my BPM setting.</h3>
+    <p>That is deliberate: when your host's transport is running, the click follows the host's tempo and bar lines so it lands on the project's grid rather than drifting against it. The <b>BPM</b> stepper is used only when there is nothing to follow, which in practice means the standalone.</p>
+
     <h3>Can I reorder the pedals?</h3>
     <p>No, and that is deliberate. The placement mirrors how a real rig is plugged up and it is the
       point of the section rather than a limitation of it.</p>
@@ -342,12 +361,16 @@
   });
 
   // ---------------------------------------------------------------- tour
-  // Marker positions are percentages of each screenshot (1560 x 920, the panel at 100 %).
+  // Marker positions are percentages of each screenshot (1560 x 1012, the panel at 100 %).
   const bar = [
     { x: 30.0, y: 5.2, title: "Preset", body: "<p>Which preset is loaded. Click the field for the menu: your saved presets, <b>Save as…</b>, <b>Save over</b>, <b>Delete</b>, and a shortcut to the presets folder. <b>&lsaquo;</b> and <b>&rsaquo;</b> step through them.</p><p>A new instance lands on <b>Default</b>, which names the built-in amp and cabinet. It is the only preset that ships; the rest of the list is yours.</p>" },
-    { x: 70.1, y: 5.2, title: "Panel size", body: "<p>75, 100, 125 or 150 %. The whole panel scales — nothing is redrawn at a lower quality, because none of it is an image.</p><p>The size is saved with the session and a preset cannot change it: how big you like the window is not part of how the amp sounds.</p>" },
+    { x: 94.2, y: 95.5, title: "Panel size", body: "<p>75, 100, 125 or 150 %. The whole panel scales — nothing is redrawn at a lower quality, because none of it is an image.</p><p>The size is saved with the session and a preset cannot change it: how big you like the window is not part of how the amp sounds.</p>" },
     { x: 79.9, y: 5.2, title: "Tuner", body: "<p>Takes over the middle of the bar while it is on, and mutes the output.</p><ul><li>It reads your guitar <em>before</em> the pedals and the amp, so a heavy drive setting does not confuse it.</li><li>The note and how far off it is in cents; the bar sits on the centre mark when you are in tune.</li><li>A reading stays on screen after the note decays, dimmed, so you can keep turning the peg.</li></ul>" },
     { x: 91.9, y: 5.2, title: "Bypassed", body: "<p>Takes the whole plugin out of your signal: your guitar passes through untouched. This is the switch your host's own bypass drives.</p><p>Red on this panel always means <em>switched out of your signal</em>, wherever you see it.</p>" },
+    { x: 8.2, y: 95.5, title: "Transpose", body: "<p>Shifts everything you play, up or down by as much as an octave, before it reaches any pedal or the amp. The stepper beside the switch is the interval in semitones.</p><p>It is a <em>granular</em> shifter: it works on chords as well as single notes, and it does not smear a pick attack. The cost is about 25 ms of delay while it is on, which you will hear as a little slack if you are recording to a click.</p><p><b>The tuner reads your strings, not the interval</b> \u2014 it taps in ahead of the shifter, so you can still tune up with the transpose engaged.</p><p>Shifted a long way down, a distorted tone goes muddy. The fix is in the chain rather than here: put the <b>Overdrive</b> in the dirt slot, which only drives what is above about 700 Hz, and bring the cab's <b>Low cut</b> up to 80\u2013100 Hz.</p>" },
+    { x: 36.2, y: 95.5, title: "Metronome", body: "<p>A click to practise against. It is not in your signal at all \u2014 it is added to the output after everything, so the <b>power</b> switch, the <b>tuner</b>'s mute and <b>bypassed</b> all leave it running.</p><p>The accent is the same sound a fifth up rather than a louder one, so it marks the bar without jumping out.</p>" },
+    { x: 60.5, y: 95.5, title: "Tempo, bar and sound", body: "<ul><li><b>BPM</b>: 40 to 240. <b>Used only when there is no transport to follow</b> \u2014 in a host, the click locks to your project's tempo and bar lines instead, and this control does nothing.</li><li><b>The bar</b>: 2/4 to 7/4. The beat is a quarter note in every case; what changes is where the accent falls.</li><li><b>The sound</b>: <b>Beep</b> is a clean tone that carries through a loud amp, <b>Wood</b> is a block, <b>Click</b> is short and bright.</li></ul>" },
+    { x: 81.2, y: 95.5, title: "Click level", body: "<p>\u221240 to 0 dB, at \u221214 by default. Set it against your playing level rather than up loud \u2014 a click you have to listen for is one you play with, and one you cannot avoid is one you fight.</p>" },
     { x: 8.7, y: 13.6, title: "Pages", body: "<p><b>AMP</b> is the head and its five controls, <b>PEDALS</b> is the board, <b>CAB</b> is the cabinet and the mic position.</p><p>The preset, the size, the tuner and the bypass are global, so they stay in the bar above rather than living on a page.</p>" }
   ];
 
@@ -519,6 +542,17 @@
       </ol>
       <p>A preset holds everything: the controls, the MIDI map, and the paths of the model and the cabs.</p>
       <div class="tip">Anything a preset leaves empty keeps what is already loaded. So a preset saved with no model or cab will not unload your amp when you recall it — which is also what lets a preset survive being sent to someone whose models live somewhere else.</div>` },
+    { id: "practise", label: "Practise", image: "amp.png", caption: "The bottom shelf: what you play against, rather than what you play through.",
+      html: `<h3>Practise against a click, in another key</h3>
+      <ol>
+        <li>Switch <b>metronome</b> on in the bottom shelf. In a host it locks to your project's tempo and bar lines; in the standalone, set the <b>BPM</b> stepper.</li>
+        <li>Choose the bar \u2014 2/4 up to 7/4 \u2014 and a sound. <b>Beep</b> carries through a loud amp best; <b>Wood</b> and <b>Click</b> sit further back.</li>
+        <li>Set the level against your playing rather than up loud. \u221214 dB is a starting point.</li>
+        <li>To play along with a record in another key, switch <b>transpose</b> on and step the interval. Your guitar stays where it is \u2014 the <b>tuner</b> taps in ahead of the shifter, so it still reads your strings.</li>
+      </ol>
+      <p>The click survives everything that silences the amp: <b>power</b> off, the tuner's mute, and <b>bypassed</b>. It is a practice tool rather than part of the rig.</p>
+      <div class="tip">It is silent in an offline bounce, so it will never be printed into a render by accident. <b>Recording live through an armed track does capture it</b> \u2014 switch it off before a take.</div>` },
+
     { id: "power", label: "Power and bypass", image: "amp-off.png", caption: "Switched off: the lamp is dark and the front of the head goes with it, while the plate stays readable.",
       html: `<h3>Power, bypass and silence</h3>
       <ol>

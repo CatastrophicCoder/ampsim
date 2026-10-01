@@ -18,6 +18,14 @@ namespace
     constexpr int margin      = 16;
     constexpr int tabWidth    = 104;
 
+    // The shelf holds three groups: what your signal is transposed by, what you play against, and
+    // the window's own size. The paint draws a hairline in each gap and the layout leaves it, so
+    // both need the widths — which is why they are here rather than buried in either.
+    constexpr int transposeGroupWidth = 96 + 4 + 92;
+    constexpr int metronomeGroupWidth = 104 + 6 + 98 + 8 + 52 + 6 + 70 + 8 + 102;
+    constexpr int shelfGroupGap = 22;
+    constexpr int scaleWidth = 58;
+
     constexpr int wordmarkWidth = 96;
     constexpr int presetWidth   = 244;
 
@@ -58,6 +66,31 @@ void TabButton::paintButton (juce::Graphics& g, bool shouldDrawButtonAsHighlight
 }
 
 //==============================================================================
+AmpSimAudioProcessorEditor::ChoiceButton::ChoiceButton (juce::AudioProcessorValueTreeState& state,
+                                                       const juce::String& parameterID)
+    : parameter (*dynamic_cast<juce::AudioParameterChoice*> (state.getParameter (parameterID))),
+      attachment (parameter, [this] (float) { setButtonText (parameter.getCurrentValueAsText()); })
+{
+    onClick = [this] { showMenu(); };
+    attachment.sendInitialUpdate();
+}
+
+void AmpSimAudioProcessorEditor::ChoiceButton::showMenu()
+{
+    juce::PopupMenu menu;
+
+    for (int i = 0; i < parameter.choices.size(); ++i)
+        menu.addItem (i + 1, parameter.choices[i], true, i == parameter.getIndex());
+
+    menu.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (*this),
+                        [this] (int result)
+                        {
+                            if (result > 0)
+                                attachment.setValueAsCompleteGesture ((float) (result - 1));
+                        });
+}
+
+//==============================================================================
 AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
     : AudioProcessorEditor (&p),
       processorRef (p),
@@ -66,6 +99,11 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
       bypassAttachment (p.getValueTreeState(), ParamID::bypass, bypassButton),
       transposeAttachment (p.getValueTreeState(), ParamID::transposeOn, transposeButton),
       semitonesAttachment (p.getValueTreeState(), ParamID::transposeSemitones, semitonesSlider),
+      metronomeAttachment (p.getValueTreeState(), ParamID::metronomeOn, metronomeButton),
+      tempoAttachment (p.getValueTreeState(), ParamID::metronomeTempo, tempoSlider),
+      beatsButton (p.getValueTreeState(), ParamID::metronomeBeats),
+      soundButton (p.getValueTreeState(), ParamID::metronomeSound),
+      metronomeLevelAttachment (p.getValueTreeState(), ParamID::metronomeLevel, metronomeLevelSlider),
       ampPage (p),
       pedalsPage (p.getValueTreeState()),
       cabPage (p)
@@ -92,19 +130,34 @@ AmpSimAudioProcessorEditor::AmpSimAudioProcessorEditor (AmpSimAudioProcessor& p)
     transposeButton.setColour (juce::ToggleButton::tickColourId, AmpPalette::engaged);
     panel.addAndMakeVisible (transposeButton);
 
-    // Two buttons and a reading rather than a knob: an interval is a count, and a count is
-    // easier to step than to aim at.
-    semitonesSlider.setSliderStyle (juce::Slider::IncDecButtons);
-    semitonesSlider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, 46, 22);
-    semitonesSlider.setIncDecButtonsMode (juce::Slider::incDecButtonsDraggable_Vertical);
-    semitonesSlider.setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
-    semitonesSlider.setColour (juce::Slider::textBoxBackgroundColourId, AmpPalette::recess);
-    semitonesSlider.setColour (juce::Slider::textBoxTextColourId, AmpPalette::text);
-    semitonesSlider.onContextMenu = [this] (const juce::String& id, juce::Component& source)
+    // Two buttons and a reading rather than a knob: an interval, a tempo and a level in decibels
+    // are all counts, and a count is easier to step than to aim at. Every reading on the shelf
+    // carries its own unit, which is why nothing down here needs a caption over it.
+    const auto prepareStepper = [this] (ParameterSlider& slider, int textWidth)
     {
-        showParameterMenu (id, source);
+        slider.setSliderStyle (juce::Slider::IncDecButtons);
+        slider.setTextBoxStyle (juce::Slider::TextBoxLeft, false, textWidth, 22);
+        slider.setIncDecButtonsMode (juce::Slider::incDecButtonsDraggable_Vertical);
+        slider.setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack);
+        slider.setColour (juce::Slider::textBoxBackgroundColourId, AmpPalette::recess);
+        slider.setColour (juce::Slider::textBoxTextColourId, AmpPalette::text);
+        slider.onContextMenu = [this] (const juce::String& id, juce::Component& source)
+        {
+            showParameterMenu (id, source);
+        };
+        panel.addAndMakeVisible (slider);
     };
-    panel.addAndMakeVisible (semitonesSlider);
+
+    prepareStepper (semitonesSlider, 52);
+    prepareStepper (tempoSlider, 64);
+    prepareStepper (metronomeLevelSlider, 68);
+
+    // Amber rather than green: a click is not in your signal, it is something you play against.
+    metronomeButton.setColour (juce::ToggleButton::tickColourId, AmpPalette::value);
+    panel.addAndMakeVisible (metronomeButton);
+
+    panel.addAndMakeVisible (beatsButton);
+    panel.addAndMakeVisible (soundButton);
 
     TabButton* tabs[] { &ampTab, &pedalsTab, &cabTab };
 
@@ -313,10 +366,15 @@ void AmpSimAudioProcessorEditor::paintPanel (juce::Graphics& g)
     g.drawLine ((float) shelf.getX(), (float) shelf.getY(),
                 (float) shelf.getRight(), (float) shelf.getY(), 1.0f);
 
-    g.setFont (AmpLookAndFeel::font (10.0f, true).withExtraKerningFactor (0.1f));
-    g.setColour (AmpPalette::textFaint);
-    g.drawText ("SEMITONES", shelf.withTrimmedLeft (margin + 214).withWidth (110),
-                juce::Justification::centredLeft, false);
+    // A hairline in each gap. Without them the shelf reads as one row of eight unrelated controls,
+    // and the metronome's level ends up looking like it belongs to the window's scale.
+    const auto first = (float) (margin + transposeGroupWidth + shelfGroupGap / 2);
+    const auto second = first + (float) (shelfGroupGap + metronomeGroupWidth);
+
+    g.setColour (AmpPalette::hairline);
+
+    for (const auto x : { first, second })
+        g.drawLine (x, (float) shelf.getY() + 11.0f, x, (float) shelf.getBottom() - 11.0f, 1.0f);
 
     g.setColour (AmpPalette::surface);
     g.fillRect (area);
@@ -358,10 +416,22 @@ void AmpSimAudioProcessorEditor::layOutPanel()
 
     auto shelf = area.removeFromBottom (shelfHeight).reduced (margin, 0);
 
-    transposeButton.setBounds (shelf.removeFromLeft (104).withSizeKeepingCentre (104, 22));
-    shelf.removeFromLeft (6);
-    semitonesSlider.setBounds (shelf.removeFromLeft (92).withSizeKeepingCentre (92, 24));
-    scaleButton.setBounds (shelf.removeFromRight (58).withSizeKeepingCentre (58, 24));
+    const auto place = [&shelf] (juce::Component& c, int width, int height, int gapAfter)
+    {
+        c.setBounds (shelf.removeFromLeft (width).withSizeKeepingCentre (width, height));
+        shelf.removeFromLeft (gapAfter);
+    };
+
+    place (transposeButton, 96, 22, 4);
+    place (semitonesSlider, 92, 24, shelfGroupGap);
+
+    place (metronomeButton, 104, 22, 6);
+    place (tempoSlider, 98, 24, 8);
+    place (beatsButton, 52, 24, 6);
+    place (soundButton, 70, 24, 8);
+    place (metronomeLevelSlider, 102, 24, 0);
+
+    scaleButton.setBounds (shelf.removeFromRight (scaleWidth).withSizeKeepingCentre (scaleWidth, 24));
 
     auto tabs = area.removeFromTop (tabHeight).withTrimmedLeft (margin);
     ampTab.setBounds (tabs.removeFromLeft (tabWidth));

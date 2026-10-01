@@ -123,6 +123,26 @@ told, which a guitar needs, and it does not smear a pick attack the way an FFT-b
 - **The tuner taps ahead of it**, so it goes on reading the strings. Tuning to a transposed reading
   would put the guitar out, and `tests/TransposeTests.cpp` keeps the two in that order.
 
+**The metronome is added after everything, including the bypass.** `Metronome` is not in the
+signal chain at all — `AmpSimAudioProcessor::addMetronome` writes it into the output buffer once
+the chain has finished, and again on the early return the fully-bypassed path takes.
+
+- **Everything that silences the amp leaves the click going**: the power switch, the tuner's mute
+  and the plugin's own bypass. It is a practice tool rather than part of the rig, and a click that
+  stopped when you muted to tune would be the wrong tool. `tests/MetronomeTests.cpp` asserts this
+  against all three.
+- **It is silent in an offline render**, which `isNonRealtime()` is what distinguishes. A bounce
+  with a click track printed into it is nobody's intention, and this is the only place in the
+  plugin where the two cases differ.
+- **It follows the host's grid when the host is playing**, from `AudioPlayHead::PositionInfo`'s
+  `ppqPosition`, so the clicks land on the host's bar lines rather than drifting against them. The
+  tempo parameter is used only when there is no transport to follow, which in practice means the
+  standalone.
+- The accent is the same sound a fifth up rather than a louder one, so the bar reads as a bar in
+  a mix. It is also somewhat louder, which is what a test can measure — but measure it against a
+  threshold *between* the two levels, not just under the loudest: where a sine's own peak lands
+  inside a 14 ms decay varies enough that the accented clicks are not all the same height.
+
 **NAM registers its architectures with file-scope statics**, so `nam_core` must be linked with
 `$<LINK_LIBRARY:WHOLE_ARCHIVE,...>` (the `NAM_CORE_WHOLE` variable). A normal static link drops those
 translation units and every model fails with "No config parser registered for architecture".
@@ -146,11 +166,27 @@ Nothing uses an image asset; everything is drawn.
 
 **There are two bars, and they are deliberately not alike.** The top one is what you are playing
 *through* — which preset, whether the amp is in circuit, whether you are tuning. The bottom shelf
-is what you are playing *against*: the transpose, and the panel's size, which is housekeeping. It
-is shorter than the top bar and keeps the background's colour with a hairline over it, because two
-matching bars would frame the pages and make the window look like a picture rather than a piece of
-gear. The pages between them are laid out in exactly the space they always were — the panel grew
-downwards, so nothing on a page moved.
+is what you are playing *against*: the transpose, the metronome, and the panel's size, which is
+housekeeping. It is shorter than the top bar and keeps the background's colour with a hairline
+over it, because two matching bars would frame the pages and make the window look like a picture
+rather than a piece of gear. The pages between them are laid out in exactly the space they always
+were — the panel grew downwards, so nothing on a page moved.
+
+Two things keep eight controls legible in 46 points, and both are worth holding to if anything
+else lands down there:
+
+- **Every reading on the shelf carries its own unit, so nothing needs a caption over it.** That is
+  why the transpose reads `+2 st` rather than `+2`, and why the level is a stepper reading
+  `-14.0 dB` rather than a knob — a caption costs more width than the unit does, and a knob with
+  no caption says nothing at all. It is also why the metronome's level parameter steps in 0.5 dB:
+  a stepper with a 0.1 dB step is 400 clicks wide.
+- **The groups are separated by a hairline in the gap, not by spacing alone.** `transposeGroupWidth`
+  and `metronomeGroupWidth` sit with the other layout constants because the paint and the layout
+  both need them.
+
+`AmpSimAudioProcessorEditor::ChoiceButton` is how a choice parameter gets onto the panel: the
+scale button's shape pointed at a parameter, with the choices in a `PopupMenu`. A
+`juce::ComboBox` would be the one object on the window that came out of the box.
 
 **Growing the panel moves every hotspot in the user guide.** Their positions are percentages of
 the panel's height, so a taller panel needs all of them scaled by the old height over the new one.

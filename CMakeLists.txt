@@ -81,6 +81,7 @@ target_sources(AmpSim PRIVATE
     src/PresetManager.cpp
     src/dsp/AmpModel.cpp
     src/dsp/CabSim.cpp
+    src/dsp/Metronome.cpp
     src/dsp/ToneStack.cpp
     src/dsp/Transpose.cpp
     src/dsp/Tuner.cpp

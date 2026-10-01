@@ -131,17 +131,46 @@ juce::AudioProcessorValueTreeState::ParameterLayout AmpSimAudioProcessor::create
     layout.add (std::make_unique<juce::AudioParameterBool> (
         juce::ParameterID { ParamID::transposeOn, 1 }, "Transpose", false));
 
+    layout.add (std::make_unique<juce::AudioParameterBool> (
+        juce::ParameterID { ParamID::metronomeOn, 1 }, "Metronome", false));
+
+    // Used only when there is no host tempo to follow, which in practice means the standalone.
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { ParamID::metronomeTempo, 1 }, "Metronome Tempo",
+        juce::NormalisableRange<float> { Metronome::slowestTempo, Metronome::fastestTempo, 1.0f },
+        120.0f, juce::AudioParameterFloatAttributes()
+                    .withStringFromValueFunction ([] (float value, int)
+                    {
+                        return juce::String (juce::roundToInt (value)) + " BPM";
+                    })));
+
+    // Where the accent falls. The beat is a quarter note in every case, which is what a practice
+    // click needs — a choice between 6/8 and 3/4 is a notation question, not a timing one.
+    layout.add (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID { ParamID::metronomeBeats, 1 }, "Metronome Bar",
+        juce::StringArray { "2/4", "3/4", "4/4", "5/4", "6/4", "7/4" }, 2));
+
+    layout.add (std::make_unique<juce::AudioParameterChoice> (
+        juce::ParameterID { ParamID::metronomeSound, 1 }, "Metronome Sound",
+        juce::StringArray { "Beep", "Wood", "Click" }, 1));
+
+    layout.add (std::make_unique<juce::AudioParameterFloat> (
+        juce::ParameterID { ParamID::metronomeLevel, 1 }, "Metronome Level",
+        juce::NormalisableRange<float> { -40.0f, 0.0f, 0.5f }, -14.0f, oneDecimal ("dB")));
+
     // Whole semitones, signed, so the reading says which way it has gone.
     layout.add (std::make_unique<juce::AudioParameterInt> (
         juce::ParameterID { ParamID::transposeSemitones, 1 }, "Transpose Interval",
         -Transpose::maxSemitones, Transpose::maxSemitones, 0,
         juce::AudioParameterIntAttributes().withStringFromValueFunction ([] (int value, int)
         {
+            // The unit is in the reading because the control it labels is a stepper on a crowded
+            // shelf with no room for a caption of its own.
             if (value == 0)
-                return juce::String ("0");
+                return juce::String ("0 st");
 
             return (value > 0 ? juce::String ("+") : juce::String ("-"))
-                 + juce::String (std::abs (value));
+                 + juce::String (std::abs (value)) + " st";
         })));
 
     layout.add (std::make_unique<juce::AudioParameterFloat> (
@@ -274,6 +303,7 @@ AmpSimAudioProcessor::AmpSimAudioProcessor()
     tunerParam      = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::tunerOn));
     powerParam      = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::power));
     transposeParam  = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::transposeOn));
+    metronomeParam  = dynamic_cast<juce::AudioParameterBool*>  (apvts.getParameter (ParamID::metronomeOn));
     semitonesParam  = dynamic_cast<juce::AudioParameterInt*>   (apvts.getParameter (ParamID::transposeSemitones));
     micAxisParam    = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::micAxis));
     micDistanceParam = dynamic_cast<juce::AudioParameterFloat*> (apvts.getParameter (ParamID::micDistance));
@@ -289,7 +319,8 @@ AmpSimAudioProcessor::AmpSimAudioProcessor()
              && bypassParam != nullptr && cabBypassParam != nullptr
              && bassParam != nullptr && midParam != nullptr && trebleParam != nullptr
              && tunerParam != nullptr && powerParam != nullptr
-             && transposeParam != nullptr && semitonesParam != nullptr);
+             && transposeParam != nullptr && semitonesParam != nullptr
+             && metronomeParam != nullptr);
 
     modelLoader.onFinished = [this] (ModelLoader::Result)
     {
@@ -367,6 +398,9 @@ void AmpSimAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock
                             presenceParam->get(), depthParam->get());
     toneStack.snapToTargets();   // as with the gains: do not sweep in from flat on every start
     toneStack.reset();
+
+    metronome.prepare (sampleRate, samplesPerBlock);
+    metronome.reset();
 
     transpose.prepare (sampleRate, samplesPerBlock);
     transpose.setSemitones (semitonesParam->get());
@@ -650,6 +684,11 @@ void AmpSimAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
     {
         inputGain .setGainDecibels (inputGainParam->get());
         outputGain.setGainDecibels (outputGainParam->get());
+
+        // A bypassed plugin does nothing to your guitar, but the click is not something it is
+        // doing to your guitar — it is still counting, and stopping it here would mean a bypass
+        // silenced a metronome.
+        addMetronome (buffer, numSamples);
         return;
     }
 
@@ -750,6 +789,8 @@ void AmpSimAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce:
             buffer.addFromWithRamp (ch, 0, dryBuffer.getReadPointer (ch), numSamples, startMix, endMix);
         }
     }
+
+    addMetronome (buffer, numSamples);
 }
 
 juce::AudioProcessorEditor* AmpSimAudioProcessor::createEditor()
@@ -837,6 +878,51 @@ juce::String AmpSimAudioProcessor::getCurrentPresetName() const
 void AmpSimAudioProcessor::setCurrentPresetName (const juce::String& name)
 {
     apvts.state.setProperty (StateID::presetName, name, nullptr);
+}
+
+void AmpSimAudioProcessor::addMetronome (juce::AudioBuffer<float>& buffer, int numSamples)
+{
+    // Last of all, and on purpose. The click is a practice tool rather than part of the amp, so
+    // the power switch, the tuner's mute and the plugin's own bypass all leave it going — you
+    // switched it on, and nothing but switching it off should stop it.
+    //
+    // Except one thing: a click printed into a bounce is the only way this could do real damage,
+    // and an offline render is exactly when that would happen.
+    if (! metronomeParam->get() || isNonRealtime())
+        return;
+
+    const auto value = [this] (const char* id) { return apvts.getRawParameterValue (id)->load(); };
+
+    auto tempo = value (ParamID::metronomeTempo);
+    double quarterNotes = 0.0;
+    auto* following = (const double*) nullptr;
+
+    if (auto* playHead = getPlayHead())
+    {
+        if (const auto position = playHead->getPosition())
+        {
+            // The host's grid while its transport is running, so the clicks land on its bar lines
+            // rather than near them. With it stopped, or in a standalone where there is none, the
+            // metronome counts for itself — but still at the host's tempo if it has one, since a
+            // click at the plugin's own against a project at another is worse than useless.
+            if (const auto hostBpm = position->getBpm())
+                tempo = (float) *hostBpm;
+
+            if (position->getIsPlaying())
+                if (const auto ppq = position->getPpqPosition())
+                {
+                    quarterNotes = *ppq;
+                    following = &quarterNotes;
+                }
+        }
+    }
+
+    metronome.setParameters (tempo,
+                             (int) value (ParamID::metronomeBeats) + 2,
+                             (Metronome::Sound) (int) value (ParamID::metronomeSound),
+                             value (ParamID::metronomeLevel));
+
+    metronome.addTo (buffer, numSamples, following);
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

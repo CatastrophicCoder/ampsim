@@ -17,6 +17,7 @@
 #include "dsp/CabSim.h"
 #include "dsp/PedalChain.h"
 #include "dsp/ToneStack.h"
+#include "dsp/Metronome.h"
 #include "dsp/Transpose.h"
 #include "dsp/Tuner.h"
 
@@ -48,6 +49,13 @@ namespace ParamID
     // Retuning the instrument, at the very front of the chain. See Transpose.
     inline constexpr const char* transposeOn        = "transposeOn";
     inline constexpr const char* transposeSemitones = "transposeSemitones";
+
+    // The click, which is a practice tool rather than part of the amp. See Metronome.
+    inline constexpr const char* metronomeOn    = "metronomeOn";
+    inline constexpr const char* metronomeTempo = "metronomeTempo";
+    inline constexpr const char* metronomeBeats = "metronomeBeats";
+    inline constexpr const char* metronomeSound = "metronomeSound";
+    inline constexpr const char* metronomeLevel = "metronomeLevel";
     // The amp's own power switch. An amp with no power makes no sound, so this mutes rather than
     // passing the signal through — which is what `bypass` is for.
     inline constexpr const char* power      = "power";
@@ -255,6 +263,9 @@ private:
         the division control is set to. */
     float currentDelaySeconds() const;
 
+    /** The click, added after everything else. */
+    void addMetronome (juce::AudioBuffer<float>&, int numSamples);
+
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
 
     juce::AudioProcessorValueTreeState apvts;
@@ -271,6 +282,7 @@ private:
     juce::AudioParameterBool*  powerParam      = nullptr;
     juce::AudioParameterBool*  transposeParam  = nullptr;
     juce::AudioParameterInt*   semitonesParam  = nullptr;
+    juce::AudioParameterBool*  metronomeParam  = nullptr;
     juce::AudioParameterFloat* presenceParam = nullptr;
     juce::AudioParameterFloat* depthParam = nullptr;
     juce::AudioParameterFloat* cabLowCutParam = nullptr;
@@ -292,6 +304,7 @@ private:
     MidiLearn midiLearn { apvts };
     ToneStack toneStack;
     Transpose transpose;
+    Metronome metronome;
     Tuner tuner;
 
     // A tuner pedal mutes while you use it, so you can tune without the room hearing it.

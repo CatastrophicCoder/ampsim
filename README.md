@@ -28,19 +28,26 @@ capture on its own does not give you — an amp's controls, a cabinet, a pedalbo
 real rig is plugged up, and a tuner.
 
 It is deliberately small. There is one amp model at a time, one cabinet, six pedals, and no attempt
-at a channel switcher, a rack, or a library of tones.
+at a channel switcher, a rack, or a library of tones. On top of that sit the things a practice rig
+needs rather than a recording one: a tuner, a transpose and a metronome.
 
 ## The signal chain
 
 ```
-compressor → drive → Gain → NAM model → Bass/Mid/Treble → Master
-           → gate → chorus → delay → reverb → cabinet IR
+transpose → compressor → drive → Gain → NAM model → Bass/Mid/Treble → Master
+          → gate → chorus → delay → reverb → cabinet IR
 ```
 
 The gate is the odd one out: it measures the guitar at the very front and closes on the other side
 of the amp. A gate only in front cannot remove hiss the amp itself makes, and a gate only behind it
 has no dynamics left to trigger on — which is why hardware gates for high-gain rigs have a key
 input, and why this one works the same way.
+
+A shelf along the bottom of the panel holds what you play *against* rather than what you play
+through: a **transpose** of up to an octave either way, at the very front of the chain with the
+tuner tapping in ahead of it so it still reads your strings, and a **metronome** that is added to
+the output after everything — the power switch, the tuner's mute and the plugin's own bypass all
+leave it running, and it is silent in an offline bounce.
 
 Mono from end to end, because a guitar amp is and a NAM capture is; a stereo input is summed in at
 the top. The placement is fixed rather than user-reorderable, because it is the point: a drive
