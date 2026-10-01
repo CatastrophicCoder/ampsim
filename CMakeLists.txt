@@ -53,7 +53,13 @@ juce_add_plugin(AmpSim
     PLUGIN_CODE                 Amp1          # unique per plugin; change if you ship a second one
     FORMATS                     AU VST3 Standalone
     IS_SYNTH                    FALSE
-    NEEDS_MIDI_INPUT            TRUE          # for CC control of the parameters
+    # FALSE, which makes the AU an `aufx` effect rather than an `aumf` music effect. An aumf in
+    # Logic goes in an instrument track's instrument slot and takes its audio from a side chain,
+    # so inserted the way anyone would insert an amp sim it is handed silence. The cost is the
+    # VST3's event input bus, and with it MIDI learn in VST3 hosts; the standalone keeps MIDI
+    # either way, because StandalonePluginHolder routes it through AudioProcessorPlayer rather
+    # than through this flag.
+    NEEDS_MIDI_INPUT            FALSE
 
     # Without this the standalone has no NSMicrophoneUsageDescription, and macOS denies it audio
     # input without ever asking — the app opens, the device appears, and nothing comes in. The

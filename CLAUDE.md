@@ -354,6 +354,15 @@ normalises each IR independently, which is the thing to avoid here.
   one rule worth knowing: `applyPresetState` carries over the current model and IR paths wherever
   the preset has none, so a preset that only sets the controls does not unload the amp. The
   directory is a constructor argument so tests never write into the user's own.
+- **`MidiLearn`** only ever sees MIDI in the standalone now. `NEEDS_MIDI_INPUT` is `FALSE`, which
+  is what makes the AU an `aufx` effect instead of an `aumf` music effect — an `aumf` in Logic goes
+  in an instrument track's instrument slot and takes its audio from a *side chain*, so inserted the
+  way anyone inserts an amp sim it is handed silence. That flag also guards the VST3's event input
+  bus, so the VST3 no longer receives MIDI either. The standalone is unaffected:
+  `StandalonePluginHolder` adds the MIDI callback unconditionally and `AudioProcessorPlayer` never
+  consults `acceptsMidi()`, which is why that still returns `true`. **In Logic, use its own
+  Controller Assignments (Cmd-L) instead** — they map any plugin's parameters without the plugin
+  declaring MIDI at all.
 - **`MidiLearn`** reads its map on the audio thread through an array of atomics, and **never writes
   it there** — learning sets an atomic that the message thread commits to the ValueTree, because a
   ValueTree may only be touched from one thread.
@@ -518,7 +527,7 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 cmake --build build                            # all three formats
 cmake --build build --target AmpSim_Standalone # AmpSim_AU, AmpSim_VST3 likewise
 
-auval -v aumf Amp1 Ctcd                        # AU; plugin code Amp1, manufacturer Ctcd
+auval -v aufx Amp1 Ctcd                        # AU; plugin code Amp1, manufacturer Ctcd
 /Applications/pluginval.app/Contents/MacOS/pluginval --strictness-level 5 \
     --validate build/AmpSim_artefacts/Debug/VST3/AmpSim.vst3
 ```

@@ -67,7 +67,7 @@ it so the repeats are of the already-distorted tone.
 Ready-made packages are on the [releases page](https://github.com/CatastrophicCoder/ampsim/releases).
 The `.pkg` installs the AU and VST3 into `/Library/Audio/Plug-Ins/` and the standalone app into
 `/Applications`; the `.dmg` holds just the app. In Logic the plugin appears as
-**Catastrophic Audio: AmpSim**, under MIDI-controlled effects.
+**Catastrophic Audio: AmpSim**, with the other amps and distortion plugins.
 
 To build your own:
 
@@ -172,13 +172,17 @@ a real impulse, whether switching a pedal introduces a discontinuity the pedal d
 make — which is the layer plugin validators never look at. `-DAMPSIM_BUILD_TESTS=OFF` skips them.
 
 ```sh
-auval -v aumf Amp1 Ctcd
+auval -v aufx Amp1 Ctcd
 /Applications/pluginval.app/Contents/MacOS/pluginval --strictness-level 10 \
     --validate build/AmpSim_artefacts/Debug/VST3/AmpSim.vst3
 ```
 
-Both pass. The AU is type `aumf`, a music effect rather than `aufx`, because it accepts MIDI for
-controller mapping — in Logic that puts it under MIDI-controlled effects.
+Both pass. The AU is type `aufx`, an ordinary effect, so it inserts on an audio track like any
+other amp sim. It was `aumf` — a music effect — because it declared a MIDI input for controller
+mapping, and in Logic that puts a plugin in an instrument track's instrument slot where its audio
+comes from a *side chain*: inserted the obvious way it was handed silence. **MIDI learn therefore
+works in the standalone only.** In Logic, use its own Controller Assignments (Cmd-L), which map any
+plugin's parameters.
 
 CI runs all of this on every push: a Release build, the test suite, both validators, and the
 packaging script, with the installer and disk image uploaded as artefacts. See
