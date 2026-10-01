@@ -83,6 +83,20 @@ first launch until the person goes to **System Settings → Privacy & Security**
 Anyway**. [`packaging/README.md`](packaging/README.md) covers that, what ad-hoc signing does and
 does not do, and what would change with a Developer ID.
 
+### Cutting a release
+
+CI builds, tests, validates and packages every push. A `v*` tag does the same and then publishes a
+GitHub Release with the installer and disk image attached:
+
+```sh
+# bump project(AmpSim VERSION ...) in CMakeLists.txt first, and commit it
+git tag -a v0.2.0 -m "AmpSim 0.2.0"
+git push origin v0.2.0
+```
+
+The tag must match the version in `CMakeLists.txt`; if it does not, the run fails rather than
+publishing something misnamed.
+
 ## Using it
 
 The **[user guide](https://catastrophiccoder.github.io/ampsim/)** is the place to start: an

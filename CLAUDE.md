@@ -545,6 +545,19 @@ by reverting the fix, not by assuming.
 `COPY_PLUGIN_AFTER_BUILD` is on, so every build installs into `~/Library/Audio/Plug-Ins/`. Use
 `-DCMAKE_BUILD_TYPE=Release` for anything judged by ear or by CPU load.
 
+**CI builds, tests, validates and packages every push and PR; a `v*` tag does all of that and then
+publishes a GitHub Release with the `.pkg` and the `.dmg`.** The tag has to match the version in
+`CMakeLists.txt` or the run fails before it publishes — the workflow reads it with the same `sed`
+expression `packaging/package.sh` uses, so the release and the files in it cannot disagree about
+what version they are. To cut a release: bump `project(AmpSim VERSION ...)`, commit, then
+
+```bash
+git tag -a v0.2.0 -m "AmpSim 0.2.0" && git push origin v0.2.0
+```
+
+The runner is `macos-latest`, which is Apple silicon, and nothing sets `CMAKE_OSX_ARCHITECTURES`,
+so the published build is arm64 against a deployment target of macOS 11.
+
 ## What it costs
 
 `tools/Benchmark.cpp` runs the real processor through two seconds of audio per pass and reports the
