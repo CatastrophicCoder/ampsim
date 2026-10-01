@@ -4,6 +4,21 @@ An assessment of every block in the chain except the NAM model and the cabinet I
 against what comparable products do and what the literature says. Nothing here is agreed work —
 [`roadmap.md`](roadmap.md) is for that. This is the material for deciding.
 
+> **This is a snapshot, not a current description of the plugin.** It was written before any of it
+> was acted on, and the sections below still describe the chain as it was then. Several of the
+> faults it reports have since been fixed, so do not read a finding here as a live defect — check
+> the code or `roadmap.md` first.
+>
+> **Built since:** 1.1 and 2.1 (the model's loudness calibration), 1.2 and 2.6 (the keyed gate),
+> 1.3 (the reverb's mix, which now adds wet over a fixed dry rather than crossfading), 1.4 and 2.4
+> (the drive's pre-clipping high pass), 2.2 (Presence and Depth), 2.5 (the cabinet's low and high
+> cut), and most of 2.8 (overdrive, fuzz and clean boost in the dirt slot; flanger, phaser and
+> tremolo in the modulation slot; a transpose on the bottom shelf).
+>
+> **Still open, and still as described:** 2.3 (a modelled passive tone stack — settled against,
+> see `ToneStack.h`), 2.7's second half (replacing the reverb algorithm rather than fixing its
+> mix), 2.9 (metering), and the wah and parametric EQ from 2.8.
+
 ## How each item is judged
 
 Five criteria, applied to every candidate, stated so the reasoning can be checked rather than

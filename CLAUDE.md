@@ -4,12 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-**Milestone 7 is done bar packaging.** On top of the full chain
-(`comp → drive → Gain → NAM model → Bass/Mid/Treble → Master → gate → chorus → delay → reverb → cab`,
-with the gate keyed from the guitar in front of the amp) there is a tuner, a preset system, MIDI
-controller mapping and a four-corner mic-position cabinet.
+**The milestone plan is finished and retired.** [`docs/roadmap.md`](docs/roadmap.md) replaced it and
+holds what is still open; everything that was agreed has been built. The chain is
 
-The plan's milestone 7 is now complete, installer included: `packaging/package.sh` builds Release,
+```
+transpose → comp → dirt → Gain → NAM model → Bass/Mid/Treble/Presence/Depth → Master
+          → gate → modulation → delay → reverb → cab (+ low/high cut) → power
+```
+
+with the gate keyed from the raw guitar in front of the amp, the tuner tapping in ahead of
+everything, and the metronome added to the output after all of it. Two of the six pedal positions
+are slots rather than fixed pedals. Around that there is a preset system, MIDI controller mapping,
+a four-corner mic-position cabinet, a tuner, a transpose and a metronome.
+
+Packaging is complete too: `packaging/package.sh` builds Release,
 ad-hoc signs each bundle and produces a `.pkg` and a `.dmg`. No Developer Program membership is
 needed to build or package — it buys a Developer ID certificate and notarisation, which is what
 removes the first-launch Gatekeeper dialog on someone else's Mac. `packaging/README.md` says
@@ -493,7 +501,15 @@ A **minimal** macOS guitar amp simulator plugin (JUCE, C++17), built as AU / VST
 3. **Cabinet** — a single `.wav` IR loaded into a convolution engine, with bypass. Nothing more.
 4. **Pedal section** — standard effect modules with per-pedal bypass, placed like real hardware: dirt and dynamics in front of the amp, modulation and time after it (see below).
 
-ML Sound Lab's Amped Block Letter is the yardstick the plan measures against, not a feature target. Anything outside those four parts (tuner, MIDI mapping, presets, multi-mic cabs, parametric models, Windows builds, installers) is out of scope and belongs to milestone 7 — treat proposals to add them as scope creep and say so.
+ML Sound Lab's Amped Block Letter is the yardstick the plan measures against, not a feature target.
+
+**That list is what the project was, not what it is.** The four parts are still the core, but the
+tuner, MIDI mapping, presets, the multi-mic cab, the installer, the transpose and the metronome
+were all asked for and built on top of them — and an earlier version of this file told a reader to
+treat each of those as scope creep. Do not reject a request on the strength of that list. What is
+still deliberately out: Windows and Linux builds, parametric or multi-model switching, a
+reorderable pedal chain, and anything stereo before the cab. Each has a reason recorded where it
+would be implemented, and `docs/roadmap.md` holds the rest of what is open.
 
 ## Build and validate
 
@@ -563,11 +579,13 @@ three formats. NAM Core, Eigen and nlohmann/json get added as submodules the sam
 Fixed mono signal chain, each block a self-contained `juce::dsp` processor with `prepare` / `process` / `reset`:
 
 ```
-                   ┌──────────────── the gate's key, taken from the raw guitar
-                   │
-Input → Front-of-amp pedals (comp, overdrive) → Input gain
-  → Amp model (NAM) → Tone stack + master → Gate ←┘
-  → Post-amp pedals (chorus, delay, reverb) → Cab sim (IR convolution) → Power
+            ┌──────── the tuner's tap, ahead of everything
+            │   ┌──── the gate's key, taken from the raw guitar
+            │   │
+Input → Transpose → Front-of-amp pedals (comp, dirt slot) → Input gain
+  → Amp model (NAM) → Tone stack (Bass/Mid/Treble + Presence/Depth) + Master → Gate ←┘
+  → Post-amp pedals (modulation slot, delay, reverb) → Cab sim (IR convolution + low/high cut)
+  → Power → Metronome, added to the output after the plugin's own bypass
 ```
 
 The whole chain is built. Anything added later goes in at the position the architecture gives it
@@ -593,11 +611,13 @@ A standard `.nam` capture is a snapshot of one amp setting — the knobs are *no
 | --- | --- | --- | --- |
 | Gain | `inputGain` | before the model | ±24 dB; more level in = more saturation out, which a test asserts against a real capture. Printed as 0–10 — see the panel section |
 | Bass / Mid / Treble | `bass` `mid` `treble` | after the model, before Master | ±12 dB parametric bands: low shelf 100 Hz, peak 800 Hz (Q 0.7), high shelf 3.2 kHz. **Settled** against a modelled passive stack — see `ToneStack.h` |
-| Master | `outputGain` | after the tone stack, before the cab | ±24 dB |
+| Master | `outputGain` | after the tone stack, before the cab | ±24 dB, printed as 0–10 like the rest of the amp's seven |
 | Cab Low/High Cut | `cabLowCut` `cabHighCut` | inside the cab, after the convolution | second order, 20 Hz–1 kHz and 1–20 kHz, skipped at their end stops |
 | Power | `power` | the end of the chain | mutes, on the same ramp as the tuner. Not `bypass`: an amp that is off makes no sound, it does not pass your guitar through. A fully bypassed plugin ignores it, because then the amp is out of the chain |
 | Presence / Depth | `presence` `depth` | with the tone bands | ±12 dB: a high shelf at 5.5 kHz and a resonant peak at 85 Hz (Q 1.1). Named after the power-amp controls they sit where, **not** a model of the mechanism — see `ToneStack.h` |
 | Model selector | — | replaces the model | `.nam` files loaded off-thread, atomic pointer swap |
+| Transpose | `transposeOn` `transposeSemitones` | the very front, after the tuner's tap | ±12 semitones, granular. On the bottom shelf, not the amp: it is not one of the amp's controls |
+| Metronome | `metronomeOn` `metronomeTempo` `metronomeBeats` `metronomeSound` `metronomeLevel` | not in the chain at all | added to the output after the bypass. On the bottom shelf |
 
 The IDs `inputGain` and `outputGain` predate the Gain/Master names and are kept because a saved
 session looks parameters up by ID.
@@ -618,16 +638,19 @@ external/JUCE      pinned submodule; NAM Core, Eigen, json join it in milestone 
 external/Catch2    pinned submodule (v3.9.1)
 external/NeuralAmpModelerCore  pinned submodule (v0.5.4), with Eigen and nlohmann/json
 src/
-  PluginProcessor.h/.cpp
-  PluginEditor.h/.cpp
-  ModelLoader.h/.cpp
+  PluginProcessor.h/.cpp, PluginEditor.h/.cpp, ModelLoader.h/.cpp
+  AssetPack.h, BundledAssets.h/.cpp, MidiLearn.h/.cpp, PresetManager.h/.cpp
   dsp/AmpModel.h/.cpp, ModelResampler.h, CabSim.h/.cpp, ToneStack.h/.cpp
-  dsp/PedalChain.h/.cpp, BypassCrossfade.h, pedals/*.h
+  dsp/PedalChain.h/.cpp, BypassCrossfade.h, pedals/*.h and *.cpp
+  dsp/Transpose.h/.cpp, Metronome.h/.cpp, Tuner.h/.cpp
   ui/AmpLookAndFeel.h/.cpp, AmpKnob.h/.cpp, ParameterSlider.h
   ui/AmpPage, PedalsPage, PedalObject, CabPage, PresetRow  (.h/.cpp each)
 resources/         the packed amp model and cab IR → BinaryData
 tests/             Catch2 suites + TestHelpers.h
 tests/fixtures/    clean DI guitar recordings                (empty)
+tools/             Benchmark.cpp, behind -DAMPSIM_BUILD_TOOLS=ON
+docs/              roadmap.md, signal-chain-review.md, guide/index.html, images/
+packaging/         package.sh and its README
 ```
 
 Any empty directory left in that list is the planned layout, held by `.gitkeep`.

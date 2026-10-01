@@ -190,9 +190,11 @@
       summed in at the top and the result goes back out to both channels.</p>
     <h3>Latency</h3>
     <p>The capture runs at the rate it was trained at — usually 48 kHz — and the plugin converts in
-      and out at any other session rate, reporting about <b>220 samples at 44.1 kHz</b> for your host
-      to compensate. The drive pedal's oversampler adds <b>5 more</b>, and runs whether or not the
-      pedal is on so that the figure never changes underneath your host.</p>
+      and out at any other session rate, reporting the delay for your host to compensate: about
+      <b>221 samples at 44.1 kHz</b>, <b>343 at 88.2</b> and <b>364 at 96</b>. At 48 kHz there is no
+      conversion and so none of this. The drive pedal's oversampler adds <b>5 more</b> at every rate,
+      and runs whether or not the pedal is on so that the figure never changes underneath your
+      host.</p>
     <p>The <b>transpose</b> adds about <b>25 ms</b> while it is engaged, and that one is <em>not</em>
       reported — it varies with where the shifter is in its cycle, so there is no single honest
       figure to give. Anything recorded through an engaged transpose will be late by roughly that
@@ -386,7 +388,7 @@
     { x: 35.1, y: 92.0, title: "Metronome", body: "<p>A click to practise against. It is not in your signal at all \u2014 it is added to the output after everything, so the <b>power</b> switch, the <b>tuner</b>'s mute and <b>bypassed</b> all leave it running.</p><p>The accent is the same sound a fifth up rather than a louder one, so it marks the bar without jumping out.</p>" },
     { x: 57.9, y: 92.0, title: "Tempo, bar and sound", body: "<ul><li><b>BPM</b>: 40 to 240, and it is the <b>quarter note</b>, as it is in every host. So the bar decides how fast the clicks come: an /8 bar clicks eighths and so clicks twice as often at the same setting, and cut time clicks halves and so clicks half as often. <b>Used only when there is no transport to follow</b> \u2014 in a host the click locks to your project's tempo and bar lines instead, and this control does nothing.</li><li><b>The bar</b>: 2/4, 3/4, 4/4, 5/4, 6/4, 7/4, cut time (2/2), and the eighth-note bars 3/8, 6/8, 7/8, 9/8 and 12/8.</li><li><b>The sound</b>: <b>Beep</b> is a clean tone that carries through a loud amp, <b>Wood</b> is a block, <b>Click</b> is short and bright.</li></ul>" },
     { x: 78.2, y: 92.0, title: "Click level", body: "<p>\u221240 to 0 dB, at \u221214 by default. Set it against your playing level rather than up loud \u2014 a click you have to listen for is one you play with, and one you cannot avoid is one you fight.</p>" },
-    { x: 8.7, y: 12.6, title: "Pages", body: "<p><b>AMP</b> is the head and its five controls, <b>PEDALS</b> is the board, <b>CAB</b> is the cabinet and the mic position.</p><p>The preset, the size, the tuner and the bypass are global, so they stay in the bar above rather than living on a page.</p>" }
+    { x: 8.7, y: 12.6, title: "Pages", body: "<p><b>AMP</b> is the head and its seven controls, <b>PEDALS</b> is the board, <b>CAB</b> is the cabinet and the mic position.</p><p>The preset, the tuner and the bypass are global, so they stay in the bar above rather than living on a page \u2014 and the transpose, the metronome and the window size are on the shelf along the bottom, which is the same idea the other way up: what you play <em>against</em>, rather than through.</p>" }
   ];
 
   const tours = [

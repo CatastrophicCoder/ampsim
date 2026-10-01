@@ -27,8 +27,9 @@ a `.nam` file: a neural network trained on a real amplifier. What this project a
 capture on its own does not give you — an amp's controls, a cabinet, a pedalboard in the order a
 real rig is plugged up, and a tuner.
 
-It is deliberately small. There is one amp model at a time, one cabinet, six pedals, and no attempt
-at a channel switcher, a rack, or a library of tones. On top of that sit the things a practice rig
+It is deliberately small. There is one amp model at a time, one cabinet, and six pedal positions in
+a fixed order — two of them slots that each hold one of four pedals, so twelve pedals across six
+places — with no attempt at a channel switcher, a rack, or a library of tones. On top of that sit the things a practice rig
 needs rather than a recording one: a tuner, a transpose and a metronome.
 
 ## The signal chain
