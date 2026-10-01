@@ -107,8 +107,41 @@ namespace
 
             if (plugin == nullptr) { std::cout << "    COULD NOT INSTANTIATE: " << error << "\n"; continue; }
 
-            for (const auto rate : { 44100.0, 48000.0 })
-                measure (*plugin, rate, 512, "");
+            // What the plugin says its controls are set to the moment a host loads it. A muted
+            // power switch or an engaged tuner would be silence that nothing else here explains.
+            // A hosted instance's parameters are the host's own wrappers, not ours, so they are
+            // matched by name rather than by ID.
+            std::cout << "    defaults:";
+            for (auto* param : plugin->getParameters())
+            {
+                const auto name = param->getName (32);
+
+                if (name == "Power" || name == "Bypass" || name == "Tuner" || name == "Master")
+                    std::cout << "  " << name << "=" << param->getCurrentValueAsText();
+            }
+            std::cout << "\n";
+
+            // The layouts a Logic track actually asks for. The default is stereo in and out; a
+            // mono audio track is the case nothing here had tried through a wrapper.
+            const std::pair<int, int> layouts[] { { 2, 2 }, { 1, 1 }, { 1, 2 } };
+
+            for (const auto [ins, outs] : layouts)
+            {
+                juce::AudioProcessor::BusesLayout layout;
+                layout.inputBuses .add (ins  == 1 ? juce::AudioChannelSet::mono() : juce::AudioChannelSet::stereo());
+                layout.outputBuses.add (outs == 1 ? juce::AudioChannelSet::mono() : juce::AudioChannelSet::stereo());
+
+                const auto label = juce::String (ins) + "in/" + juce::String (outs) + "out";
+
+                if (! plugin->setBusesLayout (layout))
+                {
+                    std::cout << "    " << label << "  REFUSED by the plugin\n";
+                    continue;
+                }
+
+                for (const auto rate : { 44100.0, 48000.0 })
+                    measure (*plugin, rate, 512, label);
+            }
         }
     }
 }
