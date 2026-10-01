@@ -10,20 +10,37 @@
 
 #include "Transpose.h"
 
+double Transpose::windowSecondsFor (int semitones)
+{
+    const auto ratio = std::pow (2.0, (double) semitones / 12.0);
+
+    return juce::jlimit (shortestWindowSeconds, longestWindowSeconds,
+                         windowPerUnitRate * std::abs (1.0 - ratio));
+}
+
 void Transpose::prepare (double sampleRate, int maxBlockSize)
 {
+    juce::ignoreUnused (maxBlockSize);
+
     preparedRate = sampleRate;
 
-    windowSamples = (float) (windowSeconds * sampleRate);
+    windowSamples = (float) (windowSecondsFor (pendingSemitones.load()) * sampleRate);
     searchSamples = (int) std::round (searchSeconds * sampleRate);
     matchSamples = (int) std::round (matchSeconds * sampleRate);
     crossfadeSamples = (int) std::round (crossfadeSeconds * sampleRate);
 
-    // The furthest back anything reads: a pointer a window behind, plus the jump it is looking
-    // ahead to, plus the stretch the two sides are matched over.
-    line.setMaximumDelayInSamples ((int) std::ceil (windowSamples) + 2 * searchSamples + matchSamples + 8);
-    line.prepare ({ sampleRate, (juce::uint32) maxBlockSize, 1 });
-    line.reset();
+    // The furthest back anything reads: a pointer a window behind, the jump it is looking at, and
+    // the stretch the two sides are matched over. Rounded up to a power of two so that wrapping
+    // the ring is a mask rather than a division.
+    const auto needed = (int) std::ceil (longestWindowSeconds * sampleRate) * 2 + matchSamples + 8;
+    auto size = 1;
+
+    while (size < needed)
+        size <<= 1;
+
+    history.assign ((size_t) size, 0.0f);
+    mask = size - 1;
+    writeIndex = 0;
 
     adoptInterval (pendingSemitones.load());
 
@@ -36,9 +53,33 @@ void Transpose::prepare (double sampleRate, int maxBlockSize)
 
 void Transpose::reset()
 {
-    line.reset();
-    readDelay = lowestDelay() + windowSamples * 0.5f;
+    std::fill (history.begin(), history.end(), 0.0f);
+    writeIndex = 0;
+    readDelay = windowSamples * 0.5f;
     crossfadeLeft = 0;
+}
+
+void Transpose::push (float sample)
+{
+    history[(size_t) writeIndex] = sample;
+    writeIndex = (writeIndex + 1) & mask;
+}
+
+float Transpose::atWholeSample (int delayInSamples) const
+{
+    return history[(size_t) ((writeIndex - 1 - delayInSamples) & mask)];
+}
+
+float Transpose::at (float delayInSamples) const
+{
+    const auto clamped = juce::jlimit (0.0f, (float) mask - 1.0f, delayInSamples);
+    const auto whole = (int) clamped;
+    const auto fraction = clamped - (float) whole;
+
+    const auto nearer = atWholeSample (whole);
+    const auto further = atWholeSample (whole + 1);
+
+    return nearer + fraction * (further - nearer);
 }
 
 void Transpose::setSemitones (int semitones)
@@ -50,48 +91,45 @@ void Transpose::adoptInterval (int semitones)
 {
     currentSemitones = semitones;
     rate = std::pow (2.0f, (float) semitones / 12.0f);
+    windowSamples = (float) (windowSecondsFor (semitones) * preparedRate);
 
     // Start in the middle of the travel, so there is room to move whichever way the pointer goes.
-    readDelay = lowestDelay() + windowSamples * 0.5f;
+    readDelay = windowSamples * 0.5f;
     crossfadeLeft = 0;
 }
 
-float Transpose::readAt (float delayInSamples)
+float Transpose::bestJumpFrom (float delay, int direction) const
 {
-    const auto clamped = juce::jlimit (1.0f, (float) line.getMaximumDelayInSamples() - 2.0f,
-                                       delayInSamples);
+    // How far back the signal most nearly repeats, looked for just short of a window. Both
+    // stretches being compared are already in the history, so this is an autocorrelation of what
+    // has recently been played — no pitch detection, and nothing a chord confuses.
+    //
+    // Never longer than a window, so that whichever way the pointer jumps it lands back inside
+    // its travel instead of running straight out of the other end.
+    const auto shortest = juce::jmax (1, (int) windowSamples - searchSamples);
+    const auto longest = (int) windowSamples;
+    const auto from = (int) delay;
 
-    return line.popSample (0, clamped, false);
-}
-
-float Transpose::bestJumpFrom (float delay, float direction)
-{
-    // How far back the signal most nearly repeats, looked for around a window's distance. Both
-    // stretches being compared are already in the line, so this is an autocorrelation of what has
-    // recently been played — no pitch detection, and nothing that a chord confuses.
-    const auto lowest = juce::jmax (1.0f, windowSamples - (float) searchSamples);
-    const auto highest = windowSamples + (float) searchSamples;
-
-    auto bestJump = windowSamples;
+    auto bestJump = longest;
     auto bestScore = -1.0e30f;
 
     // Coarse then fine: a period is hundreds of samples across, so stepping four at a time finds
-    // the right hill and a second pass finds its top. Whole samples throughout — a join is being
-    // matched, not measured.
+    // the right hill and a second pass finds its top. Whole samples throughout, and only every
+    // fourth one compared — a join is being matched, not measured.
     for (auto pass = 0; pass < 2; ++pass)
     {
-        const auto step = pass == 0 ? 4.0f : 1.0f;
-        const auto from = pass == 0 ? lowest : juce::jmax (lowest, bestJump - 4.0f);
-        const auto to = pass == 0 ? highest : juce::jmin (highest, bestJump + 4.0f);
+        const auto step = pass == 0 ? 4 : 1;
+        const auto first = pass == 0 ? shortest : juce::jmax (shortest, bestJump - 4);
+        const auto last = pass == 0 ? longest : juce::jmin (longest, bestJump + 4);
 
-        for (auto jump = from; jump <= to; jump += step)
+        for (auto jump = first; jump <= last; jump += step)
         {
             float product = 0.0f, energy = 0.0f;
 
-            for (int i = 0; i < matchSamples; i += 2)
+            for (int i = 0; i < matchSamples; i += 4)
             {
-                const auto here = readAt (delay + (float) i);
-                const auto there = readAt (delay + direction * jump + (float) i);
+                const auto here = atWholeSample (from + i);
+                const auto there = atWholeSample (from + direction * jump + i);
 
                 product += here * there;
                 energy += there * there;
@@ -108,7 +146,7 @@ float Transpose::bestJumpFrom (float delay, float direction)
         }
     }
 
-    return bestJump;
+    return (float) bestJump;
 }
 
 void Transpose::process (float* samples, int numSamples, bool bypassed)
@@ -152,10 +190,7 @@ void Transpose::process (float* samples, int numSamples, bool bypassed)
         intervalFade.skip (numSamples);
 
         for (int i = 0; i < numSamples; ++i)
-        {
-            line.pushSample (0, samples[i]);
-            line.popSample (0, 1.0f, true);
-        }
+            push (samples[i]);
 
         return;
     }
@@ -163,14 +198,12 @@ void Transpose::process (float* samples, int numSamples, bool bypassed)
     // out(t) = in(t - D(t)), so the frequency multiplier is 1 - D'(t): to raise the pitch the
     // delay has to shrink, and to lower it, grow.
     const auto delayStep = 1.0f - rate;
-    const auto lower = lowestDelay();
-    const auto upper = lower + windowSamples;
 
     for (int i = 0; i < numSamples; ++i)
     {
-        line.pushSample (0, samples[i]);
+        push (samples[i]);
 
-        auto out = readAt (readDelay);
+        auto out = at (readDelay);
 
         if (crossfadeLeft > 0)
         {
@@ -178,7 +211,7 @@ void Transpose::process (float* samples, int numSamples, bool bypassed)
             // than cancel. An equal-power fade would bulge where they agree.
             const auto through = 1.0f - (float) crossfadeLeft / (float) crossfadeSamples;
 
-            out = through * out + (1.0f - through) * readAt (outgoingDelay);
+            out = through * out + (1.0f - through) * at (outgoingDelay);
             outgoingDelay += delayStep;
             --crossfadeLeft;
         }
@@ -189,17 +222,15 @@ void Transpose::process (float* samples, int numSamples, bool bypassed)
 
         // The pointer has run out of room, so hand over to one a matched distance away — nearer
         // the write head if it has drifted too far from it, further if it has caught up.
-        if (readDelay > upper || readDelay < lower)
+        if (readDelay > windowSamples || readDelay < 0.0f)
         {
-            const auto direction = readDelay < lower ? 1.0f : -1.0f;
-            const auto jump = bestJumpFrom (readDelay, direction);
+            const auto direction = readDelay < 0.0f ? 1 : -1;
+            const auto jump = bestJumpFrom (juce::jlimit (0.0f, windowSamples, readDelay), direction);
 
             outgoingDelay = readDelay;
-            readDelay += direction * jump;
+            readDelay += (float) direction * jump;
             crossfadeLeft = crossfadeSamples;
         }
-
-        line.popSample (0, 1.0f, true);
     }
 
     if (action == BypassCrossfade::Action::crossfade)

@@ -56,12 +56,22 @@ public:
         holds together, and further than anyone retunes a guitar. */
     static constexpr int maxSemitones = 12;
 
-    /** How far the read pointer travels between jumps, and so how much delay this can add. */
-    static constexpr double windowSeconds = 0.025;
+    /** How far the read pointer travels between jumps, and so how much delay this can add.
 
-    /** How far either side of a window the jump is allowed to land, which has to cover a period of
-        the lowest note a guitar makes. */
-    static constexpr double searchSeconds = 0.013;
+        Shifting up moves the pointer fastest — a whole sample per sample at an octave — so it runs
+        out of room twice as often as an octave down does, and joins twice as often with it. The
+        window is stretched for those, and only those: everything from an octave down to a fifth up
+        keeps the short one and its small delay. */
+    static constexpr double shortestWindowSeconds = 0.030;
+    static constexpr double longestWindowSeconds = 0.055;
+    static constexpr double windowPerUnitRate = 0.060;
+
+    static double windowSecondsFor (int semitones);
+
+    /** How much shorter than a window the jump may be. One period of the lowest note a guitar
+        makes, which is all the room a best match needs — and never more than the window, so the
+        pointer always lands back inside its travel instead of immediately running out again. */
+    static constexpr double searchSeconds = 0.0125;
 
     /** How much signal the two sides of a join are matched over, and how long they overlap for. */
     static constexpr double matchSeconds = 0.011;
@@ -69,18 +79,26 @@ public:
 
 private:
     void adoptInterval (int semitones);
-    float readAt (float delayInSamples);
+
+    /** The input, kept as a plain ring rather than a juce::dsp::DelayLine.
+
+        The search below reads tens of thousands of samples inside the one sample a join happens
+        on, and a DelayLine's interpolated read is far too much machinery for that: at a few
+        hundred nanoseconds each it overran the block's whole deadline, which is heard as the
+        signal cutting out as soon as anything else is running. Plain indexing is a handful of
+        instructions, and the per-sample read still interpolates because that one has to.
+    */
+    void push (float sample);
+    float at (float delayInSamples) const;
+    float atWholeSample (int delayInSamples) const;
 
     /** How far to jump, chosen so that the signal most nearly repeats across the join.
         @param direction -1 when the pointer has run to the far end and must come back, +1 when it
                          has run to the near end and must go further away. */
-    float bestJumpFrom (float delay, float direction);
+    float bestJumpFrom (float delay, int direction) const;
 
-    /** The nearest the read pointer is allowed to get to the write head. Far enough that a jump
-        the other way can always be searched for without reading past it. */
-    float lowestDelay() const  { return (float) searchSamples; }
-
-    juce::dsp::DelayLine<float, juce::dsp::DelayLineInterpolationTypes::Linear> line { 8192 };
+    std::vector<float> history;
+    int writeIndex = 0, mask = 0;
 
     double preparedRate = 48000.0;
 

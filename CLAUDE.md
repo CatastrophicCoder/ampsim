@@ -93,7 +93,16 @@ told, which a guitar needs, and it does not smear a pick attack the way an FFT-b
   synchronisation; it needs no pitch detection and a chord does not confuse it.
 - **Matching the join is what keeps the window short, and the window is the delay.** An earlier
   version hid unmatched joins by making the grains long enough to swamp them, which cost up to
-  100 ms at an octave. With the joins aligned, 25 ms does for every interval.
+  100 ms at an octave. With the joins aligned, 30 ms does for everything from an octave down to a
+  fifth up; only larger upward shifts need more, because shifting up moves the pointer fastest and
+  so joins most often.
+- **The search reads tens of thousands of samples inside the one sample a join falls on**, so what
+  it reads from matters more than how much. Against a `juce::dsp::DelayLine` that was about two
+  milliseconds in a single sample — under one per cent of a core *on average*, and a dropout every
+  time, because an audio block has about ten milliseconds to do everything in and the model has
+  already spent most of it. A plain ring buffer with whole-sample indexing brought it to twenty
+  microseconds and 0.05 % of a core. **Average cost is the wrong measure for anything that happens
+  in bursts.**
 - **The jump's direction is not symmetric.** Shifting down, the pointer drifts away from the write
   head and jumps back toward it; shifting up, it catches up and jumps further away. The search has
   to look the same way the jump goes, and the pointer is kept a search-width clear of the write

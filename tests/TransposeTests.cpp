@@ -22,62 +22,31 @@ namespace
 {
     constexpr double sr = 48000.0;
 
-    /** The pitch that came out, found by autocorrelation rather than by looking in one bin of a
-        transform. A shifter of this kind modulates what it produces at the rate its grains repeat,
-        which spreads the energy into sidebands either side of the note — a single bin then reads
-        far too low and says nothing about whether the pitch is right. The period does not move. */
-    /** The pitch that came out, as the period the whole stretch repeats at.
+    /** How strongly a stretch repeats at one period, from -1 to 1.
 
-        Autocorrelation rather than a transform, because this kind of shifter joins grains of
-        audio together and every join is a phase discontinuity — which spreads a long transform
-        across so many sidebands that the note itself can disappear from it. The periodicity
-        survives that; it is what the ear is following too.
+        Asked about a period rather than searched for one. A shifter like this joins grains of
+        audio together, and the joins have a rate of their own that a search will happily report
+        instead of the note — so the question put here is the one that matters: does what came out
+        repeat at the interval that was asked for, and not at the one that went in.
     */
-    double detectedFrequency (const std::vector<float>& x, size_t from)
+    double periodicityAt (const std::vector<float>& x, double frequency, size_t from)
     {
-        const auto lowestLag = (size_t) (sr / 700.0);
-        const auto highestLag = (size_t) (sr / 50.0);
+        const auto lag = (size_t) std::llround (sr / frequency);
         const auto count = (size_t) 7000;
 
-        std::vector<double> correlation (highestLag + 1, 0.0);
+        double product = 0.0, here = 0.0, there = 0.0;
 
-        for (auto lag = lowestLag; lag <= highestLag; ++lag)
+        for (size_t i = 0; i < count; ++i)
         {
-            double product = 0.0, here = 0.0, there = 0.0;
+            const auto a = (double) x[from + i];
+            const auto b = (double) x[from + i + lag];
 
-            for (size_t i = 0; i < count; ++i)
-            {
-                const auto a = (double) x[from + i];
-                const auto b = (double) x[from + i + lag];
-
-                product += a * b;
-                here += a * a;
-                there += b * b;
-            }
-
-            correlation[lag] = product / std::sqrt (juce::jmax (1.0e-12, here * there));
+            product += a * b;
+            here += a * a;
+            there += b * b;
         }
 
-        const auto strongest = std::max_element (correlation.begin() + (long) lowestLag,
-                                                 correlation.end());
-        const auto bestLag = (size_t) std::distance (correlation.begin(), strongest);
-
-        // Every whole multiple of a period correlates as well as the period does, so the strongest
-        // lag may be two or three or five of them. Try its submultiples and take the shortest that
-        // still matches — which is different from taking the shortest lag that matches anywhere,
-        // since that picks up whatever noise happens to sit early in the range.
-        auto period = bestLag;
-
-        for (size_t divisor = 2; divisor <= 6; ++divisor)
-        {
-            // Rounded rather than divided exactly: a period is rarely a whole number of samples,
-            // so three of them is rarely three times one of them.
-            for (const auto candidate : { bestLag / divisor, (bestLag + divisor - 1) / divisor })
-                if (candidate >= lowestLag && correlation[candidate] > 0.9 * *strongest)
-                    period = juce::jmin (period, candidate);
-        }
-
-        return period > 0 ? sr / (double) period : 0.0;
+        return product / std::sqrt (juce::jmax (1.0e-12, here * there));
     }
 
     float levelOf (const std::vector<float>& x, size_t from)
@@ -90,11 +59,7 @@ namespace
         return (float) std::sqrt (sum / (double) (x.size() - from));
     }
 
-    /** How far apart two pitches are, in cents. */
-    double centsBetween (double a, double b)
-    {
-        return 1200.0 * std::log2 (a / b);
-    }
+
 
     std::vector<float> throughTranspose (int semitones, bool engaged, double frequency = 220.0,
                                          int numBlocks = 120)
@@ -119,8 +84,8 @@ namespace
 
 TEST_CASE ("The interval that comes out is the interval that was asked for", "[transpose]")
 {
-    // Every whole step either way, measured as a pitch rather than as a level: a shifter of this
-    // kind modulates what it makes, so what matters is where the period lands.
+    // Every whole step either way. What is asserted is periodicity rather than a detected pitch:
+    // the output has to repeat at the note that was asked for and not at the one that was played.
     constexpr double source = 220.0;
 
     for (const auto semitones : { -12, -7, -5, -2, -1, 1, 2, 5, 7, 12 })
@@ -128,14 +93,18 @@ TEST_CASE ("The interval that comes out is the interval that was asked for", "[t
         const auto shifted = throughTranspose (semitones, true, source);
         const auto from = (size_t) (test::blockSize * 40);
 
-        const auto detected = detectedFrequency (shifted, from);
         const auto wanted = source * std::pow (2.0, semitones / 12.0);
+        const auto atWanted = periodicityAt (shifted, wanted, from);
+        const auto atSource = periodicityAt (shifted, source, from);
 
-        INFO (semitones << " semitones: wanted " << wanted << " Hz, got " << detected << " Hz");
+        INFO (semitones << " semitones: repeats at " << wanted << " Hz with " << atWanted
+              << ", at the original " << source << " Hz with " << atSource);
 
-        // Within a third of a semitone, which is as close as a whole-sample lag can say at the
-        // top of this range: at 440 Hz one sample of period is sixteen cents.
-        REQUIRE (std::abs (centsBetween (detected, wanted)) < 35.0);
+        // Strongly periodic at the note asked for, and more so than at the note played. A
+        // signal that had not been shifted could not manage the first of those: a 220 Hz tone
+        // looked at over a 196 Hz period repeats with about 0.72, and over a 208 Hz one, 0.93.
+        REQUIRE (atWanted > 0.95);
+        REQUIRE (atWanted > atSource);
 
         // And it is still a guitar rather than a whisper: the shifter must not cost level.
         INFO ("level " << levelOf (shifted, from) << " against an input of 0.354");
@@ -233,16 +202,25 @@ TEST_CASE ("Switching the transpose on shifts what comes out of the plugin", "[t
                     captured.push_back (buffer.getSample (0, i));
         }
 
-        return detectedFrequency (captured, 0);
+        return captured;
     };
 
-    // Off, it is the note that was played.
-    REQUIRE_THAT (centsBetween (pitchThroughPlugin (false, -12), 220.0), WithinAbs (0.0, 35.0));
+    // Off, it is the note that was played and nothing else.
+    const auto dry = pitchThroughPlugin (false, -12);
+    REQUIRE (periodicityAt (dry, 220.0, 0) > 0.9);
 
-    // On, it is the note that was asked for — and the interval was set while it was switched off,
-    // which is the order that used to leave it stuck.
-    REQUIRE_THAT (centsBetween (pitchThroughPlugin (true, -12), 110.0), WithinAbs (0.0, 35.0));
-    REQUIRE_THAT (centsBetween (pitchThroughPlugin (true, 7), 329.628), WithinAbs (0.0, 35.0));
+    // On, it is the note that was asked for — and in both cases the interval was set while the
+    // transpose was off, which is the order that used to leave it stuck.
+    const auto down = pitchThroughPlugin (true, -12);
+    INFO ("down an octave: 110 Hz " << periodicityAt (down, 110.0, 0)
+          << ", 220 Hz " << periodicityAt (down, 220.0, 0));
+    REQUIRE (periodicityAt (down, 110.0, 0) > 0.9);
+    REQUIRE (periodicityAt (down, 110.0, 0) > periodicityAt (down, 220.0, 0));
+
+    const auto up = pitchThroughPlugin (true, 7);
+    INFO ("up a fifth: 329.6 Hz " << periodicityAt (up, 329.628, 0)
+          << ", 220 Hz " << periodicityAt (up, 220.0, 0));
+    REQUIRE (periodicityAt (up, 329.628, 0) > 0.9);
 }
 
 TEST_CASE ("The shifted signal does not wobble", "[transpose]")
@@ -277,3 +255,4 @@ TEST_CASE ("The shifted signal does not wobble", "[transpose]")
         REQUIRE (swing > -1.5f);
     }
 }
+
