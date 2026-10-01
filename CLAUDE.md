@@ -133,7 +133,12 @@ the chain has finished, and again on the early return the fully-bypassed path ta
   against all three.
 - **It is silent in an offline render**, which `isNonRealtime()` is what distinguishes. A bounce
   with a click track printed into it is nobody's intention, and this is the only place in the
-  plugin where the two cases differ.
+  plugin where the two cases differ. That is the only protection there is, and it is enough for
+  the cases that matter: recording a guitar onto an armed track captures the track's *input*,
+  ahead of the inserts, so the click is not on it either. What does capture it is printing this
+  plugin's output in real time — a real-time bounce, a print track, a host set to record output —
+  and nothing in a plugin can prevent that, because its output is the only place it has to put a
+  sound. The guide says so rather than the code pretending otherwise.
 - **It follows the host's grid when the host is playing**, from `AudioPlayHead::PositionInfo`'s
   `ppqPosition`, so the clicks land on the host's bar lines rather than drifting against them. The
   tempo parameter is used only when there is no transport to follow, which in practice means the

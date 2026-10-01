@@ -316,8 +316,13 @@
       makes a preset survive a move to another machine, where your models live somewhere else.</p>
 
     <h3>Will the metronome end up in my recording?</h3>
-    <p>Not in an offline bounce \u2014 the click is switched off whenever the host is rendering, so a mixdown never has one printed into it.</p>
-    <p>It <em>will</em> be captured if you record live through an armed track, because at that point it is part of the plugin's output like everything else. Switch it off before a take. There is no way for a plugin to put a click anywhere but its own output.</p>
+    <p>Usually not. There are three cases and they behave differently:</p>
+    <ul>
+      <li><b>Recording your guitar onto an armed audio track — no.</b> Hosts record what arrives at the track's input, ahead of its inserts, so what lands on disk is your dry signal. AmpSim's output, click included, is only what you are monitoring.</li>
+      <li><b>An offline bounce or export — no.</b> The click switches itself off whenever the host says it is rendering offline, so a mixdown never has one printed into it.</li>
+      <li><b>Printing the plugin's output in real time — yes.</b> A real-time bounce, a print or resample track fed from this one, a real-time freeze, or Reaper set to record output rather than input: all of those capture the plugin as it sounds, and the click is part of that. Switch it off first.</li>
+    </ul>
+    <p>The rule underneath is simple: a plugin has nowhere to put a sound except its own output, so anything that records that output records the click too.</p>
 
     <h3>The metronome ignores my BPM setting.</h3>
     <p>That is deliberate: when your host's transport is running, the click follows the host's tempo and bar lines so it lands on the project's grid rather than drifting against it. The <b>BPM</b> stepper is used only when there is nothing to follow, which in practice means the standalone.</p>
@@ -551,7 +556,7 @@
         <li>To play along with a record in another key, switch <b>transpose</b> on and step the interval. Your guitar stays where it is \u2014 the <b>tuner</b> taps in ahead of the shifter, so it still reads your strings.</li>
       </ol>
       <p>The click survives everything that silences the amp: <b>power</b> off, the tuner's mute, and <b>bypassed</b>. It is a practice tool rather than part of the rig.</p>
-      <div class="tip">It is silent in an offline bounce, so it will never be printed into a render by accident. <b>Recording live through an armed track does capture it</b> \u2014 switch it off before a take.</div>` },
+      <div class="tip">It is silent in an offline bounce, so it will never be printed into a render by accident \u2014 and recording your guitar onto an armed track captures the track's input rather than the plugin's output, so it stays off that too. What does capture it is printing the output in real time: a real-time bounce, a print track, or a host set to record output.</div>` },
 
     { id: "power", label: "Power and bypass", image: "amp-off.png", caption: "Switched off: the lamp is dark and the front of the head goes with it, while the plate stays readable.",
       html: `<h3>Power, bypass and silence</h3>
