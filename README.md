@@ -103,7 +103,8 @@ a tree that still carries the old number and the check rejects it.
 The **[user guide](https://catastrophiccoder.github.io/ampsim/)** is the place to start: an
 annotated tour of the amp, the pedalboard and the cabinet, and walkthroughs for getting a first
 sound, dialling in a tone, loading your own capture and impulse responses, using the pedals in the
-order they are in, tuning up, and putting a control on a MIDI pedal.
+order they are in, tuning up, and putting a control on a MIDI pedal in the standalone.
+[`CHANGELOG.md`](CHANGELOG.md) records what changed between published versions.
 
 Two things worth knowing before you open it:
 
@@ -213,6 +214,9 @@ assistant.
 - **The mic-position blend is unproven musically.** The interpolation is exact and tested, but
   whether it sounds like moving a microphone depends entirely on having a grid of IRs of one cab
   captured at known positions. None ship here.
+- **MIDI learn works in the standalone only.** Declaring a MIDI input made the Audio Unit a
+  MIDI-controlled effect, which Logic feeds from a side chain; the same setting carries the VST3's
+  MIDI input. In Logic, Controller Assignments (Cmd-L) map any plugin's parameters instead.
 - **Nothing is notarised**, so anyone you give a build to has to allow it through Gatekeeper.
 
 ## Licence

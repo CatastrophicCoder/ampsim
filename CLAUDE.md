@@ -17,6 +17,10 @@ everything, and the metronome added to the output after all of it. Two of the si
 are slots rather than fixed pedals. Around that there is a preset system, MIDI controller mapping,
 a four-corner mic-position cabinet, a tuner, a transpose and a metronome.
 
+**0.3.0 is the first and only published release** — 0.2.0 was withdrawn because its Audio Unit was
+silent in Logic. [`CHANGELOG.md`](CHANGELOG.md) records what each published version changed; add
+to it before tagging.
+
 Packaging is complete too: `packaging/package.sh` builds Release,
 ad-hoc signs each bundle and produces a `.pkg` and a `.dmg`. No Developer Program membership is
 needed to build or package — it buys a Developer ID certificate and notarisation, which is what
@@ -573,7 +577,8 @@ Use `-DCMAKE_BUILD_TYPE=Release` for anything judged by ear or by CPU load.
 publishes a GitHub Release with the `.pkg` and the `.dmg`.** The tag has to match the version in
 `CMakeLists.txt` or the run fails before it publishes — the workflow reads it with the same `sed`
 expression `packaging/package.sh` uses, so the release and the files in it cannot disagree about
-what version they are. To cut a release: bump `project(AmpSim VERSION ...)`, commit, then
+what version they are. To cut a release: bump `project(AmpSim VERSION ...)`, add the version's entry to `CHANGELOG.md`,
+commit and push, then
 
 ```bash
 git tag -a vX.Y.Z -m "AmpSim X.Y.Z" && git push origin vX.Y.Z   # after the version commit is pushed

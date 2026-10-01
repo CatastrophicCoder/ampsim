@@ -48,6 +48,16 @@ If it ever stops being enough, two things could be built:
   darkened. Against: it is a cosmetic correction to a real physical consequence rather than a fix
   for a fault, and at large intervals it is likely to sound applied rather than natural.
 
+### The plug-ins offer a MIDI learn that cannot work
+
+Since the Audio Unit became an ordinary effect, neither plug-in receives MIDI — but the right-click
+menu still offers **Learn a MIDI controller** in every format, and in the AU or VST3 it waits for a
+controller it will never hear. Two options, not decided:
+
+- hide the MIDI items when `wrapperType` is not the standalone, which is honest and small;
+- or show them disabled with a note pointing at the host's own controller mapping, which explains
+  where the feature went rather than making it vanish.
+
 ### Whether the pedals get names of their own
 
 The reference the board's anatomy came from gives each effect an identity — Green Mamba, Metal
@@ -196,6 +206,27 @@ The two things worth knowing if this is ever extended: a read-out can be typed i
 `valueFromString` has to be supplied alongside the `stringFromValue` or a host will take "7" as
 seven decibels; and the cab's and the pedals' controls were deliberately left in their own units,
 because a cut at 100 Hz and a delay of 320 ms are measurements rather than dial positions.
+
+### The plug-ins in a real host, and 0.3.0
+
+The first published release. Three things had to be found by running the plug-ins in hosts rather
+than by testing the processor, because every test until then drove `AmpSimAudioProcessor`
+directly and skipped the AU and VST3 wrappers entirely:
+
+- **The Audio Unit was a MIDI-controlled effect** (`aumf`), because it declared a MIDI input for
+  controller mapping. Logic puts one of those in an instrument track's instrument slot and feeds it
+  from a side chain, so on an audio track it was silent. It is an ordinary `aufx` effect now, at the
+  cost of MIDI learn in both plug-ins.
+- **A Debug build had replaced the installed plug-in.** Both build trees installed to the same
+  place; unoptimised Eigen needs about sixty times the CPU, and Logic reported an overload. Only a
+  Release build installs now.
+- **The release pipeline** publishes a GitHub Release from a `v*` tag that matches the version in
+  `CMakeLists.txt`. 0.2.0 went out through it and was withdrawn for the first reason above.
+
+`tools/HostCheck.cpp` loads the installed bundles through the real wrappers and measures level and
+CPU, and JUCE's AudioPluginHost builds from the submodule for live testing. The AU has been
+confirmed in Logic and the VST3 in AudioPluginHost with a guitar; host tempo — delay sync and the
+metronome — has only been exercised through the AU.
 
 ### How it was verified
 
