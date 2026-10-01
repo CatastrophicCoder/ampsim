@@ -527,6 +527,8 @@ cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Debug
 cmake --build build                            # all three formats
 cmake --build build --target AmpSim_Standalone # AmpSim_AU, AmpSim_VST3 likewise
 
+# auval finds the AU by registration, so it tests whatever is installed — which is only ever a
+# Release build. Build build-release first, or it validates a stale one.
 auval -v aufx Amp1 Ctcd                        # AU; plugin code Amp1, manufacturer Ctcd
 /Applications/pluginval.app/Contents/MacOS/pluginval --strictness-level 5 \
     --validate build/AmpSim_artefacts/Debug/VST3/AmpSim.vst3
@@ -551,8 +553,21 @@ fixtures: `makePreparedProcessor()`, `runConstant()` for DC through the chain, `
 A test is only worth committing if it fails when the behaviour it describes is broken — check that
 by reverting the fix, not by assuming.
 
-`COPY_PLUGIN_AFTER_BUILD` is on, so every build installs into `~/Library/Audio/Plug-Ins/`. Use
-`-DCMAKE_BUILD_TYPE=Release` for anything judged by ear or by CPU load.
+**Only a Release build installs itself into `~/Library/Audio/Plug-Ins/`.** `AMPSIM_COPY_PLUGIN`
+defaults on for Release and off otherwise, and feeds `COPY_PLUGIN_AFTER_BUILD`. It used to be on in
+both trees, both install to the same place, and whichever built last won — so running the Debug
+tests after a Release build left **a Debug AU where Logic loads it**. That looked like a heavy
+plugin rather than a misconfigured one: unoptimised Eigen runs the amp model about sixty times
+slower, the plugin needed 195 % of a core at 48 kHz, Logic reported "the audio engine was unable to
+process all required data in time", and nothing came out. The standalone was fine throughout,
+because it runs from `build-release/` directly, which is what made it hard to see.
+
+Two ways to tell a Debug plugin is installed, should it happen again: the bundle is about 45 MB
+against Release's 7.6, and a profile shows Eigen's `EIGEN_STRONG_INLINE` helpers — `madd`,
+`ploadu`, `loadLhs` — as separate stack frames, which an optimised build never has. The Debug
+plugin is still built, in `build/AmpSim_artefacts/Debug/`, for pluginval and for loading by hand.
+
+Use `-DCMAKE_BUILD_TYPE=Release` for anything judged by ear or by CPU load.
 
 **CI builds, tests, validates and packages every push and PR; a `v*` tag does all of that and then
 publishes a GitHub Release with the `.pkg` and the `.dmg`.** The tag has to match the version in

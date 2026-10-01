@@ -151,9 +151,11 @@ Without `--recursive`, or after pulling a change that moves a submodule,
 `git submodule update --init --recursive` does the same job — NAM Core has submodules of its own,
 so the recursion matters.
 
-`COPY_PLUGIN_AFTER_BUILD` is on, so a build drops the AU and VST3 into `~/Library/Audio/Plug-Ins/`.
-Use `-DCMAKE_BUILD_TYPE=Release` for anything you intend to judge by ear — a Debug build is far
-slower and says nothing useful about CPU load.
+A **Release** build installs the AU and VST3 into `~/Library/Audio/Plug-Ins/`; a Debug build does
+not, and leaves its plugins in `build/AmpSim_artefacts/Debug/`. That is deliberate: a Debug plugin
+is roughly sixty times slower, and when both installed to the same place a Debug build quietly
+replaced the one a DAW was loading. Pass `-DAMPSIM_COPY_PLUGIN=ON` to install a Debug build anyway.
+Use Release for anything you intend to judge by ear or by CPU load.
 
 JUCE is pinned on purpose: Apple toolchain and JUCE updates are a reliable source of "the build
 broke and nothing changed". Update it deliberately, in its own commit, and re-validate afterwards.

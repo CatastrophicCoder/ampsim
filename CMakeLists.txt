@@ -43,6 +43,19 @@ set(NAM_CORE_WHOLE $<LINK_LIBRARY:WHOLE_ARCHIVE,nam_core>)
 target_compile_features(nam_core PUBLIC cxx_std_20)
 set_target_properties(nam_core PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# Only a Release build installs itself into ~/Library/Audio/Plug-Ins. Both build trees used to, and
+# whichever built last won — so running the Debug tests after a Release build left a Debug AU
+# where Logic loads it. Unoptimised Eigen runs the amp model about sixty times slower: the plugin
+# needed 195 % of a core at 48 kHz, Logic reported an overload, and nothing came out. A Debug
+# plugin is still built, in build/AmpSim_artefacts/Debug, for pluginval and for loading by hand.
+# Override with -DAMPSIM_COPY_PLUGIN=ON or OFF.
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(ampsim_copy_default ON)
+else()
+    set(ampsim_copy_default OFF)
+endif()
+option(AMPSIM_COPY_PLUGIN "Install the built AU and VST3 into ~/Library/Audio/Plug-Ins" ${ampsim_copy_default})
+
 juce_add_plugin(AmpSim
     PRODUCT_NAME                "AmpSim"
     ICON_BIG                    "resources/icon-1024.png"
@@ -70,7 +83,7 @@ juce_add_plugin(AmpSim
     NEEDS_MIDI_OUTPUT           FALSE
     IS_MIDI_EFFECT              FALSE
     EDITOR_WANTS_KEYBOARD_FOCUS FALSE
-    COPY_PLUGIN_AFTER_BUILD     TRUE)         # installs AU/VST3 to ~/Library/Audio/Plug-Ins on build
+    COPY_PLUGIN_AFTER_BUILD     ${AMPSIM_COPY_PLUGIN})   # Release only by default; see above
 
 # The amp model and cabinet impulse response travel inside the binary, packed. See AssetPack.h.
 juce_add_binary_data(AmpSimAssets SOURCES

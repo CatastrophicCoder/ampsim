@@ -45,7 +45,8 @@ jobs:
       - name: Test
         run: ctest --test-dir build --output-on-failure
 
-      # And the validators: threading and state bugs that a DAW hides. COPY_PLUGIN_AFTER_BUILD has
+      # And the validators: threading and state bugs that a DAW hides. This is a Release build, so
+      # AMPSIM_COPY_PLUGIN is on by default and COPY_PLUGIN_AFTER_BUILD has
       # already put the AU where auval will find it.
       - name: Validate the Audio Unit
         run: |
