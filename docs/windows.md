@@ -268,6 +268,8 @@ has no ad-hoc signature to fall back on, so the choice is between signing and no
 | Inno Setup | Free, scriptable, and on GitHub's Windows runner images. Can offer per-user or all-users installs | One more script to maintain beside `package.sh` |
 | WiX / MSI | What enterprise deployment expects | The most work, for an audience this project does not obviously have |
 
+**Decided: Inno Setup.** The plan for it is under *Packaging with Inno Setup* below.
+
 ### Architecture
 
 x64 is the default target and covers nearly all Windows audio machines. Windows on ARM (Snapdragon
@@ -315,3 +317,115 @@ it. The guide should state the requirement too. The options that were weighed:
 
 Steps 1 to 4 are mechanical and can be done without a decision. Step 5 onward waits on the choices
 above.
+
+## Packaging with Inno Setup
+
+The plan for step 7. Nothing in it is built yet. It mirrors `packaging/package.sh` where the two
+platforms ask the same question, and says so where they differ.
+
+### What it produces
+
+`AmpSim-<version>-windows-x64-setup.exe`: one installer, built by `ISCC.exe` from a script at
+`packaging/windows/AmpSim.iss`. A `packaging/package-windows.ps1` drives it, the counterpart of
+`package.sh`: build Release, stage, run ISCC, write to `build/artefacts`. The version comes out
+of `CMakeLists.txt` with the same pattern `package.sh` and the release step use. It is passed to
+ISCC as `/DAppVersion=…`, so the installer, the file name and the tag cannot disagree. The
+`windows-latest` image ships Inno Setup 6.7.1, so CI installs nothing.
+
+### What it installs
+
+| Component | Where (all users) | Where (current user) | Selectable |
+| --- | --- | --- | --- |
+| VST3 | `{commoncf64}\VST3\AmpSim.vst3`, i.e. `C:\Program Files\Common Files\VST3` | `{localappdata}\Programs\Common\VST3\AmpSim.vst3` | yes |
+| Standalone | `{autopf}\AmpSim\AmpSim.exe`, with a Start menu entry | the same under `{autopf}`, which Inno maps to the user's own programs folder | yes |
+| Licences | `{app}\licenses\`: `LICENSE` (AGPL), `OFL-Figtree.txt`, `OFL-Jost.txt` | the same | no |
+
+Both components are on by default and each can be unticked. That is the same split the macOS
+`.pkg` offers, for the same reason: plenty of people want the plugin without the standalone.
+
+The VST3 is copied as the whole bundle directory (`Contents\x86_64-win\AmpSim.vst3`,
+`Contents\Resources\moduleinfo.json`), never as the inner file alone. VST3 hosts look for the
+bundle.
+
+The bundled amp model and cab IR are **not** the installer's business. The plugin writes them to
+`%APPDATA%\AmpSim\Bundled` on first run, as it does on macOS, and presets go beside them.
+
+### Fixed points, not decisions
+
+- **One `AppId` GUID, generated once and never changed.** Inno recognises an upgrade by it, so a
+  new version installs over the old one in place. Changing it later makes two entries in
+  *Installed apps*, the same mistake as changing a parameter ID.
+- **`ArchitecturesAllowed=x64compatible` and `ArchitecturesInstallIn64BitMode=x64compatible`.**
+  The build is x64 only. On Windows on ARM this installs the x64 build, which runs only in an x64
+  host.
+- **`CloseApplications=yes`.** A running standalone, or a host with the VST3 loaded, would
+  otherwise leave the old DLL locked and the upgrade half done.
+- **Uninstalling leaves `%APPDATA%\AmpSim` alone.** Presets are the user's work. That is also
+  what the macOS uninstall instructions do.
+- **The installer links to the source.** The AGPL obliges anyone distributing a binary to offer
+  the corresponding source. `AppURL` and the finished page point at the GitHub repository and the
+  tag, and `LICENSE` is the licence page the installer shows first.
+
+### What has to be done in the code first
+
+1. **The C++ runtime.** JUCE leaves CMake's default, the DLL runtime (`/MD`), so the standalone
+   and the VST3 need `VCRUNTIME140.dll` and its siblings. Many Windows machines have them from
+   other software, but not all, and a plugin that cannot find them fails to load in the host with
+   no useful message. There are two ways out:
+
+   | Option | For | Against |
+   | --- | --- | --- |
+   | Link the runtime statically: `CMAKE_MSVC_RUNTIME_LIBRARY` set to `MultiThreaded` | Nothing to install alongside; the usual choice for audio plugins; one line in `CMakeLists.txt` | Each binary carries its own copy, about a few hundred KB more. Every target must agree, NAM and Catch2 included, which a global setting gives |
+   | Ship and run `vc_redist.x64.exe` from the installer | The standard Microsoft route | The installer needs administrator rights for it even on a per-user install. Larger download. The redistributable has its own licence terms to follow |
+
+2. **The AVX2 check.** The build needs AVX2, and without it the plugin crashes the host, so the
+   installer must refuse first. Inno's Pascal script can call `IsProcessorFeaturePresent` from
+   `kernel32.dll` with `PF_AVX2_INSTRUCTIONS_AVAILABLE` (40) in `InitializeSetup`, and stop with a
+   message that names the requirement. **To verify:** which Windows 10 builds answer that feature
+   number at all. An older build that returns false on an AVX2 CPU would refuse a machine that
+   could run the plugin. If that turns out to matter, the fallback is a tiny helper executable,
+   built with the project, that asks `cpuid` and `xgetbv` directly and is run from the script.
+   Windows on ARM emulates x64, and whether its emulator reports AVX2 to an x64 process is a
+   second thing to check there.
+
+### Decisions still open
+
+| Decision | Options |
+| --- | --- |
+| Who it installs for | **All users only** (needs administrator rights; one VST3 location every host scans). **Per-user only** (no prompt; uses the per-user VST3 folder, which hosts that follow the VST3 spec scan, but some older hosts may not). **Ask** (`PrivilegesRequiredOverridesAllowed=dialog`; both paths have to be tested) |
+| Signing | Unchanged from *Signing and the first-launch warning* above. Inno's `SignTool` directive signs the installer and the uninstaller; the `.vst3` and `.exe` inside are signed separately, before ISCC runs. Unsigned works, with SmartScreen's warning on first run |
+| A desktop shortcut for the standalone | Off, on, or offered as a checkbox |
+
+### The release workflow
+
+At present the macOS job publishes the GitHub Release itself. With two platforms that has to
+move:
+
+- The Windows job runs `package-windows.ps1` and uploads the installer as an artefact, on every
+  run, as the macOS job does with its `.pkg` and `.dmg`.
+- A third job, `release`, runs on `v*` tags only. It needs both jobs, downloads both artefacts,
+  checks the tag against `CMakeLists.txt` once, and creates the release with all three files.
+  Moving the check and the publish there means a tag cannot publish one platform when the other
+  failed.
+- The release notes stop saying "for Macs with Apple silicon". They name both platforms and
+  their requirements: macOS 11 on Apple silicon, Windows 10 or 11 on x64 with an AVX2 CPU.
+
+### Documentation that changes with it
+
+- `packaging/README.md` gains a Windows half: SmartScreen's *More info → Run anyway* if unsigned,
+  the AVX2 requirement, where the two components went, and the Windows microphone privacy switch.
+- The user guide's install section, and its system requirements.
+- `CHANGELOG.md`: Windows support, the font change on both platforms, and the resampler fix.
+- `CLAUDE.md`: the scope line that lists Windows builds as deliberately out, the CI and release
+  description, and the packaging paragraph.
+
+### Order
+
+1. Settle the C++ runtime, and check the CI artefact on a Windows machine without the
+   redistributable (step 6 can do both).
+2. Settle who it installs for.
+3. Write `AmpSim.iss` and `package-windows.ps1`, with the AVX2 check, and build the installer in
+   CI as an artefact.
+4. Install, upgrade and uninstall it by hand in a VM. Check that REAPER finds the VST3 at
+   whichever location was chosen, and that the AVX2 check behaves.
+5. Split the release out into its own job, then tag.
