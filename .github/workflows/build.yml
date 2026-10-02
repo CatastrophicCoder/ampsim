@@ -60,29 +60,18 @@ jobs:
           ./pluginval/pluginval.exe --strictness-level 10 \
             --validate build/AmpSim_artefacts/Release/VST3/AmpSim.vst3
 
-      # An experiment, not part of the product: the benchmark alone, built with /arch:AVX2 so
-      # Eigen can use AVX2 and FMA instead of SSE2. _INIT rather than CMAKE_CXX_FLAGS, which would
-      # replace MSVC's defaults (/EHsc among them) instead of adding to them.
-      - name: Build the AVX2 benchmark
-        run: |
-          cmake -B build-avx2 -G Ninja -DCMAKE_BUILD_TYPE=Release -DAMPSIM_COPY_PLUGIN=OFF `
-            -DAMPSIM_BUILD_TOOLS=ON -DAMPSIM_BUILD_TESTS=OFF "-DCMAKE_CXX_FLAGS_INIT=/arch:AVX2"
-          if (-not (Select-String -Path build-avx2/build.ninja -Pattern '/arch:AVX2' -SimpleMatch -Quiet)) {
-            throw "/arch:AVX2 did not reach the compile lines"
-          }
-          cmake --build build-avx2 --target ampsim_bench
-
-      # Both builds on the same machine in the same job, which is the only comparison a shared
-      # runner allows: between runs the hardware changes. Interleaved default, AVX2, AVX2,
-      # default, so a runner that speeds up or slows down part-way is spread across both. 48 kHz
-      # is the model's own rate; 44.1 kHz puts the resampler in the chain. It asserts nothing.
+      # Also proves the build is AVX2: a build that lost the flag would still pass every test,
+      # and only cost more. Then the benchmark, which asserts nothing; a shared runner changes
+      # hardware between runs, so compare figures only within one job. 48 kHz is the model's own
+      # rate; 44.1 kHz puts the resampler in the chain.
       - name: Benchmark
         run: |
+          if (-not (Select-String -Path build/build.ninja -Pattern '/arch:AVX2' -SimpleMatch -Quiet)) {
+            throw "/arch:AVX2 did not reach the compile lines"
+          }
           (Get-CimInstance Win32_Processor).Name
-          "--- default (SSE2) ---";  ./build/ampsim_bench.exe 48000
-          "--- /arch:AVX2 ---";      ./build-avx2/ampsim_bench.exe 48000
-          "--- /arch:AVX2 ---";      ./build-avx2/ampsim_bench.exe 44100
-          "--- default (SSE2) ---";  ./build/ampsim_bench.exe 44100
+          ./build/ampsim_bench.exe 48000
+          ./build/ampsim_bench.exe 44100
 
       # Not an installer: the raw build, for trying by hand until packaging is decided.
       - uses: actions/upload-artifact@v4

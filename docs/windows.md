@@ -200,7 +200,12 @@ laptops) can run x64 plugins only inside an x64 host, and native ARM64 hosts nee
 Adding ARM64 later is a second CI matrix entry.
 
 Eigen on x64 defaults to SSE2. `/arch:AVX2` measured 27 to 38 % cheaper (see the benchmark above).
-Making the AMD Zen and Intel Haswell generation the minimum is the cost of that. The options:
+Making the AMD Zen and Intel Haswell generation the minimum is the cost of that.
+
+**Decided: AVX2 only.** `CMakeLists.txt` sets `/arch:AVX2` for every MSVC-style build, and the CI
+benchmark step fails if the flag goes missing. Because a CPU without AVX2 crashes the host rather
+than failing to load, the installer (step 7) should check for AVX2 and refuse to install without
+it. The guide should state the requirement too. The options that were weighed:
 
 | Option | For | Against |
 | --- | --- | --- |

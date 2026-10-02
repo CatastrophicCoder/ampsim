@@ -16,6 +16,14 @@ option(AMPSIM_BUILD_TOOLS "Build the offline measurement tools" OFF)
 # JUCE is a pinned submodule (9.0.2); see README for the update policy.
 add_subdirectory(external/JUCE)
 
+# Windows builds require AVX2. Eigen then uses AVX2 and FMA instead of SSE2, which measured 27 to
+# 38 % cheaper on the amp model; the price is a CPU from the Haswell / Zen generation onwards,
+# and a CPU without AVX2 crashes on the first such instruction rather than refusing to load. See
+# docs/windows.md. MSVC is also true for clang-cl. Before nam_core and AmpSim, so both get it.
+if(MSVC)
+    add_compile_options(/arch:AVX2)
+endif()
+
 # --- Neural Amp Modeler Core -------------------------------------------------
 # Built here rather than via NAM's own CMakeLists, which sets global compiler flags and builds
 # its tools and tests. Sources are globbed the way nam-juce does it.
