@@ -50,10 +50,14 @@ jobs:
           Invoke-WebRequest -Uri https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_Windows.zip -OutFile pluginval.zip
           Expand-Archive pluginval.zip -DestinationPath pluginval
 
+      # bash, not PowerShell: pluginval.exe is a GUI-subsystem program, and PowerShell does not
+      # wait for those. The first run returned after five seconds, mid-way through the editor
+      # tests, with a green tick that meant nothing. bash waits, and takes its exit code.
       - name: Validate the VST3
+        shell: bash
         run: |
-          .\pluginval\pluginval.exe --strictness-level 10 --validate build\AmpSim_artefacts\Release\VST3\AmpSim.vst3
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          ./pluginval/pluginval.exe --strictness-level 10 \
+            --validate build/AmpSim_artefacts/Release/VST3/AmpSim.vst3
 
       # Not an installer: the raw build, for trying by hand until packaging is decided.
       - uses: actions/upload-artifact@v4

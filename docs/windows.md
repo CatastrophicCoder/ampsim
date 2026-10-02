@@ -20,6 +20,10 @@ That is undefined behaviour. Apple silicon happens to give 0, so it never showed
 `INT_MIN`, which became a "vector too long" exception. This is fixed, and the fix has a resampler
 test that fails on macOS too. With the fix in, all 124 pass on Windows.
 
+The first pluginval run on Windows only looked like a pass. PowerShell does not wait for a
+GUI-subsystem program, and `pluginval.exe` is one, so the step returned while pluginval was still
+in the editor tests and reported success without a result. The step now runs under bash.
+
 A clean build takes about twelve minutes on the runner. Six of those are spent linking the VST3
 and the standalone, which is link-time code generation, not compiling.
 
