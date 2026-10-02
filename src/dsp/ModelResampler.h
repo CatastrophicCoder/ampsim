@@ -44,11 +44,18 @@ public:
         modelRate = modelSampleRate;
         maxHostBlock = maxHostBlockSize;
 
-        passthrough = (modelRate <= 0.0) || juce::approximatelyEqual (hostRate, modelRate);
+        // No host settings yet is a real case: the loader can prepare a model before the device
+        // is open. There is nothing to size for then, and the ratio below would be rate / 0 —
+        // whose product with a zero block is NaN, and NaN cast to int is undefined. Apple silicon
+        // happens to give 0; x64 gives INT_MIN, which became a vector of 2^64 samples. A model
+        // prepared like this is refused by AmpModel and re-prepared once the settings are known.
+        const auto hostKnown = hostRate > 0.0 && maxHostBlock > 0;
+
+        passthrough = ! hostKnown || (modelRate <= 0.0) || juce::approximatelyEqual (hostRate, modelRate);
 
         if (passthrough)
         {
-            maxModelBlock = maxHostBlockSize;
+            maxModelBlock = juce::jmax (0, maxHostBlockSize);
             reset();
             return;
         }

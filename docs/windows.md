@@ -8,6 +8,18 @@ JUCE drops a format the platform does not support from `FORMATS`, so the `juce_a
 stay as it is. Making that explicit with a platform check would be more honest for whoever reads
 it.
 
+## What the first CI build found
+
+MSVC 19.51 on `windows-latest` built the standalone, the VST3 and the tests with no source
+changes and none of the flags below. The only warnings were C4458, where a local shadows a JUCE
+member (`playHead`, `text`), and one int-to-float conversion. 122 of 123 tests passed.
+
+The failure was a real bug on every platform. `ModelResampler::prepare` divided by a host rate of
+zero when a model was prepared before the device was open, and cast the resulting NaN to `int`.
+That is undefined behaviour. Apple silicon happens to give 0, so it never showed. x64 gives
+`INT_MIN`, which became a "vector too long" exception. This is fixed, and the fix has a resampler
+test that fails on macOS too.
+
 ## What already ports without change
 
 A survey of the source for anything tied to macOS found less than expected:
