@@ -155,17 +155,21 @@ endif()
 # Off by default: these measure the plugin rather than being part of it, and only a Release build
 # of them says anything true.
 if(AMPSIM_BUILD_TOOLS)
-    # A host, not the plugin: it loads the built bundles the way Logic does, through the AU and
-    # VST3 wrappers, which is the layer every other test here skips.
-    juce_add_console_app(ampsim_hostcheck PRODUCT_NAME "ampsim_hostcheck")
-    target_sources(ampsim_hostcheck PRIVATE tools/HostCheck.cpp)
-    target_compile_definitions(ampsim_hostcheck PRIVATE
-        JUCE_PLUGINHOST_AU=1
-        JUCE_PLUGINHOST_VST3=1
-        JUCE_MODAL_LOOPS_PERMITTED=1
-        JUCE_USE_CURL=0
-        JUCE_WEB_BROWSER=0)
-    target_link_libraries(ampsim_hostcheck PRIVATE juce::juce_audio_utils)
+    # macOS only: it hosts the AU, which no other platform has, and looks for the bundles where
+    # macOS installs them.
+    if(APPLE)
+        # A host, not the plugin: it loads the built bundles the way Logic does, through the AU
+        # and VST3 wrappers, which is the layer every other test here skips.
+        juce_add_console_app(ampsim_hostcheck PRODUCT_NAME "ampsim_hostcheck")
+        target_sources(ampsim_hostcheck PRIVATE tools/HostCheck.cpp)
+        target_compile_definitions(ampsim_hostcheck PRIVATE
+            JUCE_PLUGINHOST_AU=1
+            JUCE_PLUGINHOST_VST3=1
+            JUCE_MODAL_LOOPS_PERMITTED=1
+            JUCE_USE_CURL=0
+            JUCE_WEB_BROWSER=0)
+        target_link_libraries(ampsim_hostcheck PRIVATE juce::juce_audio_utils)
+    endif()
 
     add_executable(ampsim_bench tools/Benchmark.cpp)
     target_include_directories(ampsim_bench PRIVATE ${CMAKE_SOURCE_DIR}/src)

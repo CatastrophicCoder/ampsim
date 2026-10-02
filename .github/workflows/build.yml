@@ -34,9 +34,10 @@ jobs:
           arch: x64
 
       # AMPSIM_COPY_PLUGIN off: JUCE's default VST3 destination is under Program Files, and a
-      # failed copy would end the build before it says anything about the code.
+      # failed copy would end the build before it says anything about the code. AMPSIM_BUILD_TOOLS
+      # for the benchmark below.
       - name: Configure
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DAMPSIM_COPY_PLUGIN=OFF
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DAMPSIM_COPY_PLUGIN=OFF -DAMPSIM_BUILD_TOOLS=ON
 
       - name: Build
         run: cmake --build build
@@ -58,6 +59,14 @@ jobs:
         run: |
           ./pluginval/pluginval.exe --strictness-level 10 \
             --validate build/AmpSim_artefacts/Release/VST3/AmpSim.vst3
+
+      # The first figure for NAM on x64 under MSVC. A shared runner is noisy, so read it as an
+      # order of magnitude rather than a specification; it asserts nothing and cannot fail the job
+      # on a number. 48 kHz is the model's own rate, 44.1 kHz puts the resampler in the chain.
+      - name: Benchmark
+        run: |
+          ./build/ampsim_bench.exe 48000
+          ./build/ampsim_bench.exe 44100
 
       # Not an installer: the raw build, for trying by hand until packaging is decided.
       - uses: actions/upload-artifact@v4
