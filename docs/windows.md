@@ -90,8 +90,35 @@ interleaved twice, on an M-series Mac at 48 kHz, amp + cab:
 | `NAM_ENABLE_A2_FAST` | 3.95 % (−7 %) | 2.87 % (−3 %) |
 | `NAM_USE_INLINE_GEMM` | 4.22 % (±0) | 3.46 % (+17 %) |
 
-The Windows job measures the same two options, plus clang-cl and NAM with whole-program
-optimisation, on the runner.
+### The same options, and two more, on the Windows runner
+
+Five builds ran in one job on an AMD EPYC 9V74, 48 kHz in one order and 44.1 kHz in the reverse.
+Each differs from the normal build (MSVC, AVX2) in one thing. Amp + cab, percent of one core:
+
+| | 48 kHz, 64 | 48 kHz, 512 | 44.1 kHz, 64 | 44.1 kHz, 512 |
+| --- | --- | --- | --- | --- |
+| normal | 7.34 | 5.63 | 10.19 | 8.76 |
+| `NAM_ENABLE_A2_FAST` (taken for both submodels) | 6.89 | 5.95 | 9.44 | 7.99 |
+| `NAM_USE_INLINE_GEMM` | 5.85 | 6.35 | 9.21 | 8.33 |
+| clang-cl 20.1.8 with lld-link | 7.01 | 5.01 | 9.99 | 9.61 |
+| NAM with `/GL`, every link `/LTCG` | 12.54 | 10.58 | 15.72 | 15.70 |
+
+**This run was noisy, and that limits what it can show.** In several builds the "everything on"
+row came out *cheaper* than "amp + cab". It does strictly more work, and in earlier runs it never
+did. So the runner's noise this time was about a point, roughly fifteen percent, and anything
+smaller than that is not a result:
+
+- **Whole-program optimisation of NAM is clearly worse**: 1.5 to 1.8 times the cost, at every
+  block size and both rates, far outside the noise. The cause is not known. Whatever it is, it is
+  not worth pursuing.
+- **A2, inline GEMM and clang-cl are within the noise.** A2 was lower at 44.1 kHz in both
+  columns and mixed at 48 kHz. That is the same direction as the Mac's cleaner measurement, but it
+  does not confirm it. Inline GEMM and clang-cl move both ways.
+- clang-cl built and ran without changes beyond the linker and archiver, so it is an option if a
+  later measurement favours it.
+
+Resolving differences this small would need many more interleaved repetitions per build than
+one pass at each rate, or a quiet machine of one's own.
 
 What it means for the architecture decision below: an AVX2 build is measurably cheaper. The
 price is a CPU requirement. Every Intel Core since Haswell (2013) and every AMD Zen (2017) has
