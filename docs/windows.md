@@ -49,11 +49,38 @@ What this establishes:
 - **The resampler costs about twice as much in absolute terms**: roughly four points at 44.1 kHz,
   against two on the Mac. That is the same proportion of the total, so it does not point at the
   resampler in particular.
-- **Overall the runner is three to four times the Mac.** These figures do not say why. A shared
-  cloud VM, MSVC's code generation, and Eigen limited to SSE2 (where the Mac build gets NEON with
-  fused multiply-add) would all push the same way. Telling them apart needs two builds measured
-  on the same machine in the same job, for example the default against `/arch:AVX2`, or MSVC
-  against clang-cl.
+- **Overall the runner is three to four times the Mac.** The table alone cannot say why.
+
+The figures above also show that one run cannot be compared with another. The next run's default
+build measured 10.1 % where this one measured 12.9 %, because each run gets whatever machine is
+free. That one was an AMD EPYC 9V74 (Zen 4).
+
+### SSE2 against AVX2, on the same machine
+
+The benchmark was built a second time with `/arch:AVX2`, which lets Eigen use AVX2 and FMA. Both
+builds then ran in one job, interleaved as default, AVX2, AVX2, default:
+
+| amp + cab | default (SSE2) | `/arch:AVX2` | change |
+| --- | --- | --- | --- |
+| 48 kHz, 64 samples | 10.06 % | 6.78 % | −33 % |
+| 48 kHz, 512 samples | 8.70 % | 5.38 % | −38 % |
+| 44.1 kHz, 64 samples | 13.65 % | 10.00 % | −27 % |
+| 44.1 kHz, 512 samples | 12.34 % | 8.64 % | −30 % |
+
+- **The model gains and the resampler barely does.** The cost the resampler adds (the 44.1 kHz
+  figure minus the 48 kHz one) is 3.6 points under SSE2 and 3.2 under AVX2. JUCE's windowed-sinc
+  interpolator is not vectorised the way Eigen is. So at 44.1 kHz with AVX2 the resampler is about
+  a third of the total, against about a quarter at 48 kHz.
+- **About half the gap to the Mac was the instruction set.** With AVX2 the runner is 1.8 to 1.9
+  times the Mac's cost, against three to four times without it. The rest is the machine, the
+  compiler, or both. Separating those would take a clang-cl build measured the same way.
+- **The pedals are unaffected either way**, and still add under a point together.
+
+What it means for the architecture decision below: an AVX2 build is measurably cheaper. The
+price is a CPU requirement. Every Intel Core since Haswell (2013) and every AMD Zen (2017) has
+AVX2. Some Pentium and Celeron parts lacked it for years after that. A plugin built for AVX2 and
+loaded on a CPU without it does not refuse politely: it faults on the first such instruction,
+which takes the host down with it.
 
 A clean build takes about twelve minutes on the runner. Six of those are spent linking the VST3
 and the standalone, which is link-time code generation, not compiling.
@@ -170,9 +197,17 @@ has no ad-hoc signature to fall back on, so the choice is between signing and no
 
 x64 is the default target and covers nearly all Windows audio machines. Windows on ARM (Snapdragon
 laptops) can run x64 plugins only inside an x64 host, and native ARM64 hosts need ARM64 plugins.
-Adding ARM64 later is a second CI matrix entry. Eigen's vectorisation on x64 defaults to SSE2;
-`/arch:AVX2` would be faster, but it would refuse to load on older CPUs without a runtime dispatch.
-Whether that matters depends on the benchmark below.
+Adding ARM64 later is a second CI matrix entry.
+
+Eigen on x64 defaults to SSE2. `/arch:AVX2` measured 27 to 38 % cheaper (see the benchmark above).
+Making the AMD Zen and Intel Haswell generation the minimum is the cost of that. The options:
+
+| Option | For | Against |
+| --- | --- | --- |
+| SSE2 only (the default) | Runs on any x64 CPU | The higher cost measured above |
+| AVX2 only | The lower cost, one build | On a CPU without AVX2 it crashes the host rather than failing to load. The installer could check and refuse |
+| Both, chosen by the installer | Each machine gets the build it can run | Two builds to test and ship, and an installer that inspects the CPU |
+| Runtime dispatch inside one binary | One build that uses AVX2 where it exists | NAM and Eigen compiled twice into separate namespaces and picked by `cpuid`. The most work, and it reaches into a dependency |
 
 ## Proposed order of work
 
