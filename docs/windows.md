@@ -124,7 +124,8 @@ one pass at each rate, or a quiet machine of one's own.
 is a public definition of `nam_core`. It is a second implementation of the same model, so
 `tests/ModelTests.cpp` builds each of the bundled capture's submodels both ways, from the same
 weights, and null-tests one against the other. They agree to −122 and −132 dB. The threshold is
-−100 dB, which a single weight 1 % out (−77 dB) fails. The experiment steps are gone from CI;
+−100 dB, which a single weight 1 % out (−77 dB) fails. The test also passes on the
+Windows runner (MSVC, AVX2), and the benchmark there reports the path taken for both submodels. The experiment steps are gone from CI;
 the benchmark still prints what it was built with and whether the A2 path was taken.
 
 What it means for the architecture decision below: an AVX2 build is measurably cheaper. The
