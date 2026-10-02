@@ -15,6 +15,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Build and test only: no validation, packaging or release yet. This job is here to find out
+  # what the port actually needs; docs/windows.md has the plan it is the first step of.
+  windows:
+    name: Windows (Release)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      # Puts MSVC on the PATH, so Ninja can be used the same way as on macOS rather than the
+      # multi-config Visual Studio generator.
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # AMPSIM_COPY_PLUGIN off: JUCE's default VST3 destination is under Program Files, and a
+      # failed copy would end the build before it says anything about the code.
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DAMPSIM_COPY_PLUGIN=OFF
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
   macos:
     name: macOS (Release)
     # macos-latest rather than a pinned version: GitHub retires old runner images, and a pinned

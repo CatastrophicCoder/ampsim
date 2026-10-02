@@ -10,6 +10,12 @@ agreed, which is why it is not here.
 
 ## Still to settle
 
+### Windows builds
+
+The standalone and the VST3 for Windows. [`windows.md`](windows.md) has the plan: what already
+ports, what has to change before it builds, and the decisions about fonts, ASIO, signing and the
+installer that are not technical.
+
 ### Whether to tame a downshifted tone in code
 
 A heavily downshifted distorted tone goes muddy and loses its articulation. Measured, by putting a
