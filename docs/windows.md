@@ -320,7 +320,7 @@ above.
 
 ## Packaging with Inno Setup
 
-The plan for step 7. Nothing in it is built yet. It mirrors `packaging/package.sh` where the two
+The plan for step 7. The installer script, its build script and CI's install test exist; the release job does not. It mirrors `packaging/package.sh` where the two
 platforms ask the same question, and says so where they differ.
 
 ### What it produces
@@ -388,13 +388,26 @@ The bundled amp model and cab IR are **not** the installer's business. The plugi
    Windows on ARM emulates x64, and whether its emulator reports AVX2 to an x64 process is a
    second thing to check there.
 
-### Decisions still open
+### Decided since
 
-| Decision | Options |
+- **The C++ runtime is linked statically** (`CMAKE_MSVC_RUNTIME_LIBRARY` in `CMakeLists.txt`).
+  `package-windows.ps1` runs `dumpbin /dependents` on both binaries and refuses to package one
+  that imports `VCRUNTIME`, `MSVCP` or the UCRT.
+- **The installer asks who to install for** (`PrivilegesRequired=lowest` with
+  `PrivilegesRequiredOverridesAllowed=dialog`). For one user is the default, because it needs no
+  administrator. CI installs both ways.
+- **The AVX2 check is the API, with a minimum Windows version.** Microsoft documents
+  `PF_AVX2_INSTRUCTIONS_AVAILABLE` as answered from Windows 10 version 2004 (build 19041); before
+  that it returns zero whatever the processor has. So `MinVersion=10.0.19041`, and no helper
+  executable is needed. Windows 10 releases before 2004 are long out of support.
+- **The desktop shortcut is an unticked checkbox**, Inno Setup's usual form. It is shown only
+  when the standalone is being installed.
+
+These were chosen at the time:
 | --- | --- |
-| Who it installs for | **All users only** (needs administrator rights; one VST3 location every host scans). **Per-user only** (no prompt; uses the per-user VST3 folder, which hosts that follow the VST3 spec scan, but some older hosts may not). **Ask** (`PrivilegesRequiredOverridesAllowed=dialog`; both paths have to be tested) |
+| ~~Who it installs for~~ | **All users only** (needs administrator rights; one VST3 location every host scans). **Per-user only** (no prompt; uses the per-user VST3 folder, which hosts that follow the VST3 spec scan, but some older hosts may not). **Ask** (`PrivilegesRequiredOverridesAllowed=dialog`; both paths have to be tested) |
 | Signing | Unchanged from *Signing and the first-launch warning* above. Inno's `SignTool` directive signs the installer and the uninstaller; the `.vst3` and `.exe` inside are signed separately, before ISCC runs. Unsigned works, with SmartScreen's warning on first run |
-| A desktop shortcut for the standalone | Off, on, or offered as a checkbox |
+| ~~A desktop shortcut for the standalone~~ | Off, on, or offered as a checkbox |
 
 ### The release workflow
 

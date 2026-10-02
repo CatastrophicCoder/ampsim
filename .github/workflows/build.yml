@@ -84,13 +84,59 @@ jobs:
           ./build/ampsim_bench.exe 48000
           ./build/ampsim_bench.exe 44100
 
-      # Not an installer: the raw build, for trying by hand until packaging is decided.
+      # The raw build as well as the installer, for trying by hand without installing anything.
       - uses: actions/upload-artifact@v4
         with:
           name: AmpSim-Windows
           path: |
             build/AmpSim_artefacts/Release/Standalone/AmpSim.exe
             build/AmpSim_artefacts/Release/VST3/AmpSim.vst3
+          if-no-files-found: error
+
+      # Reuses the build above, as the macOS job does; it also refuses a binary that imports the
+      # DLL C++ runtime, which nothing else here would notice.
+      - name: Package
+        run: ./packaging/package-windows.ps1 -BuildDir build
+
+      # Both ways the installer can be run, each installed twice so the second is an upgrade over
+      # the first, then uninstalled. Start-Process -Wait because the installer is a GUI program,
+      # which PowerShell otherwise does not wait for. The AVX2 refusal cannot be tested here: the
+      # runner has AVX2.
+      - name: Install, upgrade and uninstall
+        run: |
+          $setup = (Get-ChildItem build/artefacts/*-setup.exe).FullName
+          function Run($file, $arguments) {
+            $p = Start-Process -FilePath $file -ArgumentList $arguments -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw "$file $arguments exited with $($p.ExitCode)" }
+          }
+          $cases = @(
+            @{ Mode = '/ALLUSERS';    Vst3 = "$env:CommonProgramFiles\VST3\AmpSim.vst3";              App = "$env:ProgramFiles\AmpSim" },
+            @{ Mode = '/CURRENTUSER'; Vst3 = "$env:LOCALAPPDATA\Programs\Common\VST3\AmpSim.vst3"; App = "$env:LOCALAPPDATA\Programs\AmpSim" }
+          )
+          foreach ($c in $cases) {
+            "=== $($c.Mode)"
+            foreach ($pass in 'install', 'upgrade') {
+              Run $setup "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART $($c.Mode) /LOG=`"$PWD\$pass.log`""
+              foreach ($path in "$($c.Vst3)\Contents\x86_64-win\AmpSim.vst3", "$($c.App)\AmpSim.exe",
+                                "$($c.App)\licenses\LICENSE-AmpSim.txt", "$($c.App)\licenses\OFL-Jost.txt") {
+                if (-not (Test-Path $path)) { Get-Content "$pass.log" -Tail 40; throw "$pass did not install $path" }
+              }
+              "$pass ok"
+            }
+            Run "$($c.App)\unins000.exe" "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART"
+            # The uninstaller hands over to a copy of itself and exits, so wait on the files.
+            $deadline = (Get-Date).AddSeconds(60)
+            while ((Test-Path $c.Vst3) -or (Test-Path "$($c.App)\AmpSim.exe")) {
+              if ((Get-Date) -gt $deadline) { throw "$($c.Mode): still installed 60 s after uninstalling" }
+              Start-Sleep -Seconds 1
+            }
+            "uninstall ok"
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AmpSim-Windows-installer
+          path: build/artefacts/*-setup.exe
           if-no-files-found: error
 
   macos:

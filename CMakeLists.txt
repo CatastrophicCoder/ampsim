@@ -24,6 +24,13 @@ if(MSVC)
     add_compile_options(/arch:AVX2)
 endif()
 
+# The C++ runtime linked statically on Windows (/MT), so the standalone and the VST3 need nothing
+# installed beside them. CMake's default is the DLL runtime, and a plugin that cannot find
+# VCRUNTIME140.dll fails to load in the host with no useful message. A variable rather than a
+# per-target property so every target agrees, NAM and Catch2 included; mixing runtimes does not
+# link. packaging/package-windows.ps1 refuses a binary that still imports the DLL runtime.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 # --- Neural Amp Modeler Core -------------------------------------------------
 # Built here rather than via NAM's own CMakeLists, which sets global compiler flags and builds
 # its tools and tests. Sources are globbed the way nam-juce does it.

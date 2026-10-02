@@ -79,3 +79,68 @@ to it. With both, the first-launch dialog disappears. The changes would be to `p
 `codesign --sign -` calls take the certificate name and `--options runtime`, `productbuild` gains
 `--sign "Developer ID Installer: ..."`, and `xcrun notarytool submit --wait` plus
 `xcrun stapler staple` run at the end.
+
+# On Windows
+
+`AmpSim-<version>-windows-x64-setup.exe` installs the VST3 plug-in and the standalone application.
+Either can be left out on the *Select Components* page.
+
+## What it needs
+
+- **Windows 10 version 2004 (May 2020) or later, or Windows 11, on x64.** On Windows on ARM it
+  installs the x64 build, which loads only in an x64 host.
+- **A processor with AVX2**: an Intel Core from 2013 (Haswell) on, or any AMD Ryzen. The plugin is
+  built for it and would crash its host on a processor without it, so the installer checks first
+  and refuses with a message rather than installing something that cannot run.
+
+## For everyone, or just for you
+
+The installer asks first.
+
+| | VST3 goes to | The standalone goes to | Needs |
+| --- | --- | --- | --- |
+| Install for all users | `C:\Program Files\Common Files\VST3` | `C:\Program Files\AmpSim` | an administrator's approval |
+| Install for me only | `%LOCALAPPDATA%\Programs\Common\VST3` | `%LOCALAPPDATA%\Programs\AmpSim` | nothing |
+
+Both are folders the VST3 specification tells hosts to scan. If a host does not find the plug-in
+after an install for one user, it is one that only looks in the system folder: add the per-user
+folder to its plug-in paths, or reinstall for all users.
+
+Presets, and the built-in amp model and cabinet the plug-in writes out on first run, live in
+`%APPDATA%\AmpSim`. Uninstalling leaves them there, as it does on macOS.
+
+## What you will see the first time
+
+The installer is not signed, so Microsoft Defender SmartScreen stops it with *Windows protected
+your PC*. Choose **More info**, then **Run anyway**. As with Gatekeeper's *Open Anyway*, that
+records that *you* have decided to trust it; it verifies nothing about who built it. Some managed
+machines block unsigned installers outright, and then there is no way past it but an administrator.
+
+## No sound in the standalone
+
+Two Windows settings produce silence while the input device looks fine:
+
+- **Settings → Privacy & security → Microphone → Let desktop apps access your microphone** must be
+  on. Unlike macOS, Windows never asks: the device appears and nothing arrives.
+- The standalone mutes its input by default, the same as on macOS. Untick it in the *Options*
+  dialog.
+
+## Building the installer
+
+From a Developer PowerShell for Visual Studio, with Inno Setup 6 installed:
+
+```powershell
+./packaging/package-windows.ps1
+```
+
+It builds Release into `build-release`, checks that neither binary imports the DLL C++ runtime,
+stages them, and runs Inno Setup's compiler on `packaging/windows/AmpSim.iss`. The installer lands
+in `build-release/artefacts`. CI does the same on every push, then installs it both ways, installs
+it again over itself, and uninstalls it.
+
+## If it is signed later
+
+Signing removes the SmartScreen warning once a certificate has built up a reputation, or at once
+for an EV certificate or Microsoft's Trusted Signing. The `.vst3` and the `.exe` are signed with
+`signtool` in `package-windows.ps1` before staging, and a `SignTool=` line in `AmpSim.iss`
+signs the installer and the uninstaller that Inno Setup writes.
