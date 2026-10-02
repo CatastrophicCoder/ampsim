@@ -15,8 +15,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Build and test only: no validation, packaging or release yet. This job is here to find out
-  # what the port actually needs; docs/windows.md has the plan it is the first step of.
+  # Build, test and validate; no installer or release yet. docs/windows.md has the plan this job
+  # is the first steps of.
   windows:
     name: Windows (Release)
     runs-on: windows-latest
@@ -43,6 +43,26 @@ jobs:
 
       - name: Test
         run: ctest --test-dir build --output-on-failure
+
+      # The same validator and strictness as the macOS job: threading and state bugs a DAW hides.
+      - name: Install pluginval
+        run: |
+          Invoke-WebRequest -Uri https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_Windows.zip -OutFile pluginval.zip
+          Expand-Archive pluginval.zip -DestinationPath pluginval
+
+      - name: Validate the VST3
+        run: |
+          .\pluginval\pluginval.exe --strictness-level 10 --validate build\AmpSim_artefacts\Release\VST3\AmpSim.vst3
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Not an installer: the raw build, for trying by hand until packaging is decided.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AmpSim-Windows
+          path: |
+            build/AmpSim_artefacts/Release/Standalone/AmpSim.exe
+            build/AmpSim_artefacts/Release/VST3/AmpSim.vst3
+          if-no-files-found: error
 
   macos:
     name: macOS (Release)

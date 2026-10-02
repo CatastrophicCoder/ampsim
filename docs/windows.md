@@ -18,7 +18,10 @@ The failure was a real bug on every platform. `ModelResampler::prepare` divided 
 zero when a model was prepared before the device was open, and cast the resulting NaN to `int`.
 That is undefined behaviour. Apple silicon happens to give 0, so it never showed. x64 gives
 `INT_MIN`, which became a "vector too long" exception. This is fixed, and the fix has a resampler
-test that fails on macOS too.
+test that fails on macOS too. With the fix in, all 124 pass on Windows.
+
+A clean build takes about twelve minutes on the runner. Six of those are spent linking the VST3
+and the standalone, which is link-time code generation, not compiling.
 
 ## What already ports without change
 
