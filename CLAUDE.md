@@ -175,6 +175,14 @@ the chain has finished, and again on the early return the fully-bypassed path ta
 `$<LINK_LIBRARY:WHOLE_ARCHIVE,...>` (the `NAM_CORE_WHOLE` variable). A normal static link drops those
 translation units and every model fails with "No config parser registered for architecture".
 
+**NAM is built by this project's CMake, not its own, so NAM's defaults do not apply.** Its
+`NAM_ENABLE_A2_FAST` was compiled out that way until it was noticed. It is a specialised WaveNet
+for the A2 shape, which the bundled capture has (a `SlimmableContainer` of a 3- and an 8-channel
+A2 WaveNet), and NAM takes it silently. `ampsim_bench` prints whether it was taken. Because it is
+a second implementation of the same model, `tests/ModelTests.cpp` null-tests it against the
+generic WaveNet on the bundled capture. Check NAM's `CMakeLists.txt` for anything else it
+defines when the submodule is updated.
+
 ## The panel
 
 `AmpLookAndFeel` holds the whole visual identity; `AmpPalette` holds the colours, so a second

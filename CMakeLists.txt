@@ -43,6 +43,12 @@ target_include_directories(nam_core SYSTEM PUBLIC
 # and every block needs a conversion.
 target_compile_definitions(nam_core PUBLIC NAM_SAMPLE_FLOAT DSP_SAMPLE_FLOAT)
 
+# NAM's specialised WaveNet for the A2 shape, which the bundled capture has. NAM's own CMake turns
+# it on by default; building NAM here instead had silently left it compiled out. It measured 3 to
+# 7 % cheaper on the Mac. tests/ModelTests.cpp null-tests it against the generic WaveNet, since it
+# is a second implementation of the same model.
+target_compile_definitions(nam_core PUBLIC NAM_ENABLE_A2_FAST)
+
 # NAM registers its architectures (WaveNet, LSTM, ConvNet, Linear) with file-scope static objects
 # in their own .cpp files. Nothing references those objects, so a normal static-library link drops
 # the whole translation unit and loading any model fails with "No config parser registered for

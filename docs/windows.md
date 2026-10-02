@@ -120,6 +120,13 @@ smaller than that is not a result:
 Resolving differences this small would need many more interleaved repetitions per build than
 one pass at each rate, or a quiet machine of one's own.
 
+**Decided: the A2 fast path is on, everywhere, and the other three are not.** `NAM_ENABLE_A2_FAST`
+is a public definition of `nam_core`. It is a second implementation of the same model, so
+`tests/ModelTests.cpp` builds each of the bundled capture's submodels both ways, from the same
+weights, and null-tests one against the other. They agree to −122 and −132 dB. The threshold is
+−100 dB, which a single weight 1 % out (−77 dB) fails. The experiment steps are gone from CI;
+the benchmark still prints what it was built with and whether the A2 path was taken.
+
 What it means for the architecture decision below: an AVX2 build is measurably cheaper. The
 price is a CPU requirement. Every Intel Core since Haswell (2013) and every AMD Zen (2017) has
 AVX2. Some Pentium and Celeron parts lacked it for years after that. A plugin built for AVX2 and
