@@ -106,6 +106,20 @@ juce_add_binary_data(AmpSimAssets SOURCES
 
 set_target_properties(AmpSimAssets PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# The panel's two typefaces, embedded so it looks the same on every platform: Avenir Next and
+# Futura ship with macOS only. Figtree and Jost are under the SIL Open Font License, whose text is
+# beside them in resources/fonts; the .ttf files are static instances cut from the variable fonts
+# in the google/fonts repository. Not packed: unlike the model, nothing about a font needs hiding.
+juce_add_binary_data(AmpSimFonts
+    NAMESPACE EmbeddedFonts
+    HEADER_NAME EmbeddedFonts.h
+    SOURCES
+        resources/fonts/Figtree-Regular.ttf
+        resources/fonts/Figtree-Medium.ttf
+        resources/fonts/Jost-Medium.ttf)
+
+set_target_properties(AmpSimFonts PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 target_sources(AmpSim PRIVATE
     src/PluginProcessor.cpp
     src/PluginEditor.cpp
@@ -142,6 +156,7 @@ target_compile_definitions(AmpSim PUBLIC
 target_link_libraries(AmpSim
     PRIVATE
         AmpSimAssets
+        AmpSimFonts
         ${NAM_CORE_WHOLE}
         juce::juce_audio_utils
         juce::juce_dsp
@@ -189,6 +204,17 @@ if(AMPSIM_BUILD_TOOLS)
     target_include_directories(ampsim_bench PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_compile_definitions(ampsim_bench PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1)
     target_link_libraries(ampsim_bench
+        PRIVATE
+            AmpSim
+            ${NAM_CORE_WHOLE}
+            juce::juce_audio_utils
+            juce::juce_dsp)
+
+    # Renders each page of the panel to a PNG. See tools/PanelSnapshot.cpp.
+    add_executable(ampsim_snapshot tools/PanelSnapshot.cpp)
+    target_include_directories(ampsim_snapshot PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_compile_definitions(ampsim_snapshot PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1)
+    target_link_libraries(ampsim_snapshot
         PRIVATE
             AmpSim
             ${NAM_CORE_WHOLE}

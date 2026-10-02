@@ -68,6 +68,15 @@ struct AmpMaterials
     static void drawPlate (juce::Graphics&, juce::Rectangle<float>);
 };
 
+/** The panel's typefaces, loaded from the binary rather than asked of the system, so the panel
+    looks the same on every platform. Shared, and alive for as long as any AmpLookAndFeel is. */
+struct EmbeddedTypefaces
+{
+    EmbeddedTypefaces();
+
+    juce::Typeface::Ptr interfaceRegular, interfaceMedium, stencil;
+};
+
 class AmpLookAndFeel final : public juce::LookAndFeel_V4
 {
 public:
@@ -89,12 +98,14 @@ public:
     juce::Font getLabelFont (juce::Label&) override;
     juce::Label* createSliderTextBox (juce::Slider&) override;
 
-    /** The interface's voice. Avenir Next: humanist, ships with macOS, and not the system font
-        every other plugin defaults to. */
+    /** The interface's voice. Figtree, embedded: it was Avenir Next until there was a Windows
+        build, and Avenir ships with macOS only. Also the default for anything JUCE draws itself,
+        such as a popup menu, so nothing on the window falls back to the system font. */
     static juce::Font font (float height, bool medium = false);
 
-    /** For names printed on an object — a pedal's, the plugin's. Futura reads as something
-        screen-printed onto metal, which is exactly what it is standing in for. */
+    /** For names printed on an object — a pedal's, the plugin's. Jost, embedded, which is drawn
+        after Futura: it reads as something screen-printed onto metal, which is what it is
+        standing in for. */
     static juce::Font stencil (float height);
 
     /** Where a knob takes its body and track colours from, so the same drawing serves a control
@@ -111,4 +122,7 @@ public:
     static void drawKnob (juce::Graphics&, juce::Rectangle<float> bounds, float proportion,
                           float originProportion, juce::Colour bodyColour, juce::Colour trackColour,
                           float ringThickness);
+
+private:
+    juce::SharedResourcePointer<EmbeddedTypefaces> typefaces;
 };

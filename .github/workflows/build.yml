@@ -60,6 +60,17 @@ jobs:
           ./pluginval/pluginval.exe --strictness-level 10 \
             --validate build/AmpSim_artefacts/Release/VST3/AmpSim.vst3
 
+      # Each page of the panel as Windows renders it, for looking at: nothing here can judge a
+      # caption that has moved or a font that has fallen back, but a person can, from the artefact.
+      - name: Render the panel
+        run: ./build/ampsim_snapshot.exe panel 1.5
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AmpSim-Windows-panel
+          path: panel/*.png
+          if-no-files-found: error
+
       # Also proves the build is AVX2: a build that lost the flag would still pass every test,
       # and only cost more. Then the benchmark, which asserts nothing; a shared runner changes
       # hardware between runs, so compare figures only within one job. 48 kHz is the model's own

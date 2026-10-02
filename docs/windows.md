@@ -179,7 +179,7 @@ In the order the first build is likely to find them:
 4. **The fonts are not there.** `AmpLookAndFeel::font` asks for Avenir Next and `stencil` for
    Futura. Both ship with macOS, and neither is on Windows, so JUCE falls back to the default sans
    face. Every page lays out in fixed logical points, and different text metrics are where clipped
-   captions and labels in the wrong place come from. This needs a decision; see below.
+   captions and labels in the wrong place come from. **Done:** see Fonts below.
 5. **The microphone privacy switch.** Windows 10 and 11 have *Settings → Privacy → Microphone →
    Let desktop apps access your microphone*. Unlike macOS, it needs nothing in the binary. But when
    it is off, the result is the same: the device appears and silence arrives. That belongs in the
@@ -211,6 +211,26 @@ decided, not pre-decided.
 | Embed open-licensed fonts on every platform (e.g. an OFL geometric face for the stencil, a humanist sans for the interface) | One look everywhere; the snapshot harness checks it once | Changes the Mac panel too, which was settled in the rework. Adds BinaryData. The OFL is permissive, but each font's licence still needs reading |
 
 Avenir Next and Futura are commercial Linotype faces. Embedding them is not an option.
+
+**Decided: embed Figtree for the interface and Jost for printed names, on every platform.** Both
+are under the SIL Open Font License with no Reserved Font Name, which matters because the files
+in `resources/fonts` are static Regular and Medium instances cut from the variable fonts in
+google/fonts, and the OFL counts that as a modified version. The licence texts sit beside them.
+The instances keep the copyright and licence in their name tables, which the OFL accepts as the
+notice that has to travel with each copy. The installer should still ship the two licence texts.
+
+- **Every height on the panel was chosen for the old faces, so each new face is scaled to put its
+  capitals where theirs were.** A JUCE font height is the face's ascent plus descent, a different
+  share of the letters in every face. Measured from the files: Figtree's cap height is 0.583 of
+  that span against Avenir Next's 0.518, and Jost's 0.484 against Futura's 0.586. At those scales
+  Figtree's widths land within one per cent of Avenir's. Jost sets about six per cent wider than
+  Futura, which still fits everywhere it is used. Unscaled, the tempo reading was cut off as
+  "120 BP…" and every name on an object shrank.
+- **Figtree is also the default sans-serif for the look-and-feel**, so what JUCE draws itself —
+  popup menus, the slider value bubble — no longer falls back to the system font. That is a
+  change on the Mac too.
+- `tools/PanelSnapshot.cpp` renders each page to a PNG. It is what these were checked with, and
+  the Windows CI job uploads its output so the Windows panel can be looked at.
 
 ### Low-latency audio in the standalone
 

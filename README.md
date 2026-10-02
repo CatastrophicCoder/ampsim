@@ -239,5 +239,9 @@ Third-party code, all as pinned submodules rather than vendored copies:
 | [Catch2](https://github.com/catchorg/Catch2) | BSL-1.0 |
 | VST3 SDK (bundled with JUCE) | GPLv3 or Steinberg's proprietary terms |
 
+The panel's two typefaces are embedded in the binary: [Figtree](https://github.com/erikdkennedy/figtree)
+and [Jost](https://github.com/indestructible-type/Jost), both under the
+[SIL Open Font License 1.1](https://openfontlicense.org). The licence texts are in `resources/fonts`.
+
 Amp captures and impulse responses carry their own licences, and some are captures of trademarked
 amplifiers — a personal build can use them; publishing a plugin with an amp's name on it cannot.

@@ -303,11 +303,19 @@ Things that are easy to get wrong here:
 - **Give every parameter a `stringFromValue`.** Without one JUCE prints the raw float, and a mix
   knob reads 0.3499999. A test in `StateTests.cpp` fails on more than one decimal anywhere.
 
-**Look at the panel rather than reasoning about it.** An offline harness that renders the editor
-with `createComponentSnapshot` to a PNG takes a couple of minutes to write and catches things no
-amount of reading the paint code will: see the milestone 5 entry in `NOTES.md`. It caught four more
-in the rework, including a knob that grew to fill a fifth of the window and a caption sitting a
-hundred points away from the row it named.
+**Look at the panel rather than reasoning about it.** `tools/PanelSnapshot.cpp` (`ampsim_snapshot`,
+built with `-DAMPSIM_BUILD_TOOLS=ON`) renders each page of the real editor to a PNG with
+`createComponentSnapshot`, and catches things no amount of reading the paint code will. The
+Windows CI job runs it and uploads the images. A harness like it caught four problems in the
+panel rework, including a knob that grew to fill a fifth of the window and a caption sitting a
+hundred points away from the row it named, and the font change's "120 BP…".
+
+**The typefaces are embedded, and scaled.** Figtree (interface) and Jost (printed names) come from
+`resources/fonts` through `EmbeddedTypefaces`, so the panel looks the same on every platform.
+Every height on the panel was chosen for Avenir Next and Futura, which they replaced, so
+`AmpLookAndFeel::font` and `stencil` scale each face to put its capitals where the old ones were.
+Pass heights as before and leave the scale alone. A new face needs its own scale measured from
+its file, cap height over ascent plus descent, not guessed.
 
 ## The user guide
 

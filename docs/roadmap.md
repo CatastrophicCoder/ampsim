@@ -83,7 +83,9 @@ What was decided along the way, so it is not re-litigated:
   control is set". A single cold accent on near-black is what a dark plugin looks like when nobody
   designed it.
 - **Avenir Next for the interface, Futura for names printed on an object** — the wordmark, the
-  model on its plate, a pedal's name. Both ship with macOS.
+  model on its plate, a pedal's name. Both ship with macOS. *Since replaced by Figtree and Jost,
+  embedded and scaled to the same cap heights, so the Windows build looks the same; see
+  [`windows.md`](windows.md).*
 - **The amp became an object too**, not only the pedals: a chassis with the capture stamped on a
   plate and the five controls on a strip below it.
 - **The pedals are one left-to-right run with the amp drawn in the middle**, rather than two rows.
