@@ -172,6 +172,7 @@ int main (int argc, char** argv)
     }
 
     std::cout << "\nEach figure is the median of seven two-second passes, as a percentage of one\n"
-                 "core at 48 kHz. A plugin must stay well under 100 % or it cannot keep up.\n";
+                 "core at " << juce::String (sampleRate / 1000.0, 1) << " kHz. A plugin must stay"
+                 " well under 100 % or it cannot keep up.\n";
     return 0;
 }

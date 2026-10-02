@@ -27,6 +27,34 @@ eighteen seconds, completed every group at strictness 10 and reported `SUCCESS`.
 include the editor and its automation, parameter fuzzing, thread safety and the bus layouts. Its
 VST3 validator stage is skipped, as it is on macOS, because no validator path is set.
 
+### What it costs on the runner
+
+`ampsim_bench` on `windows-latest` (x64, MSVC, default `/arch`, so SSE2), against the same
+benchmark on an M-series Mac. Percentages are of one core:
+
+| | 64 samples | 512 samples |
+| --- | --- | --- |
+| 48 kHz, amp + cab, Windows runner | 12.9 % | 10.6 % |
+| 48 kHz, amp + cab, Mac | 3.5 % | 2.8 % |
+| 44.1 kHz, amp + cab, Windows runner | 17.1 % | 15.0 % |
+| 44.1 kHz, amp + cab, Mac | 5.7 % | 4.5 % |
+| 44.1 kHz, everything on, Windows runner | 17.7 % | 15.4 % |
+
+What this establishes:
+
+- **It keeps up with a wide margin.** The worst case, everything on at 44.1 kHz and 64 samples, is
+  under a fifth of one core.
+- **The shape is the same as on the Mac.** The model is the cost; every pedal together adds well
+  under one point, and a bypassed plugin is under 0.15 %.
+- **The resampler costs about twice as much in absolute terms**: roughly four points at 44.1 kHz,
+  against two on the Mac. That is the same proportion of the total, so it does not point at the
+  resampler in particular.
+- **Overall the runner is three to four times the Mac.** These figures do not say why. A shared
+  cloud VM, MSVC's code generation, and Eigen limited to SSE2 (where the Mac build gets NEON with
+  fused multiply-add) would all push the same way. Telling them apart needs two builds measured
+  on the same machine in the same job, for example the default against `/arch:AVX2`, or MSVC
+  against clang-cl.
+
 A clean build takes about twelve minutes on the runner. Six of those are spent linking the VST3
 and the standalone, which is link-time code generation, not compiling.
 
