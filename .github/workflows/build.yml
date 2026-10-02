@@ -60,18 +60,70 @@ jobs:
           ./pluginval/pluginval.exe --strictness-level 10 \
             --validate build/AmpSim_artefacts/Release/VST3/AmpSim.vst3
 
-      # Also proves the build is AVX2: a build that lost the flag would still pass every test,
-      # and only cost more. Then the benchmark, which asserts nothing; a shared runner changes
-      # hardware between runs, so compare figures only within one job. 48 kHz is the model's own
-      # rate; 44.1 kHz puts the resampler in the chain.
+      # An experiment, not part of the product: four more builds of the benchmark alone, each
+      # differing from the normal build in one thing. All are AVX2, from CMakeLists.txt. Flags go
+      # in through *_INIT, which adds to CMake's defaults instead of replacing them. Each build
+      # prints what it was built with, so the tables below identify themselves. Each is allowed
+      # to fail: a variant that will not build is itself an answer, and should not cost the
+      # others their measurements. The benchmark runs whichever were built.
+      - name: "Experiment: NAM's A2 fast path"
+        continue-on-error: true
+        run: |
+          cmake -B build-a2 -G Ninja -DCMAKE_BUILD_TYPE=Release -DAMPSIM_COPY_PLUGIN=OFF `
+            -DAMPSIM_BUILD_TOOLS=ON -DAMPSIM_BUILD_TESTS=OFF "-DCMAKE_CXX_FLAGS_INIT=/DNAM_ENABLE_A2_FAST"
+          cmake --build build-a2 --target ampsim_bench
+
+      - name: "Experiment: NAM's inline GEMM"
+        continue-on-error: true
+        run: |
+          cmake -B build-gemm -G Ninja -DCMAKE_BUILD_TYPE=Release -DAMPSIM_COPY_PLUGIN=OFF `
+            -DAMPSIM_BUILD_TOOLS=ON -DAMPSIM_BUILD_TESTS=OFF "-DCMAKE_CXX_FLAGS_INIT=/DNAM_USE_INLINE_GEMM"
+          cmake --build build-gemm --target ampsim_bench
+
+      # JUCE's recommended flags give the plugin's own code /GL, and nam_core none. /GL everywhere
+      # and /LTCG at every link brings NAM into whole-program optimisation too.
+      - name: "Experiment: NAM with whole-program optimisation"
+        continue-on-error: true
+        run: |
+          cmake -B build-namlto -G Ninja -DCMAKE_BUILD_TYPE=Release -DAMPSIM_COPY_PLUGIN=OFF `
+            -DAMPSIM_BUILD_TOOLS=ON -DAMPSIM_BUILD_TESTS=OFF "-DCMAKE_CXX_FLAGS_INIT=/GL" `
+            "-DCMAKE_EXE_LINKER_FLAGS_INIT=/LTCG" "-DCMAKE_STATIC_LINKER_FLAGS_INIT=/LTCG"
+          cmake --build build-namlto --target ampsim_bench
+
+      # lld-link and llvm-lib because JUCE gives clang-cl -flto, whose objects are LLVM bitcode
+      # that link.exe and lib.exe cannot read.
+      - name: "Experiment: clang-cl"
+        continue-on-error: true
+        run: |
+          $llvm = Split-Path (Get-Command clang-cl).Source
+          "clang-cl from $llvm"
+          cmake -B build-clang -G Ninja -DCMAKE_BUILD_TYPE=Release -DAMPSIM_COPY_PLUGIN=OFF `
+            -DAMPSIM_BUILD_TOOLS=ON -DAMPSIM_BUILD_TESTS=OFF `
+            "-DCMAKE_C_COMPILER=$llvm/clang-cl.exe" "-DCMAKE_CXX_COMPILER=$llvm/clang-cl.exe" `
+            "-DCMAKE_LINKER=$llvm/lld-link.exe" "-DCMAKE_AR=$llvm/llvm-lib.exe"
+          cmake --build build-clang --target ampsim_bench
+
+      # Every build on the same machine in the same job, which is the only comparison a shared
+      # runner allows. 48 kHz runs the builds in one order and 44.1 kHz in the reverse, so a
+      # runner that drifts part-way is spread across all of them. Only the two summary rows are
+      # kept. It asserts nothing, except that the normal build is AVX2: a build that lost the flag
+      # would pass every test and only cost more.
       - name: Benchmark
         run: |
           if (-not (Select-String -Path build/build.ninja -Pattern '/arch:AVX2' -SimpleMatch -Quiet)) {
             throw "/arch:AVX2 did not reach the compile lines"
           }
           (Get-CimInstance Win32_Processor).Name
-          ./build/ampsim_bench.exe 48000
-          ./build/ampsim_bench.exe 44100
+          $builds = @('build', 'build-a2', 'build-gemm', 'build-namlto', 'build-clang') |
+            Where-Object { Test-Path "$_/ampsim_bench.exe" }
+          $keep = 'at \d+ Hz|built with|A2 fast path|configuration|amp \+ cab \(|everything on'
+          foreach ($rate in 48000, 44100) {
+            foreach ($b in $builds) {
+              "=== $b"
+              & "./$b/ampsim_bench.exe" $rate | Select-String -Pattern $keep | ForEach-Object { $_.Line }
+            }
+            [array]::Reverse($builds)
+          }
 
       # Not an installer: the raw build, for trying by hand until packaging is decided.
       - uses: actions/upload-artifact@v4

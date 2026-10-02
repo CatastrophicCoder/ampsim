@@ -76,6 +76,23 @@ builds then ran in one job, interleaved as default, AVX2, AVX2, default:
   compiler, or both. Separating those would take a clang-cl build measured the same way.
 - **The pedals are unaffected either way**, and still add under a point together.
 
+### NAM's own build options, measured first on the Mac
+
+The bundled capture is a `SlimmableContainer` of two WaveNets, with 3 and 8 channels. Both match
+NAM's A2 shape, so `NAM_ENABLE_A2_FAST` does take effect: the benchmark now prints whether it
+did. Our build compiled that path out until now, because NAM's own CMake is what defines the
+macro and we do not use it. Each build was compared with the normal one in the same session,
+interleaved twice, on an M-series Mac at 48 kHz, amp + cab:
+
+| | 64 samples | 512 samples |
+| --- | --- | --- |
+| normal build | 4.2 % | 2.96 % |
+| `NAM_ENABLE_A2_FAST` | 3.95 % (−7 %) | 2.87 % (−3 %) |
+| `NAM_USE_INLINE_GEMM` | 4.22 % (±0) | 3.46 % (+17 %) |
+
+The Windows job measures the same two options, plus clang-cl and NAM with whole-program
+optimisation, on the runner.
+
 What it means for the architecture decision below: an AVX2 build is measurably cheaper. The
 price is a CPU requirement. Every Intel Core since Haswell (2013) and every AMD Zen (2017) has
 AVX2. Some Pentium and Celeron parts lacked it for years after that. A plugin built for AVX2 and
