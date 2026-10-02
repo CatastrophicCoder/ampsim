@@ -231,6 +231,9 @@ notice that has to travel with each copy. The installer should still ship the tw
   change on the Mac too.
 - `tools/PanelSnapshot.cpp` renders each page to a PNG. It is what these were checked with, and
   the Windows CI job uploads its output so the Windows panel can be looked at.
+- **Checked on Windows.** The CI renders of all three pages, at 1.5x on the runner, match the Mac
+  renders: the same faces, nothing cut off, and every caption and reading in the same place. The
+  only differences are in antialiasing.
 
 ### Low-latency audio in the standalone
 
