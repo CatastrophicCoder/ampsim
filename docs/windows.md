@@ -403,6 +403,13 @@ The bundled amp model and cab IR are **not** the installer's business. The plugi
 - **The desktop shortcut is an unticked checkbox**, Inno Setup's usual form. It is shown only
   when the standalone is being installed.
 
+**First CI run of all of it: passed.** The whole build links with the static runtime, `dumpbin`
+finds no runtime DLL in either binary, ISCC built `AmpSim-0.3.0-windows-x64-setup.exe`, and the
+install, the upgrade over it, and the uninstall all passed for all users and for the current
+user. Still untested anywhere: the AVX2 refusal (every runner has AVX2), the interactive
+who-for dialog (CI passes `/ALLUSERS` and `/CURRENTUSER` instead), and whether a host finds the
+per-user VST3 folder.
+
 These were chosen at the time:
 | --- | --- |
 | ~~Who it installs for~~ | **All users only** (needs administrator rights; one VST3 location every host scans). **Per-user only** (no prompt; uses the per-user VST3 folder, which hosts that follow the VST3 spec scan, but some older hosts may not). **Ask** (`PrivilegesRequiredOverridesAllowed=dialog`; both paths have to be tested) |
