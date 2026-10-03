@@ -360,6 +360,9 @@ AmpSim at about 3.7 % of the CPU while playing. That is in line with the Mac's 3
 lag in the standalone was Windows' shared audio path, not processing cost. 128 samples was the
 smallest buffer that played cleanly on this machine.
 
+**The standalone through ASIO works too**, on the same laptop and interface, with the build that
+has ASIO enabled and the oversized-block fix. That completes step 6.
+
 ## Packaging with Inno Setup
 
 The plan for step 7. The installer script, its build script and CI's install test exist; the release job does not. It mirrors `packaging/package.sh` where the two
