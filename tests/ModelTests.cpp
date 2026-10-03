@@ -9,9 +9,15 @@
 */
 
 #include "TestHelpers.h"
+#include "BundledAssets.h"
 #include "dsp/AmpModel.h"
 
 #include <NAM/get_dsp.h>
+#include <NAM/model_config.h>
+#include <NAM/wavenet/a2_fast.h>
+#include <NAM/wavenet/model.h>
+
+#include <typeinfo>
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -445,4 +451,160 @@ TEST_CASE ("A capture that does not say how loud it is, is left alone", "[model]
     runBlocks (ampModel, 8);
 
     REQUIRE_THAT (ampModel.getNormalisationDb(), WithinAbs (0.0, 1.0e-6));
+}
+
+TEST_CASE ("NAM's A2 fast path plays the bundled capture as the generic WaveNet does", "[model]")
+{
+    // The bundled capture is a container of two A2-shaped WaveNets, and NAM_ENABLE_A2_FAST hands
+    // both to a second, specialised implementation. Nothing else here would notice if that
+    // implementation drifted from the reference one: every other model test uses NAM's examples,
+    // which are not A2-shaped, and the bundled assets are off in the tests. So build each
+    // submodel both ways from the same weights and null-test one against the other.
+   #if ! defined (NAM_ENABLE_A2_FAST)
+    FAIL ("NAM_ENABLE_A2_FAST is not defined, so the plugin plays the generic WaveNet");
+   #else
+    REQUIRE (BundledAssets::install().isEmpty());
+
+    const auto file = nlohmann::json::parse (BundledAssets::ampModel().loadFileAsString().toStdString());
+    REQUIRE (file.at ("architecture") == "SlimmableContainer");
+
+    const auto& submodels = file.at ("config").at ("submodels");
+    REQUIRE (submodels.size() == 2);
+
+    constexpr int blockSize = 256;
+    constexpr int numBlocks = 300;      // 1.6 s at 48 kHz
+
+    for (const auto& submodel : submodels)
+    {
+        const auto& net = submodel.at ("model");
+        const auto& config = net.at ("config");
+        const auto rate = net.at ("sample_rate").get<double>();
+        const auto weights = net.at ("weights").get<std::vector<float>>();
+
+        int channels = 0;
+        REQUIRE (nam::wavenet::a2_fast::is_a2_shape (config, &channels));
+        INFO (channels << "-channel submodel");
+
+        nam::ModelMetadata metadata;
+        metadata.sample_rate = rate;
+
+        auto fast = nam::create_dsp (nam::wavenet::create_config (config, rate), weights, metadata);
+        auto generic = nam::create_dsp (std::make_unique<nam::wavenet::WaveNetConfig> (
+                                            nam::wavenet::parse_config_json (config, rate)),
+                                        weights, metadata);
+        REQUIRE (fast != nullptr);
+        REQUIRE (generic != nullptr);
+
+        // The fast path really was taken, or this would compare the generic WaveNet with itself.
+        const auto& fastModel = *fast;
+        const auto& genericModel = *generic;
+        REQUIRE (typeid (fastModel) != typeid (genericModel));
+
+        fast->Reset (rate, blockSize);
+        generic->Reset (rate, blockSize);
+
+        // Plucked low E with its harmonics, restruck every half second: enough level to drive the
+        // capture into its nonlinearity, where two implementations are most likely to part.
+        std::vector<float> input ((size_t) blockSize), fastOut ((size_t) blockSize), genericOut ((size_t) blockSize);
+        double outputEnergy = 0.0, residualEnergy = 0.0;
+        int n = 0;
+
+        for (int b = 0; b < numBlocks; ++b)
+        {
+            for (auto& x : input)
+            {
+                const auto t = (double) n / rate;
+                const auto sinceStrike = std::fmod (t, 0.5);
+                double sum = 0.0;
+
+                for (int k = 1; k <= 6; ++k)
+                    sum += std::sin (juce::MathConstants<double>::twoPi * 82.41 * k * t) / k;
+
+                x = (float) (0.4 * std::exp (-6.0 * sinceStrike) * sum);
+                ++n;
+            }
+
+            float* in[] { input.data() };
+            float* outFast[] { fastOut.data() };
+            float* outGeneric[] { genericOut.data() };
+            fast->process (in, outFast, blockSize);
+            generic->process (in, outGeneric, blockSize);
+
+            for (int i = 0; i < blockSize; ++i)
+            {
+                outputEnergy += (double) genericOut[(size_t) i] * genericOut[(size_t) i];
+                const auto d = (double) fastOut[(size_t) i] - genericOut[(size_t) i];
+                residualEnergy += d * d;
+            }
+        }
+
+        // The capture makes a sound, so a residual of nothing is not two silent outputs agreeing.
+        REQUIRE (outputEnergy / (blockSize * numBlocks) > 1.0e-4);
+
+        const auto residualDb = 10.0 * std::log10 (residualEnergy / outputEnergy + 1.0e-30);
+        INFO ("residual " << residualDb << " dB relative to the output");
+
+        // Calibrated on the Mac: the two agree to -122 dB (3 channels) and -132 dB (8), which is
+        // float summation in a different order. Changing one weight of thousands by 1 % reads
+        // -77 dB, and by 0.1 % reads -97 and -108. -100 dB leaves twenty dB for another
+        // platform's rounding while still catching a single weight 1 % out in either submodel.
+        REQUIRE (residualDb < -100.0);
+    }
+   #endif
+}
+
+TEST_CASE ("A block larger than the host announced is processed rather than overrun", "[model][processor]")
+{
+    // JUCE's documentation for prepareToPlay: the block size is a strong hint, hosts can exceed
+    // it, and a plugin should be written defensively. Every buffer in the chain is sized to the
+    // hint, so a bigger block wrote past the end of the mono buffer in a Release build, and the
+    // resampler's guard silenced the whole block. 44.1 kHz puts the resampler in the chain.
+    constexpr double rate = 44100.0;
+    constexpr int announced = 64;
+
+    AmpSimAudioProcessor processor;
+    processor.prepareToPlay (rate, announced);
+    processor.loadModel (exampleModel ("wavenet.nam"));
+
+    juce::AudioBuffer<float> small (processor.getTotalNumOutputChannels(), announced);
+    juce::MidiBuffer midi;
+    const auto deadline = juce::Time::getMillisecondCounter() + 10000;
+
+    while (! processor.isModelLoaded() && juce::Time::getMillisecondCounter() < deadline)
+    {
+        small.clear();
+        processor.processBlock (small, midi);
+        juce::Thread::sleep (1);
+    }
+
+    REQUIRE (processor.isModelLoaded());
+
+    // Let the model swap's fade finish, so the block below hears the model at full level.
+    for (int b = 0; b < 100; ++b)
+    {
+        small.clear();
+        processor.processBlock (small, midi);
+    }
+
+    // Sixteen times what was announced, in one call.
+    constexpr int oversized = announced * 16;
+    juce::AudioBuffer<float> big (processor.getTotalNumOutputChannels(), oversized);
+
+    for (int ch = 0; ch < big.getNumChannels(); ++ch)
+        for (int i = 0; i < oversized; ++i)
+            big.setSample (ch, i, 0.1f * std::sin (juce::MathConstants<float>::twoPi * 220.0f * (float) i / (float) rate));
+
+    processor.processBlock (big, midi);
+
+    double energy = 0.0;
+
+    for (int i = oversized / 2; i < oversized; ++i)
+    {
+        const auto x = big.getSample (0, i);
+        REQUIRE (std::isfinite (x));
+        energy += (double) x * x;
+    }
+
+    // Silence is what the resampler's guard produced; a running amp does not.
+    REQUIRE (std::sqrt (energy / (oversized / 2)) > 1.0e-3);
 }

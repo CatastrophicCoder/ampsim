@@ -62,6 +62,19 @@ TEST_CASE ("The resampler is bypassed when the host already runs at the model's 
     REQUIRE (resampler.getLatencyInHostSamples() == 0);
 }
 
+TEST_CASE ("A resampler prepared before the host settings are known sizes nothing", "[resampler]")
+{
+    // The loader can prepare a model before the device is open. Dividing by that zero rate made
+    // the block size NaN cast to int: 0 on Apple silicon, INT_MIN on x64, and on Windows a
+    // "vector too long" exception out of prepare(). Passthrough is the state with nothing sized.
+    ModelResampler resampler;
+    resampler.prepare (0.0, 48000.0, 0);
+
+    REQUIRE (resampler.isPassthrough());
+    REQUIRE (resampler.getMaxModelBlockSize() == 0);
+    REQUIRE (resampler.getLatencyInHostSamples() == 0);
+}
+
 TEST_CASE ("The resampler reconstructs the signal it was given", "[resampler]")
 {
     const auto hostRate = GENERATE (44100.0, 88200.0, 96000.0);

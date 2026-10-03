@@ -10,6 +10,12 @@ agreed, which is why it is not here.
 
 ## Still to settle
 
+### Whether to sign the builds
+
+Neither platform's build is signed with a developer certificate, so Gatekeeper and SmartScreen
+each ask once. The options and their costs are in [`packaging/README.md`](../packaging/README.md)
+for macOS and in [`windows.md`](windows.md) for Windows.
+
 ### Whether to tame a downshifted tone in code
 
 A heavily downshifted distorted tone goes muddy and loses its articulation. Measured, by putting a
@@ -65,6 +71,26 @@ rework has left the pickers as chooser buttons.
 
 ## Done
 
+### Windows
+
+Built: the VST3 and the standalone, x64, with an Inno Setup installer, built, tested, validated,
+installed and uninstalled in CI on every push, and published beside the macOS packages from the
+same tag. [`windows.md`](windows.md) is the record, with the measurements behind each decision.
+The ones that shape the code:
+
+- **AVX2 only**, measured 27 to 38 % cheaper than SSE2; the installer refuses a processor
+  without it, since the plugin would crash its host.
+- **The C++ runtime linked statically**, so nothing has to be installed beside it.
+- **ASIO in the standalone.** Windows' shared audio path was too slow to play through on real
+  hardware; through ASIO the same laptop played at 128 samples with AmpSim at under 4 % of the
+  CPU.
+- **Figtree and Jost embedded on both platforms** in place of Avenir Next and Futura, scaled to
+  the same cap heights.
+
+Two bugs that affected every platform came out of it: a division by a zero sample rate when a
+model loaded before the device opened, and a block larger than the host announced overrunning
+every buffer in the chain.
+
 ### The panel rework
 
 Delivered. `docs/panel.png` and `docs/pedals.png` show the result, and the **The panel** section of
@@ -77,7 +103,9 @@ What was decided along the way, so it is not re-litigated:
   control is set". A single cold accent on near-black is what a dark plugin looks like when nobody
   designed it.
 - **Avenir Next for the interface, Futura for names printed on an object** — the wordmark, the
-  model on its plate, a pedal's name. Both ship with macOS.
+  model on its plate, a pedal's name. Both ship with macOS. *Since replaced by Figtree and Jost,
+  embedded and scaled to the same cap heights, so the Windows build looks the same; see
+  [`windows.md`](windows.md).*
 - **The amp became an object too**, not only the pedals: a chassis with the capture stamped on a
   plate and the five controls on a strip below it.
 - **The pedals are one left-to-right run with the amp drawn in the middle**, rather than two rows.

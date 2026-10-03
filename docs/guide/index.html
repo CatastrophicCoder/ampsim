@@ -118,7 +118,8 @@
   <!-- ============================================================ Install -->
   <section id="install">
     <h2>Installing</h2>
-    <p>macOS, Apple silicon. The installer puts three things on your machine: an <b>Audio Unit</b>
+    <h3>macOS</h3>
+    <p>Apple silicon, macOS 11 or later. The installer puts three things on your machine: an <b>Audio Unit</b>
       and a <b>VST3</b> in <code>/Library/Audio/Plug-Ins/</code>, and a <b>standalone app</b> in
       <code>/Applications</code>. Take whichever you need.</p>
     <ol>
@@ -133,9 +134,34 @@
       <li>In Logic the plugin is <b>Catastrophic Audio → AmpSim</b>, among the amps and distortion
         plugins. Insert it on an audio track like any other amp sim.</li>
     </ol>
+    <h3>Windows</h3>
+    <p>Windows 10 version 2004 or later, or Windows 11, on x64, with a processor that has AVX2: an
+      Intel Core from 2013 on, or any AMD Ryzen. The installer checks, and refuses rather than
+      installing something that cannot run. It puts a <b>VST3</b> and a <b>standalone app</b> on
+      your machine, and asks first whether to install them for you or for everyone.</p>
+    <ol>
+      <li>Run <code>AmpSim-…-windows-x64-setup.exe</code> from the
+        <a href="https://github.com/CatastrophicCoder/ampsim/releases">releases page</a>. It is not
+        signed, so SmartScreen says <i>Windows protected your PC</i>: choose <b>More info</b>, then
+        <b>Run anyway</b>.</li>
+      <li><b>For me only</b> needs no administrator and puts the VST3 in
+        <code>%LOCALAPPDATA%\Programs\Common\VST3</code>; <b>for all users</b> puts it in
+        <code>C:\Program Files\Common Files\VST3</code>. If your host does not find AmpSim after
+        an install for one user, add that folder to its plug-in paths and rescan.</li>
+      <li>In a host, set the audio device to your interface's <b>ASIO</b> driver. In REAPER that is
+        <b>Preferences → Audio → Device</b>. Only one program can use an ASIO driver at a time, so
+        close the standalone first.</li>
+    </ol>
+    <div class="tip"><b>In the Windows standalone, choose ASIO.</b> In <b>Options</b>, set the audio
+      device type to <b>ASIO</b> and pick your interface's own driver — install it from the maker
+      if it is not listed. The <i>Windows Audio</i> types go through Windows' mixer, which usually
+      fixes the buffer at 10 ms and the rate at whatever Windows' Sound settings say: workable for
+      listening, too slow to play through. 48 kHz also spares AmpSim converting to its model's
+      rate. And if no sound comes in at all, check <b>Settings → Privacy &amp; security →
+      Microphone → Let desktop apps access your microphone</b>.</div>
     <div class="tip"><b>In the standalone, untick “Mute audio input”</b> in the Options dialog the
-      first time. A standalone plugin mutes its input by default, which is right for a synth and
-      wrong for an amp — with it ticked the meters move and you hear nothing.</div>
+      first time, on either platform. A standalone plugin mutes its input by default, which is right
+      for a synth and wrong for an amp — with it ticked the meters move and you hear nothing.</div>
   </section>
 
   <!-- ============================================================ Tour -->
@@ -346,6 +372,22 @@
     <h3>A new build does not show up in Logic.</h3>
     <p>Logic keeps a plugin's code loaded until it quits: quit Logic (<kbd>⌘Q</kbd>) and reopen the
       project.</p>
+
+    <h3>On Windows the standalone feels laggy, and I cannot change the buffer or the rate.</h3>
+    <p>It is using one of the <i>Windows Audio</i> device types, which go through Windows' own
+      mixer: the buffer is whatever Windows uses, usually 10 ms, and the rate is whatever the
+      device is set to in Windows' Sound settings. Switch the device type to <b>ASIO</b> in
+      <b>Options</b> and pick your interface's own driver. At 128 samples that is around 10 ms from
+      string to ear, rather than several times that.</p>
+
+    <h3>On Windows the host says the audio device is closed, or in use.</h3>
+    <p>An ASIO driver serves one program at a time. Close the AmpSim standalone, or whatever else
+      has the interface open, and restart the host.</p>
+
+    <h3>On Windows the sound breaks up at small buffers.</h3>
+    <p>Raise the buffer a step at a time until it stays clean. A laptop on a power-saving plan
+      slows its processor down, which is worth changing while playing. 128 samples is a common
+      floor on a laptop; a desktop usually goes lower.</p>
 
     <h3>Is it stereo?</h3>
     <p>No. Mono from end to end, with a stereo input summed at the top. A guitar amp is mono and so

@@ -21,12 +21,88 @@
     up whatever else the machine was doing.
 */
 #include "PluginProcessor.h"
+#include "BundledAssets.h"
+
+#if defined(NAM_ENABLE_A2_FAST)
+ #include "wavenet/a2_fast.h"
+#endif
 
 #include <chrono>
 
 namespace
 {
     double sampleRate = 48000.0;
+
+    /** What this binary was built with, so that a table from one of several builds compared in
+        the same CI job says which one it is. */
+    juce::String buildDescription()
+    {
+        juce::StringArray parts;
+
+       #if defined(__clang__)
+        parts.add ("clang " __clang_version__);
+       #elif defined(_MSC_VER)
+        parts.add ("MSVC " + juce::String (_MSC_VER));
+       #else
+        parts.add ("unknown compiler");
+       #endif
+
+       #if defined(__AVX2__)
+        parts.add ("AVX2");
+       #endif
+       #if defined(NAM_ENABLE_A2_FAST)
+        parts.add ("NAM_ENABLE_A2_FAST");
+       #endif
+       #if defined(NAM_USE_INLINE_GEMM)
+        parts.add ("NAM_USE_INLINE_GEMM");
+       #endif
+
+        return parts.joinIntoString (", ");
+    }
+
+    /** NAM takes its A2 fast path silently, and only for a model of exactly that shape, so a
+        build with it enabled can measure the same as one without for either of two reasons. */
+    juce::String a2FastPath()
+    {
+       #if defined(NAM_ENABLE_A2_FAST)
+        try
+        {
+            const auto text = BundledAssets::ampModel().loadFileAsString().toStdString();
+            const auto model = nlohmann::json::parse (text);
+
+            // A slimmable capture is a container of WaveNets, and each is checked on its own.
+            std::vector<nlohmann::json> wavenets;
+
+            if (model.value ("architecture", std::string()) == "SlimmableContainer")
+                for (const auto& sub : model.at ("config").at ("submodels"))
+                    wavenets.push_back (sub.at ("model"));
+            else
+                wavenets.push_back (model);
+
+            juce::StringArray verdicts;
+
+            for (const auto& net : wavenets)
+            {
+                int channels = 0;
+
+                if (net.value ("architecture", std::string()) != "WaveNet")
+                    verdicts.add ("not a WaveNet");
+                else if (nam::wavenet::a2_fast::is_a2_shape (net.at ("config"), &channels))
+                    verdicts.add ("taken, " + juce::String (channels) + " channels");
+                else
+                    verdicts.add ("not taken, not A2-shaped");
+            }
+
+            return verdicts.joinIntoString ("; ");
+        }
+        catch (const std::exception& e)
+        {
+            return "unknown (" + juce::String (e.what()) + ")";
+        }
+       #else
+        return "not compiled in";
+       #endif
+    }
 
     void set (juce::AudioProcessorValueTreeState& state, const juce::String& id, float value)
     {
@@ -112,7 +188,9 @@ int main (int argc, char** argv)
     waitForModel (processor);
 
     std::cout << "model loaded: " << (processor.isModelLoaded() ? "yes" : "no")
-              << ", latency " << processor.getLatencySamples() << " samples\n\n";
+              << ", latency " << processor.getLatencySamples() << " samples\n"
+              << "built with: " << buildDescription() << "\n"
+              << "A2 fast path: " << a2FastPath() << "\n\n";
 
     struct Setup { const char* name; std::function<void (juce::AudioProcessorValueTreeState&)> apply; };
 
@@ -172,6 +250,7 @@ int main (int argc, char** argv)
     }
 
     std::cout << "\nEach figure is the median of seven two-second passes, as a percentage of one\n"
-                 "core at 48 kHz. A plugin must stay well under 100 % or it cannot keep up.\n";
+                 "core at " << juce::String (sampleRate / 1000.0, 1) << " kHz. A plugin must stay"
+                 " well under 100 % or it cannot keep up.\n";
     return 0;
 }

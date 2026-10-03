@@ -16,6 +16,21 @@ option(AMPSIM_BUILD_TOOLS "Build the offline measurement tools" OFF)
 # JUCE is a pinned submodule (9.0.2); see README for the update policy.
 add_subdirectory(external/JUCE)
 
+# Windows builds require AVX2. Eigen then uses AVX2 and FMA instead of SSE2, which measured 27 to
+# 38 % cheaper on the amp model; the price is a CPU from the Haswell / Zen generation onwards,
+# and a CPU without AVX2 crashes on the first such instruction rather than refusing to load. See
+# docs/windows.md. MSVC is also true for clang-cl. Before nam_core and AmpSim, so both get it.
+if(MSVC)
+    add_compile_options(/arch:AVX2)
+endif()
+
+# The C++ runtime linked statically on Windows (/MT), so the standalone and the VST3 need nothing
+# installed beside them. CMake's default is the DLL runtime, and a plugin that cannot find
+# VCRUNTIME140.dll fails to load in the host with no useful message. A variable rather than a
+# per-target property so every target agrees, NAM and Catch2 included; mixing runtimes does not
+# link. packaging/package-windows.ps1 refuses a binary that still imports the DLL runtime.
+set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 # --- Neural Amp Modeler Core -------------------------------------------------
 # Built here rather than via NAM's own CMakeLists, which sets global compiler flags and builds
 # its tools and tests. Sources are globbed the way nam-juce does it.
@@ -34,6 +49,12 @@ target_include_directories(nam_core SYSTEM PUBLIC
 # NAM_SAMPLE becomes float, matching JUCE's buffers — without this NAM processes in double
 # and every block needs a conversion.
 target_compile_definitions(nam_core PUBLIC NAM_SAMPLE_FLOAT DSP_SAMPLE_FLOAT)
+
+# NAM's specialised WaveNet for the A2 shape, which the bundled capture has. NAM's own CMake turns
+# it on by default; building NAM here instead had silently left it compiled out. It measured 3 to
+# 7 % cheaper on the Mac. tests/ModelTests.cpp null-tests it against the generic WaveNet, since it
+# is a second implementation of the same model.
+target_compile_definitions(nam_core PUBLIC NAM_ENABLE_A2_FAST)
 
 # NAM registers its architectures (WaveNet, LSTM, ConvNet, Linear) with file-scope static objects
 # in their own .cpp files. Nothing references those objects, so a normal static-library link drops
@@ -92,6 +113,20 @@ juce_add_binary_data(AmpSimAssets SOURCES
 
 set_target_properties(AmpSimAssets PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
+# The panel's two typefaces, embedded so it looks the same on every platform: Avenir Next and
+# Futura ship with macOS only. Figtree and Jost are under the SIL Open Font License, whose text is
+# beside them in resources/fonts; the .ttf files are static instances cut from the variable fonts
+# in the google/fonts repository. Not packed: unlike the model, nothing about a font needs hiding.
+juce_add_binary_data(AmpSimFonts
+    NAMESPACE EmbeddedFonts
+    HEADER_NAME EmbeddedFonts.h
+    SOURCES
+        resources/fonts/Figtree-Regular.ttf
+        resources/fonts/Figtree-Medium.ttf
+        resources/fonts/Jost-Medium.ttf)
+
+set_target_properties(AmpSimFonts PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 target_sources(AmpSim PRIVATE
     src/PluginProcessor.cpp
     src/PluginEditor.cpp
@@ -125,9 +160,20 @@ target_compile_definitions(AmpSim PUBLIC
     JUCE_VST3_CAN_REPLACE_VST2=0
     JUCE_REPORT_APP_USAGE=0)
 
+# ASIO in the Windows standalone. Every Windows Audio mode goes through Windows' own audio engine,
+# which on a typical interface stops at a 10 ms period and the device's shared sample rate; ASIO
+# talks to the interface's own driver, which is what a guitarist on Windows plays through. The
+# headers are the ones bundled with JUCE, from Steinberg's SDK, used under its GPLv3 option, which
+# is compatible with this project's AGPLv3; the installer ships that licence text. A plug-in uses
+# its host's driver, so this only matters to the standalone.
+if(WIN32)
+    target_compile_definitions(AmpSim PUBLIC JUCE_ASIO=1)
+endif()
+
 target_link_libraries(AmpSim
     PRIVATE
         AmpSimAssets
+        AmpSimFonts
         ${NAM_CORE_WHOLE}
         juce::juce_audio_utils
         juce::juce_dsp
@@ -155,22 +201,37 @@ endif()
 # Off by default: these measure the plugin rather than being part of it, and only a Release build
 # of them says anything true.
 if(AMPSIM_BUILD_TOOLS)
-    # A host, not the plugin: it loads the built bundles the way Logic does, through the AU and
-    # VST3 wrappers, which is the layer every other test here skips.
-    juce_add_console_app(ampsim_hostcheck PRODUCT_NAME "ampsim_hostcheck")
-    target_sources(ampsim_hostcheck PRIVATE tools/HostCheck.cpp)
-    target_compile_definitions(ampsim_hostcheck PRIVATE
-        JUCE_PLUGINHOST_AU=1
-        JUCE_PLUGINHOST_VST3=1
-        JUCE_MODAL_LOOPS_PERMITTED=1
-        JUCE_USE_CURL=0
-        JUCE_WEB_BROWSER=0)
-    target_link_libraries(ampsim_hostcheck PRIVATE juce::juce_audio_utils)
+    # macOS only: it hosts the AU, which no other platform has, and looks for the bundles where
+    # macOS installs them.
+    if(APPLE)
+        # A host, not the plugin: it loads the built bundles the way Logic does, through the AU
+        # and VST3 wrappers, which is the layer every other test here skips.
+        juce_add_console_app(ampsim_hostcheck PRODUCT_NAME "ampsim_hostcheck")
+        target_sources(ampsim_hostcheck PRIVATE tools/HostCheck.cpp)
+        target_compile_definitions(ampsim_hostcheck PRIVATE
+            JUCE_PLUGINHOST_AU=1
+            JUCE_PLUGINHOST_VST3=1
+            JUCE_MODAL_LOOPS_PERMITTED=1
+            JUCE_USE_CURL=0
+            JUCE_WEB_BROWSER=0)
+        target_link_libraries(ampsim_hostcheck PRIVATE juce::juce_audio_utils)
+    endif()
 
     add_executable(ampsim_bench tools/Benchmark.cpp)
     target_include_directories(ampsim_bench PRIVATE ${CMAKE_SOURCE_DIR}/src)
     target_compile_definitions(ampsim_bench PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1)
     target_link_libraries(ampsim_bench
+        PRIVATE
+            AmpSim
+            ${NAM_CORE_WHOLE}
+            juce::juce_audio_utils
+            juce::juce_dsp)
+
+    # Renders each page of the panel to a PNG. See tools/PanelSnapshot.cpp.
+    add_executable(ampsim_snapshot tools/PanelSnapshot.cpp)
+    target_include_directories(ampsim_snapshot PRIVATE ${CMAKE_SOURCE_DIR}/src)
+    target_compile_definitions(ampsim_snapshot PRIVATE JUCE_MODAL_LOOPS_PERMITTED=1)
+    target_link_libraries(ampsim_snapshot
         PRIVATE
             AmpSim
             ${NAM_CORE_WHOLE}

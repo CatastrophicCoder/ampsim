@@ -15,13 +15,138 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Build, test and validate; no installer or release yet. docs/windows.md has the plan this job
+  # is the first steps of.
+  windows:
+    name: Windows (Release)
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      # Puts MSVC on the PATH, so Ninja can be used the same way as on macOS rather than the
+      # multi-config Visual Studio generator.
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      # AMPSIM_COPY_PLUGIN off: JUCE's default VST3 destination is under Program Files, and a
+      # failed copy would end the build before it says anything about the code. AMPSIM_BUILD_TOOLS
+      # for the benchmark below.
+      - name: Configure
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DAMPSIM_COPY_PLUGIN=OFF -DAMPSIM_BUILD_TOOLS=ON
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      # The same validator and strictness as the macOS job: threading and state bugs a DAW hides.
+      - name: Install pluginval
+        run: |
+          Invoke-WebRequest -Uri https://github.com/Tracktion/pluginval/releases/download/v1.0.4/pluginval_Windows.zip -OutFile pluginval.zip
+          Expand-Archive pluginval.zip -DestinationPath pluginval
+
+      # bash, not PowerShell: pluginval.exe is a GUI-subsystem program, and PowerShell does not
+      # wait for those. The first run returned after five seconds, mid-way through the editor
+      # tests, with a green tick that meant nothing. bash waits, and takes its exit code.
+      - name: Validate the VST3
+        shell: bash
+        run: |
+          ./pluginval/pluginval.exe --strictness-level 10 \
+            --validate build/AmpSim_artefacts/Release/VST3/AmpSim.vst3
+
+      # Each page of the panel as Windows renders it, for looking at: nothing here can judge a
+      # caption that has moved or a font that has fallen back, but a person can, from the artefact.
+      - name: Render the panel
+        run: ./build/ampsim_snapshot.exe panel 1.5
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AmpSim-Windows-panel
+          path: panel/*.png
+          if-no-files-found: error
+
+      # Also proves the build is AVX2 and has ASIO: a build that lost either would still pass every
+      # test, and only cost more or offer the standalone no low-latency driver. Then the benchmark, which asserts nothing; a shared runner changes
+      # hardware between runs, so compare figures only within one job. 48 kHz is the model's own
+      # rate; 44.1 kHz puts the resampler in the chain.
+      - name: Benchmark
+        run: |
+          foreach ($flag in '/arch:AVX2', 'JUCE_ASIO=1') {
+            if (-not (Select-String -Path build/build.ninja -Pattern $flag -SimpleMatch -Quiet)) {
+              throw "$flag did not reach the compile lines"
+            }
+          }
+          (Get-CimInstance Win32_Processor).Name
+          ./build/ampsim_bench.exe 48000
+          ./build/ampsim_bench.exe 44100
+
+      # The raw build as well as the installer, for trying by hand without installing anything.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AmpSim-Windows
+          path: |
+            build/AmpSim_artefacts/Release/Standalone/AmpSim.exe
+            build/AmpSim_artefacts/Release/VST3/AmpSim.vst3
+          if-no-files-found: error
+
+      # Reuses the build above, as the macOS job does; it also refuses a binary that imports the
+      # DLL C++ runtime, which nothing else here would notice.
+      - name: Package
+        run: ./packaging/package-windows.ps1 -BuildDir build
+
+      # Both ways the installer can be run, each installed twice so the second is an upgrade over
+      # the first, then uninstalled. Start-Process -Wait because the installer is a GUI program,
+      # which PowerShell otherwise does not wait for. The AVX2 refusal cannot be tested here: the
+      # runner has AVX2.
+      - name: Install, upgrade and uninstall
+        run: |
+          $setup = (Get-ChildItem build/artefacts/*-setup.exe).FullName
+          function Run($file, $arguments) {
+            $p = Start-Process -FilePath $file -ArgumentList $arguments -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw "$file $arguments exited with $($p.ExitCode)" }
+          }
+          $cases = @(
+            @{ Mode = '/ALLUSERS';    Vst3 = "$env:CommonProgramFiles\VST3\AmpSim.vst3";              App = "$env:ProgramFiles\AmpSim" },
+            @{ Mode = '/CURRENTUSER'; Vst3 = "$env:LOCALAPPDATA\Programs\Common\VST3\AmpSim.vst3"; App = "$env:LOCALAPPDATA\Programs\AmpSim" }
+          )
+          foreach ($c in $cases) {
+            "=== $($c.Mode)"
+            foreach ($pass in 'install', 'upgrade') {
+              Run $setup "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART $($c.Mode) /LOG=`"$PWD\$pass.log`""
+              foreach ($path in "$($c.Vst3)\Contents\x86_64-win\AmpSim.vst3", "$($c.App)\AmpSim.exe",
+                                "$($c.App)\licenses\LICENSE-AmpSim.txt", "$($c.App)\licenses\OFL-Jost.txt",
+                                "$($c.App)\licenses\LICENSE-ASIO-SDK.txt") {
+                if (-not (Test-Path $path)) { Get-Content "$pass.log" -Tail 40; throw "$pass did not install $path" }
+              }
+              "$pass ok"
+            }
+            Run "$($c.App)\unins000.exe" "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART"
+            # The uninstaller hands over to a copy of itself and exits, so wait on the files.
+            $deadline = (Get-Date).AddSeconds(60)
+            while ((Test-Path $c.Vst3) -or (Test-Path "$($c.App)\AmpSim.exe")) {
+              if ((Get-Date) -gt $deadline) { throw "$($c.Mode): still installed 60 s after uninstalling" }
+              Start-Sleep -Seconds 1
+            }
+            "uninstall ok"
+          }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AmpSim-Windows-installer
+          path: build/artefacts/*-setup.exe
+          if-no-files-found: error
+
   macos:
     name: macOS (Release)
     # macos-latest rather than a pinned version: GitHub retires old runner images, and a pinned
     # label that has been retired fails before it builds anything.
     runs-on: macos-latest
-    permissions:
-      contents: write   # only used by the release step on tags
 
     steps:
       - uses: actions/checkout@v4
@@ -80,11 +205,35 @@ jobs:
           path: build/artefacts/*
           if-no-files-found: error
 
-      # Tags only. The tag has to match the version in CMakeLists.txt, which is also where
-      # package.sh reads it from and so where the artefacts take their names — the same sed
-      # expression, deliberately, so the two cannot disagree about what is being released.
-      - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
+  # Tags only, and only once both platforms have built, tested and packaged: a tag cannot publish
+  # one platform while the other failed. The tag has to match the version in CMakeLists.txt,
+  # which is also where package.sh and package-windows.ps1 read it from and so where the files take
+  # their names; the same pattern, deliberately, so they cannot disagree about what is released.
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # Only CMakeLists.txt is needed, for the version; not the submodules.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: AmpSim-macOS
+          path: release
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: AmpSim-Windows-installer
+          path: release
+
+      - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -93,7 +242,17 @@ jobs:
             echo "Tag $GITHUB_REF_NAME does not match the version $version in CMakeLists.txt" >&2
             exit 1
           fi
-          gh release create "$GITHUB_REF_NAME" build/artefacts/* \
+          ls -l release
+          gh release create "$GITHUB_REF_NAME" release/* \
             --title "AmpSim $version" \
-            --notes "AmpSim $version for Macs with Apple silicon (macOS 11 or later). Ad-hoc signed: the first use needs System Settings > Privacy & Security > Open Anyway; see the installer's welcome page. User guide: https://catastrophiccoder.github.io/ampsim/" \
-            --verify-tag
+            --notes-file - \
+            --verify-tag <<EOF
+          AmpSim $version.
+
+          **macOS:** Apple silicon, macOS 11 or later. \`.pkg\` installs the Audio Unit, the VST3 and the standalone; \`.dmg\` holds the standalone alone. Ad-hoc signed: the first use needs System Settings > Privacy & Security > Open Anyway.
+
+          **Windows:** Windows 10 version 2004 or later, or Windows 11, on x64 with an AVX2 processor (Intel Core from 2013, any AMD Ryzen). \`setup.exe\` installs the VST3 and the standalone, for you or for everyone. Unsigned: SmartScreen needs More info > Run anyway. In the standalone, choose your interface's ASIO driver in Options for low latency.
+
+          Installing, and what to do the first time: https://github.com/CatastrophicCoder/ampsim/blob/v$version/packaging/README.md
+          User guide: https://catastrophiccoder.github.io/ampsim/
+          EOF

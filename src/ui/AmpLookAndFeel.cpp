@@ -11,6 +11,8 @@
 #include "AmpLookAndFeel.h"
 #include "ParameterSlider.h"
 
+#include "EmbeddedFonts.h"
+
 const juce::Colour AmpPalette::background { 0xff131519 };
 const juce::Colour AmpPalette::bar        { 0xff0e1013 };
 const juce::Colour AmpPalette::surface    { 0xff1b1e24 };
@@ -140,23 +142,46 @@ void AmpMaterials::drawPlate (juce::Graphics& g, juce::Rectangle<float> bounds)
     }
 }
 
+EmbeddedTypefaces::EmbeddedTypefaces()
+    : interfaceRegular (juce::Typeface::createSystemTypefaceFor (EmbeddedFonts::FigtreeRegular_ttf,
+                                                                 (size_t) EmbeddedFonts::FigtreeRegular_ttfSize)),
+      interfaceMedium (juce::Typeface::createSystemTypefaceFor (EmbeddedFonts::FigtreeMedium_ttf,
+                                                                (size_t) EmbeddedFonts::FigtreeMedium_ttfSize)),
+      stencil (juce::Typeface::createSystemTypefaceFor (EmbeddedFonts::JostMedium_ttf,
+                                                        (size_t) EmbeddedFonts::JostMedium_ttfSize))
+{
+}
+
+// A JUCE font height is the face's ascent plus descent, which takes up a different share of the
+// letters in every face. Every height on the panel was chosen for Avenir Next and Futura, so each
+// face is scaled to put its capitals where theirs were: Figtree's cap height is 0.583 of its
+// span against Avenir's 0.518, Jost's 0.484 against Futura's 0.586. At those scales Figtree's
+// widths also land within one per cent of Avenir's; Jost sets about six per cent wider than
+// Futura. Measured from the font files with fontTools, OS/2 cap height over the ascent and
+// descent JUCE uses.
+static constexpr float interfaceScale = 0.518f / 0.583f;
+static constexpr float stencilScale   = 0.586f / 0.484f;
+
+// Each call takes the shared typefaces rather than holding them in a static: a static would
+// outlive JUCE's own shutdown, and on Windows release them after DirectWrite has gone. While an
+// AmpLookAndFeel exists this is a reference count, not a reload.
 juce::Font AmpLookAndFeel::font (float height, bool medium)
 {
-    auto options = juce::FontOptions ("Avenir Next", height, juce::Font::plain);
-
-    if (medium)
-        options = options.withStyle ("Medium");
-
-    return juce::Font (options);
+    juce::SharedResourcePointer<EmbeddedTypefaces> shared;
+    return juce::Font (juce::FontOptions (medium ? shared->interfaceMedium : shared->interfaceRegular)
+                           .withHeight (height * interfaceScale));
 }
 
 juce::Font AmpLookAndFeel::stencil (float height)
 {
-    return juce::Font (juce::FontOptions ("Futura", height, juce::Font::plain).withStyle ("Medium"));
+    juce::SharedResourcePointer<EmbeddedTypefaces> shared;
+    return juce::Font (juce::FontOptions (shared->stencil).withHeight (height * stencilScale));
 }
 
 AmpLookAndFeel::AmpLookAndFeel()
 {
+    setDefaultSansSerifTypeface (typefaces->interfaceRegular);
+
     setColour (juce::Label::textColourId, AmpPalette::text);
     setColour (juce::TextButton::buttonColourId, AmpPalette::raised);
     setColour (juce::TextButton::textColourOffId, AmpPalette::text);

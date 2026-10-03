@@ -5,7 +5,34 @@ describes how the current version behaves; this records what moved between versi
 
 ## Unreleased
 
+### Added
+
+- **Windows.** The VST3 and the standalone, for x64 Windows 10 (version 2004 or later) and 11,
+  with an Inno Setup installer that asks whether to install for you or for everyone. The build
+  needs a processor with AVX2, which every Intel Core since 2013 and every AMD Ryzen has; the
+  installer checks and refuses rather than install something that would crash its host. The
+  standalone supports **ASIO**, which is how to play through it with low latency. Unsigned, so
+  SmartScreen asks once.
+
+### Changed
+
+- **New typefaces, on both platforms.** The panel's lettering was Avenir Next and Futura, which
+  ship with macOS only and cannot be embedded. It is now Figtree and Jost, both open-licensed and
+  built in, scaled to the same cap heights so nothing on the panel moved. JUCE's own popups use
+  Figtree too, rather than the system font.
+- **The amp model costs a little less.** Neural Amp Modeler's specialised path for the bundled
+  capture's architecture had been compiled out by accident; it is now on, and is tested to play
+  the capture as the general one does.
+
 ### Fixed
+
+- **A host sending a bigger block than it announced no longer crashes the plugin.** Every buffer in
+  the chain was sized to the announced block, and a larger one overran them. Hosts are allowed to
+  do this; it showed up with the Windows standalone in exclusive mode, as corrupted sound, and
+  applies on macOS too.
+- **Loading a model before the audio device was open no longer depends on luck.** The resampler
+  divided by a sample rate of zero, which happened to be harmless on Apple silicon and threw on
+  Windows.
 
 - **The plug-ins no longer offer MIDI learn.** In 0.3.0 a knob's right-click menu offered to learn a
   MIDI controller in every format, and in the Audio Unit or the VST3 it then waited for a controller
