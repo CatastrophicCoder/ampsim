@@ -310,6 +310,10 @@ private:
     juce::AudioBuffer<float> dryBuffer;    // dry copy for the bypass crossfade
     juce::AudioBuffer<float> monoBuffer;   // the mono signal the amp model sees
 
+    // Where the piece being processed starts within the host's block, when processBlock has had
+    // to split one larger than prepareToPlay announced. Zero otherwise. Audio thread only.
+    int samplesIntoHostBlock = 0;
+
     AmpModel ampModel;
     ModelLoader modelLoader { ampModel };
     MidiLearn midiLearn { apvts };

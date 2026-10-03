@@ -690,6 +690,29 @@ bool AmpSimAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) c
 
 void AmpSimAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midi)
 {
+    // A host can hand over more samples than prepareToPlay announced, and JUCE's documentation
+    // says to expect it. Every buffer in the chain is sized to the announcement — the mono buffer,
+    // the dry copy, the drive's oversampler, the resampler's FIFOs — so a bigger block wrote past
+    // the end of them and crashed. Take it in pieces that fit instead. The MIDI goes with the
+    // first piece: all it carries here is controller moves for MIDI learn.
+    if (const auto prepared = monoBuffer.getNumSamples(); prepared > 0 && buffer.getNumSamples() > prepared)
+    {
+        juce::MidiBuffer none;
+
+        for (int start = 0; start < buffer.getNumSamples(); start += prepared)
+        {
+            const auto length = juce::jmin (prepared, buffer.getNumSamples() - start);
+            juce::AudioBuffer<float> piece (buffer.getArrayOfWritePointers(), buffer.getNumChannels(),
+                                            start, length);
+
+            samplesIntoHostBlock = start;
+            processBlock (piece, start == 0 ? midi : none);
+        }
+
+        samplesIntoHostBlock = 0;
+        return;
+    }
+
     juce::ScopedNoDenormals noDenormals;
 
     // Before anything else, so a controller move takes effect on the block it arrived in.
@@ -933,10 +956,12 @@ void AmpSimAudioProcessor::addMetronome (juce::AudioBuffer<float>& buffer, int n
             if (const auto hostBpm = position->getBpm())
                 tempo = (float) *hostBpm;
 
+            // The host reports the position at the start of its block; a piece of a block split
+            // in processBlock starts later than that, by samplesIntoHostBlock.
             if (position->getIsPlaying())
                 if (const auto ppq = position->getPpqPosition())
                 {
-                    quarterNotes = *ppq;
+                    quarterNotes = *ppq + samplesIntoHostBlock / getSampleRate() * tempo / 60.0;
                     following = &quarterNotes;
                 }
         }

@@ -552,3 +552,59 @@ TEST_CASE ("NAM's A2 fast path plays the bundled capture as the generic WaveNet 
     }
    #endif
 }
+
+TEST_CASE ("A block larger than the host announced is processed rather than overrun", "[model][processor]")
+{
+    // JUCE's documentation for prepareToPlay: the block size is a strong hint, hosts can exceed
+    // it, and a plugin should be written defensively. Every buffer in the chain is sized to the
+    // hint, so a bigger block wrote past the end of the mono buffer in a Release build, and the
+    // resampler's guard silenced the whole block. 44.1 kHz puts the resampler in the chain.
+    constexpr double rate = 44100.0;
+    constexpr int announced = 64;
+
+    AmpSimAudioProcessor processor;
+    processor.prepareToPlay (rate, announced);
+    processor.loadModel (exampleModel ("wavenet.nam"));
+
+    juce::AudioBuffer<float> small (processor.getTotalNumOutputChannels(), announced);
+    juce::MidiBuffer midi;
+    const auto deadline = juce::Time::getMillisecondCounter() + 10000;
+
+    while (! processor.isModelLoaded() && juce::Time::getMillisecondCounter() < deadline)
+    {
+        small.clear();
+        processor.processBlock (small, midi);
+        juce::Thread::sleep (1);
+    }
+
+    REQUIRE (processor.isModelLoaded());
+
+    // Let the model swap's fade finish, so the block below hears the model at full level.
+    for (int b = 0; b < 100; ++b)
+    {
+        small.clear();
+        processor.processBlock (small, midi);
+    }
+
+    // Sixteen times what was announced, in one call.
+    constexpr int oversized = announced * 16;
+    juce::AudioBuffer<float> big (processor.getTotalNumOutputChannels(), oversized);
+
+    for (int ch = 0; ch < big.getNumChannels(); ++ch)
+        for (int i = 0; i < oversized; ++i)
+            big.setSample (ch, i, 0.1f * std::sin (juce::MathConstants<float>::twoPi * 220.0f * (float) i / (float) rate));
+
+    processor.processBlock (big, midi);
+
+    double energy = 0.0;
+
+    for (int i = oversized / 2; i < oversized; ++i)
+    {
+        const auto x = big.getSample (0, i);
+        REQUIRE (std::isfinite (x));
+        energy += (double) x * x;
+    }
+
+    // Silence is what the resampler's guard produced; a running amp does not.
+    REQUIRE (std::sqrt (energy / (oversized / 2)) > 1.0e-3);
+}

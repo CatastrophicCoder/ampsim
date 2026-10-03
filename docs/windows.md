@@ -318,6 +318,34 @@ it. The guide should state the requirement too. The options that were weighed:
 Steps 1 to 4 are mechanical and can be done without a decision. Step 5 onward waits on the choices
 above.
 
+## Tried by hand: step 6
+
+On a laptop with an Intel i5-8350U (a 15 W part with AVX2) and an Audient iD4 mkII, from the CI
+installer:
+
+- **The installer, the standalone and the VST3 install, and REAPER opens the plug-in.** REAPER
+  then reported the audio device closed and gave no sound. That lies between REAPER and the
+  interface, not in the plug-in, and the likely cause is two programs contending for it.
+- **The standalone in *Windows Audio (Low Latency Mode)* was stuck at 44.1 kHz and 441 samples
+  (10 ms)**, and felt laggy. Shared mode takes its rate from the device's format in Windows'
+  Sound settings and its period from the audio engine. Low Latency Mode only shortens the
+  period where the driver supports it, which this one does not. The 44.1 kHz also puts the
+  resampler in the chain.
+- **In *Windows Audio (Exclusive Mode)* the buffer went down to 132 samples.** That felt better
+  at first, until the output became corrupted.
+
+**That corruption was a real bug, on every platform: a block larger than `prepareToPlay`
+announced overran the chain's buffers.** JUCE's documentation says hosts may exceed the
+announced size. A test that announces 64 samples and then sends 1024 crashed with a segmentation
+fault, after an assertion in the drive pedal's oversampler. `processBlock` now takes an
+oversized block in pieces that fit, and the metronome offsets the host's position for each
+piece. Whether the exclusive-mode driver really sent oversized blocks is not proven. The
+laptop's CPU missing deadlines at 132 samples would sound similar, and nothing has been measured
+on it yet.
+
+What would give a guitar latency on this interface is ASIO. Audient's own Windows driver
+provides it, and the standalone cannot use it while `JUCE_ASIO` is off.
+
 ## Packaging with Inno Setup
 
 The plan for step 7. The installer script, its build script and CI's install test exist; the release job does not. It mirrors `packaging/package.sh` where the two
