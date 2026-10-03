@@ -354,6 +354,12 @@ compatible with the AGPLv3. The installer ships the SDK's licence as `LICENSE-AS
 The standalone still starts on JUCE's first device type, Windows Audio; ASIO is chosen once in
 *Options* and remembered.
 
+**Through ASIO in REAPER, on the same laptop, it is fine.** Audient's own driver at 128 samples
+reported 4.1 ms in and 5.5 ms out, about 10 ms round trip, and REAPER's performance meter showed
+AmpSim at about 3.7 % of the CPU while playing. That is in line with the Mac's 3 to 4 %, so the
+lag in the standalone was Windows' shared audio path, not processing cost. 128 samples was the
+smallest buffer that played cleanly on this machine.
+
 ## Packaging with Inno Setup
 
 The plan for step 7. The installer script, its build script and CI's install test exist; the release job does not. It mirrors `packaging/package.sh` where the two
