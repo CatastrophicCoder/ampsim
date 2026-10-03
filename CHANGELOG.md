@@ -3,7 +3,10 @@
 What changed in each published release. The [user guide](https://catastrophiccoder.github.io/ampsim/)
 describes how the current version behaves; this records what moved between versions.
 
-## Unreleased
+## [0.4.0] — 2026-10-04
+
+**Windows.** The VST3 and the standalone now build, test and install on Windows as well as
+macOS, published from the same release.
 
 ### Added
 
@@ -80,4 +83,5 @@ silent. Everything below is new relative to having nothing published.
   hearing one.
 - **Nothing is notarised**, so macOS blocks the first launch until it is allowed through.
 
+[0.4.0]: https://github.com/CatastrophicCoder/ampsim/releases/tag/v0.4.0
 [0.3.0]: https://github.com/CatastrophicCoder/ampsim/releases/tag/v0.3.0

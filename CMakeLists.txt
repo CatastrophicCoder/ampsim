@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.24)   # 3.24 for $<LINK_LIBRARY:WHOLE_ARCHIVE>,
 # Must be set before project(): JUCE bakes the deployment target into the plugin bundles.
 set(CMAKE_OSX_DEPLOYMENT_TARGET "11.0" CACHE STRING "Minimum macOS version")
 
-project(AmpSim VERSION 0.3.0 LANGUAGES C CXX)
+project(AmpSim VERSION 0.4.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

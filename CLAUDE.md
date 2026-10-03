@@ -17,7 +17,7 @@ everything, and the metronome added to the output after all of it. Two of the si
 are slots rather than fixed pedals. Around that there is a preset system, MIDI controller mapping,
 a four-corner mic-position cabinet, a tuner, a transpose and a metronome.
 
-**0.3.0 is the first and only published release** — 0.2.0 was withdrawn because its Audio Unit was
+**0.3.0 was the first published release and 0.4.0 added Windows** — 0.2.0 was withdrawn because its Audio Unit was
 silent in Logic. [`CHANGELOG.md`](CHANGELOG.md) records what each published version changed; add
 to it before tagging.
 
