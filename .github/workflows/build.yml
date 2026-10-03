@@ -147,8 +147,6 @@ jobs:
     # macos-latest rather than a pinned version: GitHub retires old runner images, and a pinned
     # label that has been retired fails before it builds anything.
     runs-on: macos-latest
-    permissions:
-      contents: write   # only used by the release step on tags
 
     steps:
       - uses: actions/checkout@v4
@@ -207,11 +205,35 @@ jobs:
           path: build/artefacts/*
           if-no-files-found: error
 
-      # Tags only. The tag has to match the version in CMakeLists.txt, which is also where
-      # package.sh reads it from and so where the artefacts take their names — the same sed
-      # expression, deliberately, so the two cannot disagree about what is being released.
-      - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
+  # Tags only, and only once both platforms have built, tested and packaged: a tag cannot publish
+  # one platform while the other failed. The tag has to match the version in CMakeLists.txt,
+  # which is also where package.sh and package-windows.ps1 read it from and so where the files take
+  # their names; the same pattern, deliberately, so they cannot disagree about what is released.
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      # Only CMakeLists.txt is needed, for the version; not the submodules.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: AmpSim-macOS
+          path: release
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: AmpSim-Windows-installer
+          path: release
+
+      - name: Publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -220,7 +242,17 @@ jobs:
             echo "Tag $GITHUB_REF_NAME does not match the version $version in CMakeLists.txt" >&2
             exit 1
           fi
-          gh release create "$GITHUB_REF_NAME" build/artefacts/* \
+          ls -l release
+          gh release create "$GITHUB_REF_NAME" release/* \
             --title "AmpSim $version" \
-            --notes "AmpSim $version for Macs with Apple silicon (macOS 11 or later). Ad-hoc signed: the first use needs System Settings > Privacy & Security > Open Anyway; see the installer's welcome page. User guide: https://catastrophiccoder.github.io/ampsim/" \
-            --verify-tag
+            --notes-file - \
+            --verify-tag <<EOF
+          AmpSim $version.
+
+          **macOS:** Apple silicon, macOS 11 or later. \`.pkg\` installs the Audio Unit, the VST3 and the standalone; \`.dmg\` holds the standalone alone. Ad-hoc signed: the first use needs System Settings > Privacy & Security > Open Anyway.
+
+          **Windows:** Windows 10 version 2004 or later, or Windows 11, on x64 with an AVX2 processor (Intel Core from 2013, any AMD Ryzen). \`setup.exe\` installs the VST3 and the standalone, for you or for everyone. Unsigned: SmartScreen needs More info > Run anyway. In the standalone, choose your interface's ASIO driver in Options for low latency.
+
+          Installing, and what to do the first time: https://github.com/CatastrophicCoder/ampsim/blob/v$version/packaging/README.md
+          User guide: https://catastrophiccoder.github.io/ampsim/
+          EOF
