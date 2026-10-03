@@ -10,11 +10,11 @@ agreed, which is why it is not here.
 
 ## Still to settle
 
-### Windows builds
+### Whether to sign the builds
 
-The standalone and the VST3 for Windows. [`windows.md`](windows.md) has the plan: what already
-ports, what has to change before it builds, and the decisions about fonts, ASIO, signing and the
-installer that are not technical.
+Neither platform's build is signed with a developer certificate, so Gatekeeper and SmartScreen
+each ask once. The options and their costs are in [`packaging/README.md`](../packaging/README.md)
+for macOS and in [`windows.md`](windows.md) for Windows.
 
 ### Whether to tame a downshifted tone in code
 
@@ -70,6 +70,26 @@ it, and a decision about what happens to a preset whose model is not in that fol
 rework has left the pickers as chooser buttons.
 
 ## Done
+
+### Windows
+
+Built: the VST3 and the standalone, x64, with an Inno Setup installer, built, tested, validated,
+installed and uninstalled in CI on every push, and published beside the macOS packages from the
+same tag. [`windows.md`](windows.md) is the record, with the measurements behind each decision.
+The ones that shape the code:
+
+- **AVX2 only**, measured 27 to 38 % cheaper than SSE2; the installer refuses a processor
+  without it, since the plugin would crash its host.
+- **The C++ runtime linked statically**, so nothing has to be installed beside it.
+- **ASIO in the standalone.** Windows' shared audio path was too slow to play through on real
+  hardware; through ASIO the same laptop played at 128 samples with AmpSim at under 4 % of the
+  CPU.
+- **Figtree and Jost embedded on both platforms** in place of Avenir Next and Futura, scaled to
+  the same cap heights.
+
+Two bugs that affected every platform came out of it: a division by a zero sample rate when a
+model loaded before the device opened, and a block larger than the host announced overrunning
+every buffer in the chain.
 
 ### The panel rework
 

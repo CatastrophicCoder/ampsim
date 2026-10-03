@@ -491,3 +491,6 @@ move:
 4. Install, upgrade and uninstall it by hand in a VM. Check that REAPER finds the VST3 at
    whichever location was chosen, and that the AVX2 check behaves.
 5. Split the release out into its own job, then tag.
+
+**Status:** 1 to 5 are done. The release job publishes the macOS and Windows packages together
+from a `v*` tag, once both platforms have passed. Signing is the one decision still open.

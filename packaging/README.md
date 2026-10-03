@@ -125,6 +125,23 @@ Two Windows settings produce silence while the input device looks fine:
 - The standalone mutes its input by default, the same as on macOS. Untick it in the *Options*
   dialog.
 
+## Playing through it: use ASIO
+
+The *Windows Audio* device types go through Windows' own mixer. On the interface this was
+tested with, an Audient iD4 mkII, that fixed the buffer at 441 samples and the rate at 44.1 kHz,
+and felt laggy, because it is. **ASIO** talks to the interface's own driver:
+
+1. Install the interface maker's Windows driver. Windows' built-in one runs the interface but
+   provides no ASIO.
+2. In the standalone's **Options**, set the device type to **ASIO** and choose that driver; in a
+   host, set its audio device the same way (REAPER: **Preferences → Audio → Device**).
+3. Choose **48 kHz**, which is the amp model's own rate, and the smallest buffer that plays
+   cleanly. On the test laptop that was 128 samples, about 10 ms round trip, with AmpSim at about
+   4 % of the CPU.
+
+An ASIO driver serves one program at a time: close the standalone before opening a host, or the
+host reports the device closed.
+
 ## Building the installer
 
 From a Developer PowerShell for Visual Studio, with Inno Setup 6 installed:

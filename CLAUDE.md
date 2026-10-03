@@ -27,6 +27,13 @@ needed to build or package — it buys a Developer ID certificate and notarisati
 removes the first-launch Gatekeeper dialog on someone else's Mac. `packaging/README.md` says
 exactly what would change if one is bought later.
 
+**Windows builds too**: the VST3 and the standalone, x64, packaged by
+`packaging/package-windows.ps1` into an Inno Setup installer (`packaging/windows/AmpSim.iss`)
+that asks whether to install for everyone or for one user. [`docs/windows.md`](docs/windows.md)
+is the record of how the port was done and why each choice was made — AVX2 only, the static C++
+runtime, ASIO in the standalone, the embedded fonts — with the measurements behind them. Read it
+before changing any of those.
+
 Conventions worth following for every block added after this point:
 
 - Parameter IDs live in `namespace ParamID` in `PluginProcessor.h`. Never change an existing ID or
@@ -51,6 +58,21 @@ Two macOS things that make it look broken rather than misconfigured:
   host's permission — so nothing but a real standalone catches it.
 - **JUCE mutes a standalone's input by default** (`shouldMuteInput` in its settings file). Right for
   a synth, wrong for an amp; it is a checkbox in the Options dialog.
+
+And on Windows:
+
+- **Every *Windows Audio* mode goes through Windows' own audio engine**, which on a typical
+  interface fixes the period at 10 ms and the rate at whatever Windows' Sound settings say. That
+  is too slow to play through, and it looked like a slow plugin when it was not. **ASIO is the
+  path** (`JUCE_ASIO=1`, Windows only, using the SDK headers bundled with JUCE). The standalone
+  still opens on Windows Audio the first time; ASIO is chosen once in Options and remembered.
+- **Windows has its own microphone privacy switch** (*Let desktop apps access your microphone*),
+  and when it is off the effect is macOS's: the device appears and silence arrives. Nothing in
+  the binary controls it.
+- **A host may send a bigger block than `prepareToPlay` announced**, and JUCE's documentation
+  says to expect it. `processBlock` splits such a block into pieces that fit; before that it
+  overran every buffer in the chain and crashed. Windows' exclusive mode is where it showed, and
+  `tests/ModelTests.cpp` holds the case.
 
 ## The model chain
 
@@ -529,7 +551,7 @@ a modelled passive stack. Each is explained where it is implemented.
 
 ## What the project is
 
-A **minimal** macOS guitar amp simulator plugin (JUCE, C++17), built as AU / VST3 / Standalone. Four parts, per the Goal section of `ampsim_plan.md`:
+A **minimal** guitar amp simulator plugin (JUCE, C++17), built as AU / VST3 / Standalone on macOS and as VST3 / Standalone on Windows. Four parts, per the Goal section of `ampsim_plan.md`:
 
 1. **Amp** — a pre-trained `.nam` model run through [NeuralAmpModelerCore](https://github.com/sdatkinson/NeuralAmpModelerCore) (MIT). No hand-written amp DSP; the model supplies the tone.
 2. **Custom amp-like UI** — a front panel with Gain, three-band EQ (Bass, Mid, Treble) and Master Volume. This is the project's own contribution and the reason it is not just a NAM loader.
@@ -542,7 +564,7 @@ ML Sound Lab's Amped Block Letter is the yardstick the plan measures against, no
 tuner, MIDI mapping, presets, the multi-mic cab, the installer, the transpose and the metronome
 were all asked for and built on top of them — and an earlier version of this file told a reader to
 treat each of those as scope creep. Do not reject a request on the strength of that list. What is
-still deliberately out: Windows and Linux builds, parametric or multi-model switching, a
+still deliberately out: Linux builds, a native Windows-on-ARM build, parametric or multi-model switching, a
 reorderable pedal chain, and anything stereo before the cab. Each has a reason recorded where it
 would be implemented, and `docs/roadmap.md` holds the rest of what is open.
 
@@ -576,6 +598,13 @@ fixtures: `makePreparedProcessor()`, `runConstant()` for DC through the chain, `
 `blocksForRamp()` for waiting out a smoother. Add a new block's tests as their own file in
 `tests/CMakeLists.txt`.
 
+**On Windows**, from a *Developer PowerShell for Visual Studio* (it puts MSVC, Ninja and
+`dumpbin` on the PATH), the same commands build the VST3 and the standalone, and
+`./packaging/package-windows.ps1` builds the installer with Inno Setup 6. Nobody working on this
+has a Windows machine to build on, so in practice the Windows job in CI is the Windows build:
+push a branch and run the workflow by hand from the Actions tab, since only `main`, tags and pull
+requests trigger it on their own.
+
 A test is only worth committing if it fails when the behaviour it describes is broken — check that
 by reverting the fix, not by assuming.
 
@@ -595,11 +624,18 @@ plugin is still built, in `build/AmpSim_artefacts/Debug/`, for pluginval and for
 
 Use `-DCMAKE_BUILD_TYPE=Release` for anything judged by ear or by CPU load.
 
-**CI builds, tests, validates and packages every push and PR; a `v*` tag does all of that and then
-publishes a GitHub Release with the `.pkg` and the `.dmg`.** The tag has to match the version in
-`CMakeLists.txt` or the run fails before it publishes — the workflow reads it with the same `sed`
-expression `packaging/package.sh` uses, so the release and the files in it cannot disagree about
-what version they are. To cut a release: bump `project(AmpSim VERSION ...)`, add the version's entry to `CHANGELOG.md`,
+**CI builds, tests, validates and packages every push and PR, on macOS and on Windows; a `v*` tag
+does all of that and then a third job publishes a GitHub Release with the `.pkg`, the `.dmg` and
+the Windows `setup.exe`.** That job waits for both platforms, so a tag cannot publish one while
+the other failed. The tag has to match the version in `CMakeLists.txt` or the run fails before it
+publishes — the workflow reads it with the same `sed` expression `packaging/package.sh` uses, and
+`package-windows.ps1` reads it the same way, so the release and the files in it cannot disagree
+about what version they are.
+
+The Windows job also renders the panel (`AmpSim-Windows-panel`), runs the benchmark, and installs,
+upgrades and uninstalls the installer both ways. **Run anything that launches a GUI-subsystem
+`.exe` under bash, or with `Start-Process -Wait`**: PowerShell does not wait for those, and a
+pluginval step once passed in five seconds without having finished. To cut a release: bump `project(AmpSim VERSION ...)`, add the version's entry to `CHANGELOG.md`,
 commit and push, then
 
 ```bash
@@ -607,7 +643,8 @@ git tag -a vX.Y.Z -m "AmpSim X.Y.Z" && git push origin vX.Y.Z   # after the vers
 ```
 
 The runner is `macos-latest`, which is Apple silicon, and nothing sets `CMAKE_OSX_ARCHITECTURES`,
-so the published build is arm64 against a deployment target of macOS 11.
+so the published build is arm64 against a deployment target of macOS 11. The Windows build is x64
+and needs AVX2 and Windows 10 2004 or later, which the installer checks.
 
 ## What it costs
 
@@ -628,6 +665,10 @@ together take it to 4.4 % at 64 samples. A fully bypassed plugin is 0.03 %.
 Two consequences worth keeping in mind before optimising anything in the chain: **a block that is
 not the model is not worth hand-tuning for speed**, and **the small block sizes are where the cost
 is**, because the model's own overhead per call does not shrink with the block.
+
+On Windows the same benchmark runs in CI on a shared runner, whose hardware changes between runs,
+so only figures from one job can be compared with each other. On a real laptop (an i5-8350U)
+through ASIO in REAPER, AmpSim took about 3.7 % — the Mac's range.
 
 The figure to watch is not the average. See the transpose's note above: a cost that arrives in
 bursts drops audio while averaging under one per cent. For that, Instruments' Time Profiler at a
@@ -710,11 +751,12 @@ src/
   ui/AmpLookAndFeel.h/.cpp, AmpKnob.h/.cpp, ParameterSlider.h
   ui/AmpPage, PedalsPage, PedalObject, CabPage, PresetRow  (.h/.cpp each)
 resources/         the packed amp model and cab IR → BinaryData
+resources/fonts/   Figtree and Jost (static instances) and their OFL texts → BinaryData
 tests/             Catch2 suites + TestHelpers.h
 tests/fixtures/    clean DI guitar recordings                (empty)
-tools/             Benchmark.cpp, behind -DAMPSIM_BUILD_TOOLS=ON
-docs/              roadmap.md, signal-chain-review.md, guide/index.html, images/
-packaging/         package.sh and its README
+tools/             Benchmark.cpp, PanelSnapshot.cpp, HostCheck.cpp (macOS), behind -DAMPSIM_BUILD_TOOLS=ON
+docs/              roadmap.md, signal-chain-review.md, windows.md, guide/index.html, images/
+packaging/         package.sh (macOS), package-windows.ps1 and windows/AmpSim.iss (Windows), README
 ```
 
 Any empty directory left in that list is the planned layout, held by `.gitkeep`.
@@ -727,4 +769,5 @@ Offline C++ tests assert on *measurable* properties, not on sound: the -3 dB poi
 
 - JUCE 8+ is AGPLv3 or a free Personal commercial tier below a revenue limit — which one applies is an open question in the plan, and it determines whether the repo can be public.
 - A GPL dependency makes the whole plugin GPL if distributed. Check each third-party DSP library's licence before adding it.
+- The Windows standalone's ASIO support uses Steinberg's SDK headers under their GPLv3 option, which is compatible with the AGPLv3; the installer ships that licence. The embedded fonts are OFL, and their licence texts sit in `resources/fonts` and go into the Windows installer.
 - `.nam` model files and capture datasets carry their own licences, and captures of trademarked amps cannot be republished under the amp's name.

@@ -2,10 +2,10 @@
 
 # AmpSim
 
-**A guitar amp simulator for macOS, by Catastrophic Audio**
+**A guitar amp simulator for macOS and Windows, by Catastrophic Audio**
 
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue.svg)](LICENSE)
-![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey.svg)
+![Platforms: macOS | Windows](https://img.shields.io/badge/platforms-macOS%20%7C%20Windows-lightgrey.svg)
 ![Formats: AU | VST3 | Standalone](https://img.shields.io/badge/formats-AU%20%7C%20VST3%20%7C%20Standalone-orange.svg)
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C.svg)
 ![JUCE 9](https://img.shields.io/badge/JUCE-9.0.2-8DC63F.svg)
@@ -65,28 +65,38 @@ it so the repeats are of the already-distorted tone.
 ## Download and install
 
 Ready-made packages are on the [releases page](https://github.com/CatastrophicCoder/ampsim/releases).
-The `.pkg` installs the AU and VST3 into `/Library/Audio/Plug-Ins/` and the standalone app into
-`/Applications`; the `.dmg` holds just the app. In Logic the plugin appears as
-**Catastrophic Audio: AmpSim**, with the other amps and distortion plugins.
+
+**macOS** (Apple silicon, macOS 11 or later): the `.pkg` installs the AU and VST3 into
+`/Library/Audio/Plug-Ins/` and the standalone app into `/Applications`; the `.dmg` holds just the
+app. In Logic the plugin appears as **Catastrophic Audio: AmpSim**, with the other amps and
+distortion plugins.
+
+**Windows** (Windows 10 version 2004 or later, or 11, on x64 with an AVX2 processor): the
+`setup.exe` installs the VST3 and the standalone, for you or for everyone — it asks. In the
+standalone, choose your interface's **ASIO** driver in *Options*: the *Windows Audio* modes go
+through Windows' own mixer and are too slow to play through.
 
 To build your own:
 
 ```sh
-./packaging/package.sh          # or: cmake --build build --target package-macos
+./packaging/package.sh          # macOS; or: cmake --build build --target package-macos
+./packaging/package-windows.ps1 # Windows, from a Developer PowerShell, with Inno Setup 6
 ```
 
 Builds Release, ad-hoc signs everything and writes an installer and a disk image to
 `build-release/artefacts`. No Apple Developer Program membership is needed to build or package.
 
-The cost lands on whoever installs it: the packages carry no Developer ID, so macOS blocks them on
-first launch until the person goes to **System Settings → Privacy & Security** and clicks **Open
-Anyway**. [`packaging/README.md`](packaging/README.md) covers that, what ad-hoc signing does and
-does not do, and what would change with a Developer ID.
+The cost lands on whoever installs it: nothing is signed with a developer certificate, so macOS
+blocks the packages on first launch until the person goes to **System Settings → Privacy &
+Security** and clicks **Open Anyway**, and Windows SmartScreen stops the installer until they
+choose **More info → Run anyway**. [`packaging/README.md`](packaging/README.md) covers both, what
+ad-hoc signing does and does not do, and what signing would change.
 
 ### Cutting a release
 
-CI builds, tests, validates and packages every push. A `v*` tag does the same and then publishes a
-GitHub Release with the installer and disk image attached:
+CI builds, tests, validates and packages every push, on macOS and Windows. A `v*` tag does the same
+and then, once both have passed, publishes a GitHub Release with the macOS installer and disk
+image and the Windows installer attached:
 
 ```sh
 # bump project(AmpSim VERSION X.Y.Z) in CMakeLists.txt first, and commit and push it
@@ -159,6 +169,24 @@ is roughly sixty times slower, and when both installed to the same place a Debug
 replaced the one a DAW was loading. Pass `-DAMPSIM_COPY_PLUGIN=ON` to install a Debug build anyway.
 Use Release for anything you intend to judge by ear or by CPU load.
 
+### On Windows
+
+The Windows build is the VST3 and the standalone, x64 only. It needs Visual Studio 2022 or later,
+or just its Build Tools, with the *Desktop development with C++* workload, which brings MSVC,
+CMake and Ninja. Inno Setup 6 builds the installer. Work in a **Developer PowerShell for Visual
+Studio**, then:
+
+```powershell
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DAMPSIM_COPY_PLUGIN=OFF
+cmake --build build
+ctest --test-dir build --output-on-failure
+./packaging/package-windows.ps1     # the installer, in build-release/artefacts
+```
+
+`AMPSIM_COPY_PLUGIN=OFF` because JUCE's default destination is under Program Files, which needs
+an administrator. The build requires AVX2 and links the C++ runtime statically;
+[`docs/windows.md`](docs/windows.md) explains both, and everything else about the port.
+
 JUCE is pinned on purpose: Apple toolchain and JUCE updates are a reliable source of "the build
 broke and nothing changed". Update it deliberately, in its own commit, and re-validate afterwards.
 
@@ -207,8 +235,8 @@ assistant.
 
 ## What it does not do
 
-- **macOS and Apple silicon only.** Nothing is Mac-specific in the DSP, but no other platform has
-  been built or tested.
+- **macOS on Apple silicon, and Windows on x64 with AVX2.** No Linux build, no Intel Mac build,
+  and no native Windows-on-ARM build: there the x64 build loads only in an x64 host.
 - **Mono.** Stereo input is summed at the top of the chain.
 - **One model, one cabinet, no channel switching.**
 - **The mic-position blend is unproven musically.** The interpolation is exact and tested, but
@@ -218,7 +246,8 @@ assistant.
   input made the Audio Unit a MIDI-controlled effect, which Logic feeds from a side chain; the same
   setting carries the VST3's MIDI input. In Logic, Controller Assignments (Cmd-L) map any plugin's
   parameters instead.
-- **Nothing is notarised**, so anyone you give a build to has to allow it through Gatekeeper.
+- **Nothing is notarised or code-signed**, so anyone you give a build to has to allow it through
+  Gatekeeper or SmartScreen.
 
 ## Licence
 
