@@ -71,14 +71,16 @@ jobs:
           path: panel/*.png
           if-no-files-found: error
 
-      # Also proves the build is AVX2: a build that lost the flag would still pass every test,
-      # and only cost more. Then the benchmark, which asserts nothing; a shared runner changes
+      # Also proves the build is AVX2 and has ASIO: a build that lost either would still pass every
+      # test, and only cost more or offer the standalone no low-latency driver. Then the benchmark, which asserts nothing; a shared runner changes
       # hardware between runs, so compare figures only within one job. 48 kHz is the model's own
       # rate; 44.1 kHz puts the resampler in the chain.
       - name: Benchmark
         run: |
-          if (-not (Select-String -Path build/build.ninja -Pattern '/arch:AVX2' -SimpleMatch -Quiet)) {
-            throw "/arch:AVX2 did not reach the compile lines"
+          foreach ($flag in '/arch:AVX2', 'JUCE_ASIO=1') {
+            if (-not (Select-String -Path build/build.ninja -Pattern $flag -SimpleMatch -Quiet)) {
+              throw "$flag did not reach the compile lines"
+            }
           }
           (Get-CimInstance Win32_Processor).Name
           ./build/ampsim_bench.exe 48000
@@ -118,7 +120,8 @@ jobs:
             foreach ($pass in 'install', 'upgrade') {
               Run $setup "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART $($c.Mode) /LOG=`"$PWD\$pass.log`""
               foreach ($path in "$($c.Vst3)\Contents\x86_64-win\AmpSim.vst3", "$($c.App)\AmpSim.exe",
-                                "$($c.App)\licenses\LICENSE-AmpSim.txt", "$($c.App)\licenses\OFL-Jost.txt") {
+                                "$($c.App)\licenses\LICENSE-AmpSim.txt", "$($c.App)\licenses\OFL-Jost.txt",
+                                "$($c.App)\licenses\LICENSE-ASIO-SDK.txt") {
                 if (-not (Test-Path $path)) { Get-Content "$pass.log" -Tail 40; throw "$pass did not install $path" }
               }
               "$pass ok"

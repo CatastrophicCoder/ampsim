@@ -238,6 +238,7 @@ Third-party code, all as pinned submodules rather than vendored copies:
 | [nlohmann/json](https://github.com/nlohmann/json) | MIT |
 | [Catch2](https://github.com/catchorg/Catch2) | BSL-1.0 |
 | VST3 SDK (bundled with JUCE) | GPLv3 or Steinberg's proprietary terms |
+| ASIO SDK headers (bundled with JUCE; Windows standalone only) | GPLv3 or Steinberg's proprietary terms |
 
 The panel's two typefaces are embedded in the binary: [Figtree](https://github.com/erikdkennedy/figtree)
 and [Jost](https://github.com/indestructible-type/Jost), both under the

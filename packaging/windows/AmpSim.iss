@@ -97,6 +97,8 @@ Source: "{#StageDir}\Standalone\AmpSim.exe"; DestDir: "{app}"; Components: stand
 Source: "{#RepoRoot}\LICENSE"; DestDir: "{app}\licenses"; DestName: "LICENSE-AmpSim.txt"; Flags: ignoreversion
 Source: "{#RepoRoot}\resources\fonts\OFL-Figtree.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion
 Source: "{#RepoRoot}\resources\fonts\OFL-Jost.txt"; DestDir: "{app}\licenses"; Flags: ignoreversion
+; The standalone's ASIO support is built from Steinberg's SDK headers, used under its GPLv3 option.
+Source: "{#RepoRoot}\external\JUCE\modules\juce_audio_devices\native\asio\LICENSE.txt"; DestDir: "{app}\licenses"; DestName: "LICENSE-ASIO-SDK.txt"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\AmpSim"; Filename: "{app}\AmpSim.exe"; Components: standalone

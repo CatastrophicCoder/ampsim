@@ -160,6 +160,16 @@ target_compile_definitions(AmpSim PUBLIC
     JUCE_VST3_CAN_REPLACE_VST2=0
     JUCE_REPORT_APP_USAGE=0)
 
+# ASIO in the Windows standalone. Every Windows Audio mode goes through Windows' own audio engine,
+# which on a typical interface stops at a 10 ms period and the device's shared sample rate; ASIO
+# talks to the interface's own driver, which is what a guitarist on Windows plays through. The
+# headers are the ones bundled with JUCE, from Steinberg's SDK, used under its GPLv3 option, which
+# is compatible with this project's AGPLv3; the installer ships that licence text. A plug-in uses
+# its host's driver, so this only matters to the standalone.
+if(WIN32)
+    target_compile_definitions(AmpSim PUBLIC JUCE_ASIO=1)
+endif()
+
 target_link_libraries(AmpSim
     PRIVATE
         AmpSimAssets

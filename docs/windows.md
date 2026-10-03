@@ -237,6 +237,8 @@ notice that has to travel with each copy. The installer should still ship the tw
 
 ### Low-latency audio in the standalone
 
+**Decided after step 6: ASIO is enabled.** See *Tried by hand* above.
+
 A JUCE standalone on Windows offers Windows Audio (WASAPI shared), Windows Audio exclusive mode,
 low-latency mode, and DirectSound by default. ASIO is what most guitar interfaces' own drivers
 provide, and it is what a guitarist on Windows will look for.
@@ -344,7 +346,13 @@ laptop's CPU missing deadlines at 132 samples would sound similar, and nothing h
 on it yet.
 
 What would give a guitar latency on this interface is ASIO. Audient's own Windows driver
-provides it, and the standalone cannot use it while `JUCE_ASIO` is off.
+provides it, and the standalone could not use it while `JUCE_ASIO` was off.
+
+**Decided: ASIO is on in the Windows build** (`JUCE_ASIO=1` in `CMakeLists.txt`). The headers are
+the copies of Steinberg's SDK bundled with JUCE 9, under the SDK's GPLv3 option, which is
+compatible with the AGPLv3. The installer ships the SDK's licence as `LICENSE-ASIO-SDK.txt`.
+The standalone still starts on JUCE's first device type, Windows Audio; ASIO is chosen once in
+*Options* and remembered.
 
 ## Packaging with Inno Setup
 
