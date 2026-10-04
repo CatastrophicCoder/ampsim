@@ -9,18 +9,21 @@
 */
 
 /*
-    Renders each page of the panel to a PNG, so the panel can be looked at rather than reasoned
-    about. CLAUDE.md asks for that after any change to the panel. This is also how the Windows
-    build's panel gets seen without a Windows machine: CI runs it and uploads the images.
+    Renders the panel to PNGs, so it can be looked at rather than reasoned about. CLAUDE.md asks
+    for that after any change to the panel. CI runs it on Windows and uploads the images, and at
+    the guide's scale it writes the guide's own screenshots:
 
         ampsim_snapshot [output directory] [scale]
+        ampsim_snapshot docs/images 2           # regenerates every screenshot in the user guide
 
-    It drives the real editor with the built-in amp and cab loaded, as a fresh instance has them,
-    and switches pages through the tab buttons' own click handlers.
+    Each shot starts from the Default preset with the built-in amp and cab, as a fresh instance
+    has them, sets what it needs, and gets an editor of its own, since the editor reads some
+    state (whether the tuner is showing) only when it is made.
 */
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 
+#include <functional>
 #include <iostream>
 
 namespace
@@ -30,16 +33,24 @@ namespace
         juce::MessageManager::getInstance()->runDispatchLoopUntil (milliseconds);
     }
 
-    void waitForModel (AmpSimAudioProcessor& processor)
+    void processSilence (AmpSimAudioProcessor& processor, int blocks)
     {
         juce::AudioBuffer<float> buffer (2, 512);
         juce::MidiBuffer midi;
 
+        for (int i = 0; i < blocks; ++i)
+        {
+            buffer.clear();
+            processor.processBlock (buffer, midi);
+        }
+    }
+
+    void waitForModel (AmpSimAudioProcessor& processor)
+    {
         for (int i = 0; i < 400 && ! processor.isModelLoaded(); ++i)
         {
             runMessageLoop (25);
-            buffer.clear();
-            processor.processBlock (buffer, midi);
+            processSilence (processor, 1);
         }
     }
 
@@ -53,6 +64,53 @@ namespace
             findTabs (*child, tabs);
         }
     }
+
+    void set (AmpSimAudioProcessor& processor, const char* id, float value)
+    {
+        if (auto* p = processor.getValueTreeState().getParameter (id))
+            p->setValueNotifyingHost (p->convertTo0to1 (value));
+    }
+
+    void choose (AmpSimAudioProcessor& processor, const char* id, const juce::String& choice)
+    {
+        if (auto* p = processor.getValueTreeState().getParameter (id))
+            p->setValueNotifyingHost (p->getValueForText (choice));
+    }
+
+    /** A plucked open A string, nine cents sharp, fed through the processor while the editor's
+        timer reads the tuner — which is where the reading on the tuner shot comes from. */
+    void playA2 (AmpSimAudioProcessor& processor)
+    {
+        constexpr double rate = 48000.0;
+        const auto frequency = 110.0 * std::pow (2.0, 9.0 / 1200.0);
+
+        juce::AudioBuffer<float> buffer (2, 512);
+        juce::MidiBuffer midi;
+        double phase = 0.0;
+
+        for (int block = 0; block < 120; ++block)
+        {
+            for (int i = 0; i < buffer.getNumSamples(); ++i)
+            {
+                const auto x = (float) (0.3 * std::sin (phase) + 0.1 * std::sin (2.0 * phase));
+                phase += juce::MathConstants<double>::twoPi * frequency / rate;
+
+                for (int ch = 0; ch < buffer.getNumChannels(); ++ch)
+                    buffer.setSample (ch, i, x);
+            }
+
+            processor.processBlock (buffer, midi);
+            runMessageLoop (10);
+        }
+    }
+
+    struct Shot
+    {
+        const char* name;
+        int tab;
+        std::function<void (AmpSimAudioProcessor&)> setUp;
+        std::function<void (AmpSimAudioProcessor&)> whileOpen;
+    };
 }
 
 int main (int argc, char** argv)
@@ -73,25 +131,51 @@ int main (int argc, char** argv)
     processor.prepareToPlay (48000.0, 512);
     waitForModel (processor);
 
-    std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
-    runMessageLoop (200);
-
-    juce::Array<TabButton*> tabs;
-    findTabs (*editor, tabs);
-
-    if (tabs.isEmpty())
+    const Shot shots[]
     {
-        std::cerr << "No tabs found on the editor\n";
-        return 1;
-    }
+        { "amp",    0, {}, {} },
+        { "pedals", 1, {}, {} },
+        { "cab",    2, {}, {} },
+        { "amp-off", 0, [] (auto& p) { set (p, ParamID::power, 0.0f); }, {} },
+        { "pedals-variants", 1, [] (auto& p) { choose (p, ParamID::dirtType, "Overdrive");
+                                               choose (p, ParamID::modulationType, "Phaser"); }, {} },
+        { "tuner",  0, [] (auto& p) { set (p, ParamID::tunerOn, 1.0f); }, playA2 },
+    };
 
-    for (auto* tab : tabs)
+    for (const auto& shot : shots)
     {
-        tab->onClick();
+        if (const auto error = processor.getPresets().load ("Default"); error.isNotEmpty())
+        {
+            std::cerr << "Could not load the Default preset: " << error << "\n";
+            return 1;
+        }
+
+        if (shot.setUp)
+            shot.setUp (processor);
+
+        processSilence (processor, 20);
+        runMessageLoop (100);
+
+        std::unique_ptr<juce::AudioProcessorEditor> editor (processor.createEditor());
         runMessageLoop (200);
 
+        juce::Array<TabButton*> tabs;
+        findTabs (*editor, tabs);
+
+        if (! juce::isPositiveAndBelow (shot.tab, tabs.size()))
+        {
+            std::cerr << "No tab " << shot.tab << " on the editor\n";
+            return 1;
+        }
+
+        tabs[shot.tab]->onClick();
+        runMessageLoop (200);
+
+        if (shot.whileOpen)
+            shot.whileOpen (processor);
+
         const auto image = editor->createComponentSnapshot (editor->getLocalBounds(), true, scale);
-        const auto file = outputDirectory.getChildFile ("panel-" + tab->getButtonText().toLowerCase() + ".png");
+        const auto file = outputDirectory.getChildFile (juce::String (shot.name) + ".png");
 
         file.deleteFile();
         juce::FileOutputStream stream (file);
@@ -104,8 +188,10 @@ int main (int argc, char** argv)
         }
 
         std::cout << file.getFullPathName() << " (" << image.getWidth() << " x " << image.getHeight() << ")\n";
+
+        editor.reset();
+        runMessageLoop (50);
     }
 
-    editor.reset();
     return 0;
 }

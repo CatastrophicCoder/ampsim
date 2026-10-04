@@ -256,6 +256,11 @@ scale button's shape pointed at a parameter, with the choices in a `PopupMenu`. 
 the panel's height, so a taller panel needs all of them scaled by the old height over the new one.
 `docs/guide/index.html` and `docs/images/` both have to be redone.
 
+**The guide's screenshots come from the snapshot tool**: `ampsim_snapshot docs/images 2`, from a
+Release build with `-DAMPSIM_BUILD_TOOLS=ON`, writes all six — the three pages, the amp switched
+off, the slots holding other pedals, and the tuner reading an A2 nine cents sharp. Regenerate them
+rather than editing them after any change that shows on the panel.
+
 `AmpMaterials` holds what the objects are *made of* — tolex, piping, grille cloth, brushed metal,
 brass — and draws a covered box, a grille and a control plate. The amp and the cab both use it, so
 the two pages read as parts of one rig. Those colours carry no meaning, unlike `AmpPalette`'s
