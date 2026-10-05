@@ -684,6 +684,11 @@ Two consequences worth keeping in mind before optimising anything in the chain: 
 not the model is not worth hand-tuning for speed**, and **the small block sizes are where the cost
 is**, because the model's own overhead per call does not shrink with the block.
 
+The Intel Mac leg in CI runs it too. Its first run, on an i7-8700B (the 2018 Mac mini's part),
+was 7.9 % for amp and cab at 64 samples and 8.0 % with everything on at 48 kHz — about twice the
+M-series figure — and 11.2 % at 44.1 kHz, where the resampler joins in. The same caveat about a
+shared runner applies.
+
 On Windows the same benchmark runs in CI on a shared runner, whose hardware changes between runs,
 so only figures from one job can be compared with each other. On a real laptop (an i5-8350U)
 through ASIO in REAPER, AmpSim took about 3.7 % — the Mac's range.
