@@ -1,7 +1,7 @@
 name: build
 
 # Every push to main and every pull request, a button in the Actions tab, and version tags
-# (v1.2.3), which also publish a GitHub Release with the installer and disk image.
+# (v1.2.3), which also publish a GitHub Release with the installers and disk images.
 on:
   push:
     branches: [main]
@@ -142,11 +142,32 @@ jobs:
           path: build/artefacts/*-setup.exe
           if-no-files-found: error
 
+  # One leg per kind of Mac, each built, tested and validated natively on that kind of Mac rather
+  # than cross-built: auval and pluginval load the plugin, which an Intel binary cannot do on Apple
+  # silicon without Rosetta, and the AVX2 Intel build is only proven by running it on Intel.
   macos:
-    name: macOS (Release)
-    # macos-latest rather than a pinned version: GitHub retires old runner images, and a pinned
-    # label that has been retired fails before it builds anything.
-    runs-on: macos-latest
+    name: macOS ${{ matrix.name }} (Release)
+    strategy:
+      # Let both finish, so one failing does not hide what the other would have said. A tag still
+      # publishes nothing unless both pass: the release job needs the whole matrix.
+      fail-fast: false
+      matrix:
+        include:
+          # macos-latest rather than a pinned version: GitHub retires old runner images, and a
+          # pinned label that has been retired fails before it builds anything.
+          - name: Apple silicon
+            runner: macos-latest
+            arch: arm64
+            artifact: AmpSim-macOS-AppleSilicon
+          # Pinned, because there is no "latest" Intel label: macos-15-intel is the last Intel
+          # image GitHub provides, and it is retired in autumn 2027. After that this leg has
+          # nowhere to run, and the Intel build will have to be cross-built on Apple silicon and
+          # tested under Rosetta, or dropped.
+          - name: Intel
+            runner: macos-15-intel
+            arch: x86_64
+            artifact: AmpSim-macOS-Intel
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - uses: actions/checkout@v4
@@ -159,8 +180,11 @@ jobs:
       - name: Install Ninja
         run: brew install ninja
 
+      # The architecture named rather than left to the runner, so a runner that turned out to be
+      # the other kind of Mac fails the build instead of quietly producing the wrong one; the
+      # package step checks every binary against it. AMPSIM_BUILD_TOOLS for the benchmark below.
       - name: Configure
-        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=${{ matrix.arch }} -DAMPSIM_BUILD_TOOLS=ON
 
       - name: Build
         run: cmake --build build
@@ -192,16 +216,30 @@ jobs:
             --strictness-level 10 \
             --validate build/AmpSim_artefacts/Release/VST3/AmpSim.vst3
 
+      # Asserts nothing, as on Windows: compare figures only within one job. On the Intel leg it
+      # also proves the AVX2 build is what was made, since a build without it passes every test
+      # and only costs more. 48 kHz is the model's own rate; 44.1 kHz puts the resampler in.
+      - name: Benchmark
+        run: |
+          if [ "${{ matrix.arch }}" = x86_64 ]; then
+            for flag in -mavx2 -mfma; do
+              grep -q -- "$flag" build/build.ninja || { echo "$flag did not reach the compile lines" >&2; exit 1; }
+            done
+          fi
+          sysctl -n machdep.cpu.brand_string
+          ./build/ampsim_bench 48000
+          ./build/ampsim_bench 44100
+
       # Proves the installer still builds and signs on every run, and is what a tagged run
       # publishes.
       - name: Package
         # Reuses the build above rather than making a second one; the script only has to
         # reconfigure to drop the tests.
-        run: AMPSIM_BUILD_DIR=build ./packaging/package.sh
+        run: AMPSIM_BUILD_DIR=build AMPSIM_ARCH=${{ matrix.arch }} ./packaging/package.sh
 
       - uses: actions/upload-artifact@v4
         with:
-          name: AmpSim-macOS
+          name: ${{ matrix.artifact }}
           path: build/artefacts/*
           if-no-files-found: error
 
@@ -223,9 +261,11 @@ jobs:
         with:
           fetch-depth: 1
 
+      # Both Macs' packages, into the one directory: their names already say which is which.
       - uses: actions/download-artifact@v4
         with:
-          name: AmpSim-macOS
+          pattern: AmpSim-macOS-*
+          merge-multiple: true
           path: release
 
       - uses: actions/download-artifact@v4
@@ -249,7 +289,7 @@ jobs:
             --verify-tag <<EOF
           AmpSim $version.
 
-          **macOS:** Apple silicon, macOS 11 or later. \`.pkg\` installs the Audio Unit, the VST3 and the standalone; \`.dmg\` holds the standalone alone. Ad-hoc signed: the first use needs System Settings > Privacy & Security > Open Anyway.
+          **macOS:** macOS 11 or later, in two builds. Files ending \`macos-apple-silicon\` are for M-series Macs; files ending \`macos-intel\` are for Intel Macs, which need a processor with AVX2 (every Intel Mac that runs macOS 11 except the 2013 Mac Pro). The installer refuses the wrong one. \`.pkg\` installs the Audio Unit, the VST3 and the standalone; \`.dmg\` holds the standalone alone. Ad-hoc signed: the first use needs System Settings > Privacy & Security > Open Anyway.
 
           **Windows:** Windows 10 version 2004 or later, or Windows 11, on x64 with an AVX2 processor (Intel Core from 2013, any AMD Ryzen). \`setup.exe\` installs the VST3 and the standalone, for you or for everyone. Unsigned: SmartScreen needs More info > Run anyway. In the standalone, choose your interface's ASIO driver in Options for low latency.
 

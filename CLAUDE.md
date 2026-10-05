@@ -556,7 +556,7 @@ a modelled passive stack. Each is explained where it is implemented.
 
 ## What the project is
 
-A **minimal** guitar amp simulator plugin (JUCE, C++17), built as AU / VST3 / Standalone on macOS and as VST3 / Standalone on Windows. Four parts, per the Goal section of `ampsim_plan.md`:
+A **minimal** guitar amp simulator plugin (JUCE, C++17), built as AU / VST3 / Standalone on macOS (Apple silicon and Intel, separately) and as VST3 / Standalone on Windows. Four parts, per the Goal section of `ampsim_plan.md`:
 
 1. **Amp** — a pre-trained `.nam` model run through [NeuralAmpModelerCore](https://github.com/sdatkinson/NeuralAmpModelerCore) (MIT). No hand-written amp DSP; the model supplies the tone.
 2. **Custom amp-like UI** — a front panel with Gain, three-band EQ (Bass, Mid, Treble) and Master Volume. This is the project's own contribution and the reason it is not just a NAM loader.
@@ -647,9 +647,22 @@ commit and push, then
 git tag -a vX.Y.Z -m "AmpSim X.Y.Z" && git push origin vX.Y.Z   # after the version commit is pushed
 ```
 
-The runner is `macos-latest`, which is Apple silicon, and nothing sets `CMAKE_OSX_ARCHITECTURES`,
-so the published build is arm64 against a deployment target of macOS 11. The Windows build is x64
-and needs AVX2 and Windows 10 2004 or later, which the installer checks.
+**There are two Mac builds, not one universal binary**: `AmpSim-<version>-macos-apple-silicon`
+and `-macos-intel`, each a `.pkg` and a `.dmg`, both against a deployment target of macOS 11. The
+macOS job is a matrix, and each leg builds, tests and validates on its own kind of Mac:
+`macos-latest` for arm64 and `macos-15-intel` for x86_64. That Intel label is the last GitHub
+offers and is retired in autumn 2027; after that the Intel build has to be cross-built on Apple
+silicon and tested under Rosetta, which runs AVX2 (all 126 tests passed that way) though
+`sysctl hw.optional.avx2_0` says 0 under it. `package.sh` takes `AMPSIM_ARCH`, refuses a binary
+`lipo` says is the other architecture, and turns off `AMPSIM_COPY_PLUGIN` for a cross build so an
+Intel AU never replaces the one the hosts on an Apple silicon Mac load.
+
+**The Intel Mac build is AVX2 and FMA**, `-mavx2 -mfma` in `CMakeLists.txt`, for the reason the
+Windows build is; clang does not imply FMA from AVX2 the way MSVC's `/arch:AVX2` does. The
+installer's `installation-check` in `packaging/distribution.xml` refuses an Intel package on
+Apple silicon, an Apple silicon one on Intel, and an Intel Mac without AVX2 (only the 2013 Mac Pro
+among those macOS 11 supports). The Windows build is x64 and needs AVX2 and Windows 10 2004 or
+later, which its installer checks.
 
 ## What it costs
 

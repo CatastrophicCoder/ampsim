@@ -119,7 +119,11 @@
   <section id="install">
     <h2>Installing</h2>
     <h3>macOS</h3>
-    <p>Apple silicon, macOS 11 or later. The installer puts three things on your machine: an <b>Audio Unit</b>
+    <p>macOS 11 or later, on Apple silicon or an Intel Mac. There is a package for each: the files
+      ending <code>macos-apple-silicon</code> are for M-series Macs, and those ending
+      <code>macos-intel</code> for Intel ones, which need a processor with AVX2 &mdash; every Intel
+      Mac that runs macOS 11 has it except the 2013 Mac Pro. The installer checks, and refuses the
+      wrong one. It puts three things on your machine: an <b>Audio Unit</b>
       and a <b>VST3</b> in <code>/Library/Audio/Plug-Ins/</code>, and a <b>standalone app</b> in
       <code>/Applications</code>. Take whichever you need.</p>
     <ol>

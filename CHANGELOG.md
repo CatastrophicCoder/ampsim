@@ -3,6 +3,21 @@
 What changed in each published release. The [user guide](https://catastrophiccoder.github.io/ampsim/)
 describes how the current version behaves; this records what moved between versions.
 
+## [Unreleased]
+
+### Added
+
+- **Intel Macs.** A second macOS build, for Intel Macs on macOS 11 or later with an AVX2
+  processor — every Intel Mac that runs macOS 11 except the 2013 Mac Pro. It is a separate
+  package rather than a universal binary.
+
+### Changed
+
+- **The macOS files say which Mac they are for**: `AmpSim-<version>-macos-apple-silicon` and
+  `AmpSim-<version>-macos-intel`, each as a `.pkg` and a `.dmg`, where there used to be one
+  unlabelled pair. The installer refuses the wrong one by name, where before the Apple silicon
+  package would install on an Intel Mac and leave plugins that could not load.
+
 ## [0.4.0] — 2026-10-04
 
 **Windows.** The VST3 and the standalone now build, test and install on Windows as well as

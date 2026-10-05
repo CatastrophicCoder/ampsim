@@ -66,9 +66,11 @@ it so the repeats are of the already-distorted tone.
 
 Ready-made packages are on the [releases page](https://github.com/CatastrophicCoder/ampsim/releases).
 
-**macOS** (Apple silicon, macOS 11 or later): the `.pkg` installs the AU and VST3 into
-`/Library/Audio/Plug-Ins/` and the standalone app into `/Applications`; the `.dmg` holds just the
-app. In Logic the plugin appears as **Catastrophic Audio: AmpSim**, with the other amps and
+**macOS** (macOS 11 or later): take the files ending `macos-apple-silicon` for an M-series Mac
+and `macos-intel` for an Intel one, which needs AVX2 — every Intel Mac that runs macOS 11 has it
+except the 2013 Mac Pro. The installer refuses the wrong one. The `.pkg` installs the AU and VST3
+into `/Library/Audio/Plug-Ins/` and the standalone app into `/Applications`; the `.dmg` holds just
+the app. In Logic the plugin appears as **Catastrophic Audio: AmpSim**, with the other amps and
 distortion plugins.
 
 **Windows** (Windows 10 version 2004 or later, or 11, on x64 with an AVX2 processor): the
@@ -235,8 +237,8 @@ assistant.
 
 ## What it does not do
 
-- **macOS on Apple silicon, and Windows on x64 with AVX2.** No Linux build, no Intel Mac build,
-  and no native Windows-on-ARM build: there the x64 build loads only in an x64 host.
+- **macOS on Apple silicon or Intel with AVX2, and Windows on x64 with AVX2.** No Linux build, no
+  universal Mac binary — two separate packages instead — and no native Windows-on-ARM build: there the x64 build loads only in an x64 host.
 - **Mono.** Stereo input is summed at the top of the chain.
 - **One model, one cabinet, no channel switching.**
 - **The mic-position blend is unproven musically.** The interpolation is exact and tested, but

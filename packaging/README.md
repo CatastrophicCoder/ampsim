@@ -57,15 +57,37 @@ false. Anything added to the installer later needs the same treatment.
 
 It builds Release, ad-hoc signs the three formats, and writes to `build-release/artefacts`:
 
-- `AmpSim-<version>.pkg` — an installer offering the AU, the VST3 and the standalone app
-  separately. Installs to `/Library/Audio/Plug-Ins/` and `/Applications`, so it asks for an
+- `AmpSim-<version>-<platform>.pkg` — an installer offering the AU, the VST3 and the standalone
+  app separately. Installs to `/Library/Audio/Plug-Ins/` and `/Applications`, so it asks for an
   administrator password.
-- `AmpSim-<version>.dmg` — the standalone app alone, with a link to Applications to drag it into.
+- `AmpSim-<version>-<platform>.dmg` — the standalone app alone, with a link to Applications to drag
+  it into.
+
+`<platform>` is `macos-apple-silicon` or `macos-intel`. The script builds for the Mac it runs on;
+`AMPSIM_ARCH` picks the other one:
+
+```sh
+AMPSIM_ARCH=x86_64 ./packaging/package.sh    # Intel, into build-release-x86_64/artefacts
+AMPSIM_ARCH=arm64  ./packaging/package.sh    # Apple silicon, from an Intel Mac
+```
+
+A build for the other kind of Mac goes in a tree of its own and is not copied into
+`~/Library/Audio/Plug-Ins`, where it would replace the plugin this Mac's hosts load. The script
+checks every binary with `lipo` before packaging it, so a build tree configured for the wrong Mac
+fails rather than producing a package with the wrong name.
+
+The two are separate packages rather than one universal binary. The Intel build is compiled for
+AVX2, as the Windows build is (`docs/windows.md` has the measurements), and that takes
+per-architecture compiler flags. Each package's installer checks the Mac it is opened on and
+refuses the wrong one by name, and the Intel one also refuses a processor without AVX2 — of the
+Macs that run macOS 11, only the 2013 Mac Pro. The Intel build runs under Rosetta on Apple silicon,
+AVX2 included, which is how to run its tests on an M-series Mac; Rosetta's own overhead makes its
+benchmark figures meaningless there.
 
 To install without an administrator password, into your own library rather than the system one:
 
 ```sh
-installer -pkg build-release/artefacts/AmpSim-*.pkg -target CurrentUserHomeDirectory
+installer -pkg build-release/artefacts/AmpSim-*-macos-apple-silicon.pkg -target CurrentUserHomeDirectory
 ```
 
 That puts the plugins in `~/Library/Audio/Plug-Ins/` and the app in `~/Applications`, which every
