@@ -3,7 +3,10 @@
 What changed in each published release. The [user guide](https://catastrophiccoder.github.io/ampsim/)
 describes how the current version behaves; this records what moved between versions.
 
-## [Unreleased]
+## [0.5.0] — 2026-10-06
+
+**Intel Macs.** macOS now has two builds, one for Apple silicon and one for Intel, and every file
+says which it is for.
 
 ### Added
 
@@ -98,5 +101,6 @@ silent. Everything below is new relative to having nothing published.
   hearing one.
 - **Nothing is notarised**, so macOS blocks the first launch until it is allowed through.
 
+[0.5.0]: https://github.com/CatastrophicCoder/ampsim/releases/tag/v0.5.0
 [0.4.0]: https://github.com/CatastrophicCoder/ampsim/releases/tag/v0.4.0
 [0.3.0]: https://github.com/CatastrophicCoder/ampsim/releases/tag/v0.3.0
