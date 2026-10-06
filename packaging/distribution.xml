@@ -1,8 +1,43 @@
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
-    <title>AmpSim @VERSION@</title>
+    <title>AmpSim @VERSION@ for @MAC@</title>
     <welcome file="welcome.html" mime-type="text/html"/>
+    <!-- Both architectures, so the installer runs natively on either Mac and the check below,
+         rather than Rosetta or a generic refusal, is what tells someone they have the wrong one. -->
     <options customize="always" require-scripts="false" hostArchitectures="arm64,x86_64"/>
+    <installation-check script="suitsThisMac()"/>
+    <script><![CDATA[
+    // package.sh substitutes the architecture this package was built for.
+    var builtFor = '@ARCH@';
+
+    function refuse(message) {
+        my.result.type = 'Fatal';
+        my.result.title = 'This is the wrong AmpSim for this Mac';
+        my.result.message = message;
+        return false;
+    }
+
+    function suitsThisMac() {
+        // hw.optional.arm64 is 1 on Apple silicon, even when the installer runs under Rosetta.
+        var appleSilicon = system.sysctl('hw.optional.arm64') == 1;
+
+        if (builtFor == 'arm64' && !appleSilicon)
+            return refuse('This package is for Macs with Apple silicon. This Mac has an Intel ' +
+                          'processor: download the AmpSim package whose name ends in macos-intel.');
+
+        if (builtFor == 'x86_64' && appleSilicon)
+            return refuse('This package is for Intel Macs. This Mac has Apple silicon: download ' +
+                          'the AmpSim package whose name ends in macos-apple-silicon.');
+
+        // The Intel build is compiled for AVX2 (CMakeLists.txt). Without it the plugin would crash
+        // its host on the first block rather than refuse to load. The 2013 Mac Pro is the one Mac
+        // that runs macOS 11 and lacks it.
+        if (builtFor == 'x86_64' && system.sysctl('hw.optional.avx2_0') != 1)
+            return refuse('AmpSim needs a processor with AVX2, which this Mac does not have.');
+
+        return true;
+    }
+    ]]></script>
 
     <choices-outline>
         <line choice="au"/>

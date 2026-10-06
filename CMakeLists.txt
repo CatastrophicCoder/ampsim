@@ -24,6 +24,16 @@ if(MSVC)
     add_compile_options(/arch:AVX2)
 endif()
 
+# The Intel Mac build makes the same choice, for the same reason. Every Intel Mac that runs
+# macOS 11 has AVX2 except the 2013 Mac Pro, and the installer refuses that one (see
+# packaging/distribution.xml). AVX2 does not bring FMA with it on clang the way /arch:AVX2 does
+# on MSVC, so ask for both. A single-architecture build only: there is no AVX2 on arm64, and a
+# universal build would need the flags per slice, which nothing here produces.
+if(APPLE AND (CMAKE_OSX_ARCHITECTURES STREQUAL "x86_64"
+              OR (NOT CMAKE_OSX_ARCHITECTURES AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")))
+    add_compile_options(-mavx2 -mfma)
+endif()
+
 # The C++ runtime linked statically on Windows (/MT), so the standalone and the VST3 need nothing
 # installed beside them. CMake's default is the DLL runtime, and a plugin that cannot find
 # VCRUNTIME140.dll fails to load in the host with no useful message. A variable rather than a
